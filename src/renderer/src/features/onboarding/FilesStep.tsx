@@ -1,14 +1,15 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useState } from 'react'
 import { FileText, Upload, X } from 'lucide-react'
 import { INPUT_CATEGORIES, type InputCategory, type InputFile } from '@shared/workspace'
 import { Button } from '@/components/ui/button'
-import { api, unwrap } from '@/lib/api'
+import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { useApp } from '@/store/app'
 import { stepNumber } from './steps'
+import { useInputs } from './useInputs'
 import { WizardShell } from './WizardShell'
 
-const HINTS: Record<InputCategory, string> = {
+export const HINTS: Record<InputCategory, string> = {
   'sales collateral': 'Pitch deck, sales deck, one-pagers',
   'customer references': 'Case studies, testimonials, quotes',
   'competitive-intel': 'Competitor teardowns, win/loss notes, analyst reports',
@@ -17,7 +18,7 @@ const HINTS: Record<InputCategory, string> = {
   'help-docs': 'Product docs, FAQs'
 }
 
-const LABELS: Record<InputCategory, string> = {
+export const LABELS: Record<InputCategory, string> = {
   'sales collateral': 'Sales collateral',
   'customer references': 'Customer references',
   'competitive-intel': 'Competitive intel',
@@ -25,10 +26,6 @@ const LABELS: Record<InputCategory, string> = {
   roadmap: 'Roadmap',
   'help-docs': 'Help docs'
 }
-
-type Files = Record<InputCategory, InputFile[]>
-const emptyFiles = (): Files =>
-  Object.fromEntries(INPUT_CATEGORIES.map((c) => [c, []])) as unknown as Files
 
 const size = (n: number): string =>
   n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`
@@ -42,7 +39,7 @@ interface ZoneProps {
   onRemove: (name: string) => void
 }
 
-function DropZone({ category, files, message, onDropFiles, onBrowse, onRemove }: ZoneProps) {
+export function DropZone({ category, files, message, onDropFiles, onBrowse, onRemove }: ZoneProps) {
   const [over, setOver] = useState(false)
   return (
     <div
@@ -106,42 +103,7 @@ function DropZone({ category, files, message, onDropFiles, onBrowse, onRemove }:
 }
 
 export function FilesStep() {
-  const [files, setFiles] = useState<Files>(emptyFiles)
-  const [messages, setMessages] = useState<Partial<Record<InputCategory, string>>>({})
-
-  const reload = useCallback(
-    () =>
-      unwrap(api.listInputs())
-        .then((f) => setFiles({ ...emptyFiles(), ...f }))
-        .catch(() => undefined),
-    []
-  )
-  useEffect(() => {
-    void reload()
-  }, [reload])
-
-  const report = (category: InputCategory, refused: { name: string; reason: string }[]): void =>
-    setMessages((m) => ({
-      ...m,
-      [category]: refused.length
-        ? refused.map((r) => `${r.name}: ${r.reason}`).join(' ')
-        : undefined
-    }))
-
-  const add = async (category: InputCategory, paths: string[]): Promise<void> => {
-    const r = await unwrap(api.addInputs(category, paths)).catch(() => null)
-    if (r) report(category, r.refused)
-    await reload()
-  }
-  const browse = async (category: InputCategory): Promise<void> => {
-    const r = await unwrap(api.browseInputs(category)).catch(() => null)
-    if (r) report(category, r.refused)
-    await reload()
-  }
-  const remove = async (category: InputCategory, name: string): Promise<void> => {
-    await unwrap(api.removeInput(category, name)).catch(() => undefined)
-    await reload()
-  }
+  const { files, messages, add, browse, remove } = useInputs()
 
   const finish = (): void => void useApp.getState().advance((p) => p, 'start')
 

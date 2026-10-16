@@ -47,6 +47,11 @@ export interface EngineOptions {
   skipWeb?: boolean
   /** Local tasks (crawl, extract) run outside the AI limit. */
   localConcurrency?: number
+  /**
+   * Run only these tasks. Their dependencies outside the list count as already done: their outputs
+   * from earlier runs are on disk. Used to re-run one task, or to regenerate the playbook.
+   */
+  only?: string[] | null
 }
 
 interface Rt {
@@ -120,7 +125,8 @@ export class ResearchEngine {
     this.skipWeb = opts.skipWeb ?? false
     this.localLimit = opts.localConcurrency ?? 2
     this.startedAt = this.now()
-    for (const def of deps.tasks) this.add(def, null)
+    const only = opts.only ? new Set(opts.only) : null
+    for (const def of deps.tasks) if (!only || only.has(def.id)) this.add(def, null)
   }
 
   // ---------------------------------------------------------------- public API
@@ -169,7 +175,8 @@ export class ResearchEngine {
       skipWeb: this.skipWeb,
       startedAt: this.startedAt,
       endedAt: this.endedAt,
-      tasks
+      tasks,
+      scope: this.opts.only ?? null
     }
   }
 
@@ -256,6 +263,7 @@ export class ResearchEngine {
   ): Promise<ResearchEngine> {
     const engine = new ResearchEngine(deps, {
       ...opts,
+      only: saved.scope,
       runId: saved.id,
       concurrency: saved.concurrency,
       budgetCapUsd: saved.budgetCapUsd,
@@ -349,8 +357,10 @@ export class ResearchEngine {
 
   private depsSatisfied(t: Rt): boolean {
     return t.def.dependsOn.every((d) => {
-      const s = this.rts.get(d)?.status
-      return s === 'done' || s === 'skipped'
+      const dep = this.rts.get(d)
+      // Outside a scoped run's list: done in an earlier run.
+      if (!dep) return true
+      return dep.status === 'done' || dep.status === 'skipped'
     })
   }
 

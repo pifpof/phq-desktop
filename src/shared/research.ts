@@ -59,7 +59,9 @@ export const RunViewSchema = z.object({
   skipWeb: z.boolean(),
   startedAt: z.number(),
   endedAt: z.number().nullable(),
-  tasks: z.array(TaskViewSchema)
+  tasks: z.array(TaskViewSchema),
+  /** The task IDs this run was limited to (a single re-run, or the playbook), or null for a full run. */
+  scope: z.array(z.string()).nullable().default(null)
 })
 export type RunView = z.infer<typeof RunViewSchema>
 

@@ -58,12 +58,12 @@ if (!app.requestSingleInstanceLock()) {
         // Tell the person when they are looking at something else (REQUIREMENTS-v1 3.5).
         if (win?.isFocused() || !Notification.isSupported() || run.status === 'cancelled') return
         const published = run.tasks.some((t) => t.id === 'playbook-assemble' && t.status === 'done')
-        const n = new Notification({
-          title: 'PositioningHQ',
-          body: published
-            ? 'Your positioning playbook is ready.'
+        const body = published
+          ? 'Your positioning playbook is ready.'
+          : run.scope
+            ? 'Research finished.'
             : 'Research stopped before the playbook was finished.'
-        })
+        const n = new Notification({ title: 'PositioningHQ', body })
         n.on('click', () => {
           if (win?.isMinimized()) win.restore()
           win?.focus()

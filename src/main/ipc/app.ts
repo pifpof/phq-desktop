@@ -22,6 +22,7 @@ export async function buildState(ctx: AppContext): Promise<AppState> {
     appVersion: ctx.appVersion,
     secureStorage: ctx.secrets.isSecureStorageAvailable(),
     revealLabel: revealLabel(),
+    openResearchLinks: s.openResearchLinks,
     platform: isMac ? 'mac' : 'other'
   }
 }

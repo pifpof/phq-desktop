@@ -44,6 +44,7 @@ export const AppStateSchema = z.object({
   appVersion: z.string(),
   secureStorage: z.boolean(),
   revealLabel: z.string(),
+  openResearchLinks: z.boolean(),
   platform: z.enum(['mac', 'other'])
 })
 
@@ -153,6 +154,19 @@ export const channels = {
   },
   'research:cancel': { req: z.undefined(), res: z.null() },
   'research:retryTask': { req: z.object({ taskId: z.string().min(1).max(200) }), res: z.null() },
+  'research:rerun': {
+    req: z.object({
+      taskIds: z.array(z.string().min(1).max(200)).max(50).optional(),
+      preset: z.enum(['playbook']).optional()
+    }),
+    res: RunViewSchema
+  },
+  'research:catalog': {
+    req: z.undefined(),
+    res: z.array(
+      z.object({ taskId: z.string(), title: z.string(), path: z.string(), stage: z.number() })
+    )
+  },
   'research:setBudget': {
     req: z.object({ budgetCapUsd: z.number().min(0.01).max(10_000) }),
     res: z.null()
@@ -181,6 +195,20 @@ export const channels = {
       model: z.string()
     })
   },
+  'docs:copy': { req: z.object({ path: z.string().min(1).max(500) }), res: z.null() },
+  'docs:changedSince': {
+    req: z.object({ since: z.string().max(64) }),
+    res: z.object({ profile: z.boolean(), inputs: z.boolean() })
+  },
+  'social:setTagline': {
+    req: z.object({ network: z.string().min(1).max(60), text: z.string().min(1).max(500) }),
+    res: z.null()
+  },
+  'shell:openSource': {
+    req: z.object({ url: z.string().max(2048), path: z.string().min(1).max(500) }),
+    res: z.null()
+  },
+  'settings:allowResearchLinks': { req: z.undefined(), res: z.null() },
   'docs:reveal': { req: z.object({ path: z.string().min(1).max(500) }), res: z.null() },
   'docs:openInEditor': { req: z.object({ path: z.string().min(1).max(500) }), res: z.null() },
   'chat:start': {
@@ -228,6 +256,13 @@ export interface Api {
   readDoc(path: string): Promise<Result<Res<'docs:read'>>>
   openDoc(path: string): Promise<Result<null>>
   revealDoc(path: string): Promise<Result<null>>
+  copyDoc(path: string): Promise<Result<null>>
+  changedSince(since: string): Promise<Result<Res<'docs:changedSince'>>>
+  setSocialTagline(network: string, text: string): Promise<Result<null>>
+  openSource(url: string, path: string): Promise<Result<null>>
+  allowResearchLinks(): Promise<Result<null>>
+  rerunResearch(target: Req<'research:rerun'>): Promise<Result<Res<'research:rerun'>>>
+  researchCatalog(): Promise<Result<Res<'research:catalog'>>>
   listInputs(): Promise<Result<Res<'inputs:list'>>>
   addInputs(
     category: Req<'inputs:add'>['category'],

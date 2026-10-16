@@ -687,3 +687,36 @@ describe('saving and resuming', () => {
     })
   })
 })
+
+describe('scoped runs', () => {
+  it('runs only the listed tasks; dependencies outside the list count as done', async () => {
+    const h = setup([ai('a'), ai('b', ['a']), ai('c', ['b']), ai('x')], async () => undefined, {
+      only: ['b', 'c']
+    })
+    h.engine.start()
+    await h.finished()
+    expect(h.started).toEqual(['b', 'c'])
+    expect(h.engine.view().tasks.map((t) => t.id)).toEqual(['b', 'c'])
+    expect(h.engine.view().scope).toEqual(['b', 'c'])
+    expect(h.engine.view().status).toBe('done')
+  })
+
+  it('restores a scoped run with the same scope', async () => {
+    const g = gates()
+    const first = setup(
+      [ai('a'), ai('b', ['a']), ai('c', ['b'])],
+      (t, s) => (t.id === 'c' ? g.wait('c', s) : Promise.resolve()),
+      { only: ['b', 'c'] }
+    )
+    first.engine.start()
+    await first.until(() => first.status('c') === 'running')
+    await first.engine.flush()
+    const saved = first.saved[first.saved.length - 1]
+    const second = setup([ai('a'), ai('b', ['a']), ai('c', ['b'])], async () => undefined)
+    const restored = await ResearchEngine.restore(second.deps, second.options, saved)
+    expect(restored.view().tasks.map((t) => t.id)).toEqual(['b', 'c'])
+    restored.resume()
+    await second.until(() => restored.isFinished)
+    expect(second.started).toEqual(['c'])
+  })
+})

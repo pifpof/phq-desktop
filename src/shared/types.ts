@@ -43,5 +43,6 @@ export interface AppState {
   secureStorage: boolean
   /** Label for the reveal action: "Show in Finder", "Show in Explorer" or "Show in file manager". */
   revealLabel: string
+  openResearchLinks: boolean
   platform: 'mac' | 'other'
 }

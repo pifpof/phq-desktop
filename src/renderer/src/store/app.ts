@@ -11,7 +11,7 @@ export type Step = 'welcome' | WizardStep | 'home' | 'progress'
  * and `research` opens the start-research card from home. All of them return home.
  */
 export type Flow = 'wizard' | 'replaceKey' | 'changeFolder' | 'research'
-export type HomeView = 'chat' | 'playbook'
+export type HomeView = 'chat' | 'training' | 'playbook' | 'messaging'
 
 interface AppStore {
   state: AppState | null
@@ -26,6 +26,8 @@ interface AppStore {
   profile: Profile | null
   homeView: HomeView
   setHomeView(view: HomeView): void
+  sidebarCollapsed: boolean
+  toggleSidebar(): void
   /** Home, showing this view. */
   goHome(view?: HomeView): Promise<void>
   settingsOpen: boolean
@@ -46,6 +48,15 @@ interface AppStore {
   afterDisconnect(): Promise<void>
 }
 
+const COLLAPSED_KEY = 'phq.sidebarCollapsed'
+function readCollapsed(): boolean {
+  try {
+    return localStorage.getItem(COLLAPSED_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
 export const useApp = create<AppStore>((set, get) => ({
   state: null,
   step: 'welcome',
@@ -56,6 +67,16 @@ export const useApp = create<AppStore>((set, get) => ({
   profile: null,
   homeView: 'chat',
   setHomeView: (homeView) => set({ homeView }),
+  sidebarCollapsed: readCollapsed(),
+  toggleSidebar() {
+    const sidebarCollapsed = !get().sidebarCollapsed
+    set({ sidebarCollapsed })
+    try {
+      localStorage.setItem(COLLAPSED_KEY, sidebarCollapsed ? '1' : '0')
+    } catch {
+      // storage unavailable: the choice lasts for this session only
+    }
+  },
   async goHome(view) {
     await get().refresh()
     const profile = await unwrap(api.getProfile()).catch(() => get().profile)

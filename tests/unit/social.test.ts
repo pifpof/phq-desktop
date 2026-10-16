@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { checkSocialTable, parseSocialTable } from '../../src/shared/social'
+import { checkSocialTable, parseSocialTable, setTagline } from '../../src/shared/social'
 
 const table = `# Social Taglines
 
@@ -39,5 +39,26 @@ describe('social taglines table', () => {
   it('explains what is wrong when the table is missing or empty', () => {
     expect(checkSocialTable('LinkedIn: Rockets that arrive')).toContain('The table is missing')
     expect(checkSocialTable('| Network | URL | Status |\n|---|---|---|')).toContain('no rows')
+  })
+})
+
+describe('setTagline', () => {
+  it('fills a not-found row and leaves everything else alone', () => {
+    const out = setTagline(table, 'x', 'Rockets | that "arrive"\non time')!
+    const rows = parseSocialTable(out)
+    expect(rows[1]).toEqual({
+      network: 'X',
+      url: 'https://x.com/acme',
+      tagline: "Rockets / that 'arrive' on time",
+      source: 'Pasted by you',
+      found: true
+    })
+    expect(rows[0]).toEqual(parseSocialTable(table)[0])
+    expect(out).toContain('## Notes')
+    expect(checkSocialTable(out)).toBeNull()
+  })
+  it('returns null for an unknown network or a missing table', () => {
+    expect(setTagline(table, 'Myspace', 'x')).toBeNull()
+    expect(setTagline('no table', 'X', 'x')).toBeNull()
   })
 })

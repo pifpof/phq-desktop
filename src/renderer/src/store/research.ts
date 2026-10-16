@@ -21,6 +21,8 @@ interface ResearchStore {
   resume(options?: { skipWeb?: boolean; budgetCapUsd?: number }): Promise<void>
   cancel(): Promise<void>
   retry(taskId: string): Promise<void>
+  /** A new run of just these tasks, or the playbook preset. */
+  rerun(target: { taskIds?: string[]; preset?: 'playbook' }): Promise<void>
   dismissPause(): void
 }
 
@@ -75,6 +77,11 @@ export const useResearch = create<ResearchStore>((set, get) => ({
 
   async retry(taskId) {
     await unwrap(api.retryResearchTask(taskId))
+  },
+
+  async rerun(target) {
+    const run = await unwrap(api.rerunResearch(target))
+    set({ run, dismissedPause: null })
   },
 
   dismissPause() {

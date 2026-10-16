@@ -24,6 +24,8 @@ export function registerResearch(handle: Handle, ctx: AppContext): void {
   handle('research:retryTask', ({ taskId }) =>
     run(async () => (await ctx.research.retryTask(taskId), null))
   )
+  handle('research:rerun', (target) => run(() => ctx.research.rerun(target)))
+  handle('research:catalog', () => run(() => ctx.research.catalog()))
   handle('research:setBudget', ({ budgetCapUsd }) =>
     run(async () => (await ctx.research.setBudget(budgetCapUsd), null))
   )

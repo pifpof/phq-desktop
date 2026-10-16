@@ -17,7 +17,9 @@ const SettingsSchema = z.object({
   model: z.string().nullable(),
   modelName: z.string().nullable(),
   workspacePath: z.string().nullable(),
-  windowBounds: BoundsSchema.nullable()
+  windowBounds: BoundsSchema.nullable(),
+  /** The person agreed once to open links from research sources in the browser (REQUIREMENTS-v1 4.3). */
+  openResearchLinks: z.boolean().default(false)
 })
 
 export type Settings = z.infer<typeof SettingsSchema>
@@ -29,7 +31,8 @@ export const defaultSettings = (): Settings => ({
   model: null,
   modelName: null,
   workspacePath: null,
-  windowBounds: null
+  windowBounds: null,
+  openResearchLinks: false
 })
 
 export interface SettingsStore {

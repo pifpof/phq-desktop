@@ -53,8 +53,13 @@ export const ProfileSchema = z.object({
     .default({ name: '', role: '', roleOther: '', companySize: '' }),
   goals: z.array(GoalIdSchema).default([]),
   updates: z
-    .object({ prompted: z.boolean().default(false), clicked: z.boolean().default(false) })
-    .default({ prompted: false, clicked: false }),
+    .object({
+      prompted: z.boolean().default(false),
+      clicked: z.boolean().default(false),
+      /** The second ask, after the first Messaging Analysis, has been shown (it is shown once). */
+      secondPromptShown: z.boolean().default(false)
+    })
+    .default({ prompted: false, clicked: false, secondPromptShown: false }),
   onboarding: z
     .object({
       /** Last wizard step reached, so quitting mid-onboarding resumes there. */

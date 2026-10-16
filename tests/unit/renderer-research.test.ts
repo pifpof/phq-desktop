@@ -35,6 +35,7 @@ const run = (tasks: TaskView[], over: Partial<RunView> = {}): RunView => ({
   skipWeb: false,
   startedAt: 0,
   endedAt: null,
+  scope: null,
   tasks,
   ...over
 })

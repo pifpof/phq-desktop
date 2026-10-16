@@ -23,7 +23,9 @@ export function StayInLoopStep() {
   }
 
   const next = (): void =>
-    void useApp.getState().advance((p) => ({ ...p, updates: { prompted: true, clicked } }), 'files')
+    void useApp
+      .getState()
+      .advance((p) => ({ ...p, updates: { ...p.updates, prompted: true, clicked } }), 'files')
 
   return (
     <WizardShell step={stepNumber('loop')} onBack={() => useApp.getState().go('goals')}>

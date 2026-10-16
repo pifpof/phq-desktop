@@ -1,5 +1,6 @@
 import { randomBytes } from 'crypto'
 import type { ErrorCode } from '@shared/errors'
+import { emptyProfile } from '@shared/profile'
 import {
   DEFAULT_BUDGET_USD,
   DEFAULT_CONCURRENCY,
@@ -64,6 +65,30 @@ export interface Estimate {
 export interface StartOptions {
   budgetCapUsd?: number
   concurrency?: number
+  /** Limit the run to these task IDs (see ResearchEngine `only`). */
+  only?: string[]
+}
+
+/** What "Regenerate playbook" runs: read the files again, the seven sections, publishing, and the messaging analysis. */
+export const PLAYBOOK_TASKS = [
+  'extract-input-files',
+  'playbook-01-market',
+  'playbook-02-icp',
+  'playbook-03-value',
+  'playbook-04-moat',
+  'playbook-05-statement',
+  'playbook-06-competitive',
+  'playbook-07-proof',
+  'playbook-assemble',
+  'messaging-analysis'
+]
+
+export interface CatalogEntry {
+  taskId: string
+  title: string
+  /** Workspace-relative path of the output. A folder for competitor profiles. */
+  path: string
+  stage: number
 }
 
 const newRunId = (): string => {
@@ -233,13 +258,58 @@ export function createResearchService(d: ServiceDeps) {
           Math.max(1, options.concurrency ?? DEFAULT_CONCURRENCY)
         ),
         budgetCapUsd: Math.max(0.01, options.budgetCapUsd ?? DEFAULT_BUDGET_USD),
-        skipWeb
+        skipWeb,
+        only: options.only ?? null
       })
       d.log.info(
         `Research run ${runId} started${skipWeb ? ' (web search unavailable, web tasks skipped)' : ''}`
       )
       engine.start()
       return engine.view()
+    },
+
+    /**
+     * Runs some tasks again (or the playbook preset) as a new, scoped run. Everything else stays as it is on disk.
+     * A competitor profile re-runs the whole set of profiles.
+     */
+    async rerun(target: { taskIds?: string[]; preset?: 'playbook' }): Promise<RunView> {
+      const ids =
+        target.preset === 'playbook'
+          ? PLAYBOOK_TASKS
+          : (target.taskIds ?? []).map((id) => id.split(':')[0])
+      const unique = [...new Set(ids)]
+      if (unique.length === 0 || unique.some((id) => !tasks.some((t) => t.id === id))) {
+        throw new ResearchError('invalid_payload', 'There is nothing to run again.')
+      }
+      return this.start({ only: unique })
+    },
+
+    /** Every output the pipeline writes, for the Training Data list (missing files show as missing). */
+    async catalog(): Promise<CatalogEntry[]> {
+      const root = d.getRoot()
+      if (!root) throw new ResearchError('no_workspace', 'Choose a workspace folder first.')
+      const profile = await readProfile(root)
+      const company = safeName(profile?.company.name ?? '')
+      const ctx = makeContext({
+        root,
+        profile: profile ?? emptyProfile(),
+        runId: '',
+        company,
+        tasks
+      })
+      const entries: CatalogEntry[] = tasks.map((t) => ({
+        taskId: t.id,
+        title: t.title,
+        path: t.output(ctx),
+        stage: t.stage
+      }))
+      entries.push({
+        taskId: 'research-09-synthesis',
+        title: 'Full company research',
+        path: `memory/company-research/${company}.md`,
+        stage: 3
+      })
+      return entries
     },
 
     async getRun(): Promise<RunView | null> {

@@ -111,6 +111,7 @@ describe('run store', () => {
     skipWeb: false,
     startedAt,
     endedAt: null,
+    scope: null,
     tasks: [
       {
         id: 'a',

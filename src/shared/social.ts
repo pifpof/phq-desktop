@@ -71,3 +71,26 @@ export function checkSocialTable(markdown: string): string | null {
   const bad = rows.filter((r) => !/^(found|not found)$/i.test(r.found ? 'found' : 'not found'))
   return bad.length ? 'Status must be exactly "Found" or "Not found".' : null
 }
+
+/** Puts pasted text into a network's row and marks it found. Other rows and text are left as they are. */
+export function setTagline(markdown: string, network: string, text: string): string | null {
+  const lines = markdown.split('\n')
+  const at = headerIndex(lines)
+  if (at < 0) return null
+  const header = cells(lines[at]).map((c) => c.toLowerCase())
+  const col = (name: string): number => header.findIndex((h) => h.startsWith(name))
+  const [n, t, s, st] = [col('network'), col('tagline'), col('source'), col('status')]
+  const clean = text.replace(/\s+/g, ' ').replace(/\|/g, '/').replace(/"/g, "'").trim()
+  for (let i = at + 1; i < lines.length && lines[i].trim().startsWith('|'); i++) {
+    if (isSeparator(lines[i])) continue
+    const c = cells(lines[i])
+    if ((c[n] ?? '').toLowerCase() !== network.toLowerCase()) continue
+    while (c.length < header.length) c.push('')
+    if (t >= 0) c[t] = `"${clean}"`
+    if (s >= 0) c[s] = 'Pasted by you'
+    if (st >= 0) c[st] = 'Found'
+    lines[i] = `| ${c.join(' | ')} |`
+    return lines.join('\n')
+  }
+  return null
+}

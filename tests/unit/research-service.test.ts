@@ -382,6 +382,66 @@ describe('research service: playbook versions', () => {
   })
 })
 
+describe('research service: re-running', () => {
+  it('regenerates the playbook (v2) and the messaging analysis without redoing the research', async () => {
+    const f1 = fakeProvider()
+    const s = makeService(f1.provider)
+    await s.service.start()
+    await s.until(() => s.finished.length === 1, 'first run')
+    const research = readFileSync(
+      join(ws, 'memory/company-research/steps/02-product-analysis.md'),
+      'utf8'
+    )
+    const callsBefore = f1.calls.length
+
+    const run = await s.service.rerun({ preset: 'playbook' })
+    expect(run.scope).toContain('playbook-assemble')
+    await s.until(() => s.finished.length === 2, 'regenerate')
+    expect(s.last().status).toBe('done')
+    const newCalls = f1.calls.slice(callsBefore).map((c) => c.id)
+    // Seven sections and the messaging analysis, and nothing from the research stages.
+    expect(newCalls.filter((c) => /^Write Section \d/.test(c))).toHaveLength(7)
+    expect(newCalls.filter((c) => c.startsWith('Write the messaging analysis'))).toHaveLength(1)
+    expect(newCalls).toHaveLength(8)
+    expect(
+      readFileSync(join(ws, 'memory/company-research/steps/02-product-analysis.md'), 'utf8')
+    ).toBe(research)
+    expect(readdirSync(join(ws, 'memory/positioning-playbook/versions'))).toHaveLength(2)
+  })
+
+  it('re-runs one task, and a competitor profile re-runs the profiles', async () => {
+    const f = fakeProvider()
+    const s = makeService(f.provider)
+    await s.service.start()
+    await s.until(() => s.finished.length === 1, 'first run')
+    const before = f.calls.length
+    await s.service.rerun({ taskIds: ['research-05-strengths'] })
+    await s.until(() => s.finished.length === 2, 'single re-run')
+    expect(f.calls.slice(before)).toHaveLength(1)
+    const run = await s.service.rerun({ taskIds: ['competitor-profiles:wile-co'] })
+    expect(run.scope).toEqual(['competitor-profiles'])
+    await s.until(() => s.finished.length === 3, 'profiles re-run')
+    expect(s.last().tasks.filter((t) => t.parent === 'competitor-profiles')).toHaveLength(2)
+    await expect(s.service.rerun({ taskIds: ['nope'] })).rejects.toMatchObject({
+      code: 'invalid_payload'
+    })
+  })
+
+  it('lists every output in the catalog, including the assembled research', async () => {
+    const s = makeService(fakeProvider().provider)
+    const cat = await s.service.catalog()
+    expect(cat.find((c) => c.taskId === 'proof-gathering')?.path).toBe(
+      'memory/research/proof-public.md'
+    )
+    expect(cat.find((c) => c.title === 'Full company research')?.path).toBe(
+      'memory/company-research/Acme Rockets.md'
+    )
+    expect(cat.find((c) => c.taskId === 'competitor-profiles')?.path).toBe(
+      'memory/research/competitors'
+    )
+  })
+})
+
 describe('research service: interruptions', () => {
   it('survives quitting mid-run: the next launch offers resume and skips finished tasks', async () => {
     let hold = true
