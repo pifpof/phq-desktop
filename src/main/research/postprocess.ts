@@ -17,14 +17,21 @@ const EM_RUN = new RegExp(`\\s*${EM}\\s*`, 'g')
 
 /**
  * The app writes no em dashes (copy rule). Models still produce them, so replace them in prose.
- * Fenced code is left alone. In headings a dash becomes a colon, elsewhere a comma.
+ * Fenced code is left alone, except JSON blocks. In headings a dash becomes a colon, elsewhere a comma.
  */
 export function replaceEmDashes(text: string): string {
   let inCode = false
+  let inJson = false
   return text
     .split('\n')
     .map((line) => {
-      if (/^\s*```/.test(line)) inCode = !inCode
+      if (/^\s*```/.test(line)) {
+        inCode = !inCode
+        inJson = inCode && /^\s*```json/i.test(line)
+        return line
+      }
+      // JSON blocks are app data shown as text (the scorecard evidence), so they follow the copy rule too.
+      if (inJson) return line.replace(EM_RUN, ', ')
       if (inCode || !line.includes(EM)) return line
       if (/^\s*\|/.test(line)) {
         // An empty table cell written as a dash.

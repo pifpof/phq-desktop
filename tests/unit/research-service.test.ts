@@ -24,11 +24,13 @@ import { addInputs } from '../../src/main/workspace/inputs'
 import { createLayout } from '../../src/main/workspace/layout'
 import { writeProfile } from '../../src/main/workspace/profile'
 import { emptyProfile } from '../../src/shared/profile'
+import { parseScorecard } from '../../src/shared/scorecard'
+import { GOOD_ANALYSIS } from './fixtures'
 import type { RunView } from '../../src/shared/research'
 
 const root = join(__dirname, '../..')
 // Skills written in later phases. Until they exist, the test stands in a stub so the whole graph can run.
-const PENDING = new Set(['messaging-analysis'])
+const PENDING = new Set<string>([])
 const disk = diskSkillReader(join(root, 'resources/skills'))
 const readSkill = (skill: string, file: string): string =>
   PENDING.has(skill) && !existsSync(join(root, 'resources/skills', skill, file))
@@ -79,11 +81,13 @@ function fakeProvider(
         if (opts.failWeb && call.web) throw new ProviderError('web_search_disabled')
         await opts.onCall?.(call, a.signal)
         if (a.signal.aborted) throw new Error('aborted')
-        const body = /^Collect the tagline/.test(instruction)
-          ? '# Social Taglines\n\n| Network | URL | Tagline or bio | Source | Status |\n|---|---|---|---|---|\n| LinkedIn | https://linkedin.com/company/acme | "Rockets for coyotes" | Search snippet | Found |\n| X | Not found | Not found | | Not found |'
-          : /most relevant competitors now/.test(instruction)
-            ? '# Competitors\n\n| Name | Website | One line | Type |\n|---|---|---|---|\n| Wile Co | wile.example | Rockets | Direct |\n| Road Runner Inc | roadrunner.example | Speed | Indirect |'
-            : `# Output\n\nWritten for: ${instruction.slice(0, 40)} — with a dash.\n\n\`\`\`\ncode — stays\n\`\`\``
+        const body = /^Write the messaging analysis/.test(instruction)
+          ? GOOD_ANALYSIS
+          : /^Collect the tagline/.test(instruction)
+            ? '# Social Taglines\n\n| Network | URL | Tagline or bio | Source | Status |\n|---|---|---|---|---|\n| LinkedIn | https://linkedin.com/company/acme | "Rockets for coyotes" | Search snippet | Found |\n| X | Not found | Not found | | Not found |'
+            : /most relevant competitors now/.test(instruction)
+              ? '# Competitors\n\n| Name | Website | One line | Type |\n|---|---|---|---|\n| Wile Co | wile.example | Rockets | Direct |\n| Road Runner Inc | roadrunner.example | Speed | Indirect |'
+              : `# Output\n\nWritten for: ${instruction.slice(0, 40)} — with a dash.\n\n\`\`\`\ncode — stays\n\`\`\``
         return {
           text: body,
           citations: a.tools.webSearch
@@ -317,6 +321,26 @@ describe('research service: social taglines', () => {
       ['X', false]
     ])
     expect(s.last().tasks.find((t) => t.id === 'social-taglines')?.note).toBeNull()
+  })
+})
+
+describe('research service: messaging analysis', () => {
+  it('runs last, on the playbook, website and taglines, with no web tools, and writes a readable scorecard', async () => {
+    const f = fakeProvider()
+    const s = makeService(f.provider)
+    await s.service.start()
+    await s.until(() => s.finished.length === 1, 'finish')
+    const call = f.calls.find((c) => c.id.startsWith('Write the messaging analysis'))!
+    expect(call.tools).toEqual({})
+    expect(call.text).toContain('memory/positioning-playbook/Acme Rockets.md')
+    expect(call.text).toContain('memory/research/website-positioning.md')
+    expect(call.text).toContain('memory/research/social-taglines.md')
+    expect(call.text).toContain('Score each dimension from 1 to 5')
+    const doc = readFileSync(join(ws, 'memory/messaging-analysis/Acme Rockets.md'), 'utf8')
+    expect(parseScorecard(doc)).toHaveLength(5)
+    expect(s.last().tasks.find((t) => t.id === 'messaging-analysis')?.note).toBeNull()
+    // Nothing failed or was blocked: the whole pipeline now has real skills.
+    expect(s.last().status).toBe('done')
   })
 })
 

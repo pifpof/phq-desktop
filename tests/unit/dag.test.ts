@@ -104,7 +104,7 @@ describe('task graph', () => {
   })
 
   // App skills that are written in later phases. Remove each name here when its skill lands.
-  const PENDING_SKILLS = new Set(['messaging-analysis'])
+  const PENDING_SKILLS = new Set<string>([])
   it('points at skill files that exist, apart from skills still to be written', async () => {
     const children = await byId.get('competitor-profiles')!.fanOut!(ctx)
     for (const t of [...TASKS, ...children]) {

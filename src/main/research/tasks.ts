@@ -1,3 +1,4 @@
+import { checkScorecard } from '@shared/scorecard'
 import { checkSocialTable } from '@shared/social'
 import { safeName } from '../workspace/safe-name'
 import type { TaskContext, TaskDef, WebTools } from './types'
@@ -443,7 +444,11 @@ export const TASKS: TaskDef[] = [
       'extract-input-files'
     ],
     skill: 'messaging-analysis',
-    instruction: 'Write the messaging analysis now. Start with the scorecard JSON block.',
+    rules: ['references/rules.md', 'references/scoring-rubric.md'],
+    asset: 'assets/messaging-analysis.md',
+    instruction:
+      'Write the messaging analysis now. Start with the scorecard JSON block. Order the five fixes by the goals in the company profile.',
+    validate: checkScorecard,
     inputs: {
       outputs: [
         'website-positioning',
