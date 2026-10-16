@@ -32,6 +32,7 @@ const api: Api = {
   browseInputs: (category) => invoke('inputs:browse', { category }),
   removeInput: (category, name) => invoke('inputs:remove', { category, name }),
   devCrawl: (req) => invoke('dev:crawl', req),
+  devRunStep: (req) => invoke('dev:runStep', req),
   devExtract: () => invoke('dev:extract'),
   checkUrl: (url) => invoke('net:checkUrl', { url }),
   getFilePath: (file) => webUtils.getPathForFile(file),

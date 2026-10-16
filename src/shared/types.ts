@@ -9,6 +9,8 @@ export interface ModelInfo {
   id: string
   displayName: string
   createdAt: string
+  /** Whether the provider says this model supports web search. Absent when unknown. */
+  webSearch?: boolean
 }
 
 export interface ChatMessage {

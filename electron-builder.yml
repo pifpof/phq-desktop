@@ -7,6 +7,10 @@ files:
   - package.json
   - LICENSE
 extraResources:
+  - from: resources/skills
+    to: skills
+  - from: resources/pricing.json
+    to: pricing.json
   - from: src/renderer/src/assets/fonts/LICENSE-DejaVu.txt
     to: LICENSE-DejaVu.txt
 mac:

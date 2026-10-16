@@ -80,6 +80,10 @@ describe('chat service', () => {
       verifyKey: async () => ({ ok: false, code: 'unknown' }),
       listModels: async () => [],
       pickDefaultModel: () => null,
+      capabilities: async () => ({ webSearch: false, webFetch: false }),
+      runTask: async () => {
+        throw new Error('not used')
+      },
       streamChat: ({ system, signal, onEvent }) =>
         new Promise<void>((resolve) => {
           seenSystem = system

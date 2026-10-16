@@ -27,7 +27,8 @@ export type Result<T> =
 export const ModelInfoSchema = z.object({
   id: z.string(),
   displayName: z.string(),
-  createdAt: z.string()
+  createdAt: z.string(),
+  webSearch: z.boolean().optional()
 })
 
 export const AppStateSchema = z.object({
@@ -140,6 +141,30 @@ export const channels = {
       indexPath: z.string()
     })
   },
+  'dev:runStep': {
+    req: z.object({
+      step: z.enum(['01', '02', '03', '04', '05', '06', '07']),
+      web: z.boolean().optional()
+    }),
+    res: z.object({
+      text: z.string(),
+      citations: z.array(z.object({ url: z.string(), title: z.string() })),
+      consulted: z.array(z.object({ url: z.string(), title: z.string() })),
+      stopReason: z.string(),
+      usage: z.object({
+        inputTokens: z.number(),
+        outputTokens: z.number(),
+        cacheReadTokens: z.number(),
+        cacheWriteTokens: z.number(),
+        webSearchRequests: z.number(),
+        webFetchRequests: z.number(),
+        requests: z.number()
+      }),
+      costUsd: z.number(),
+      costApproximate: z.boolean(),
+      model: z.string()
+    })
+  },
   'dev:extract': {
     req: z.undefined(),
     res: z.array(
@@ -206,6 +231,7 @@ export interface Api {
   browseInputs(category: Req<'inputs:browse'>['category']): Promise<Result<Res<'inputs:browse'>>>
   removeInput(category: Req<'inputs:remove'>['category'], name: string): Promise<Result<null>>
   devCrawl(req: Req<'dev:crawl'>): Promise<Result<Res<'dev:crawl'>>>
+  devRunStep(req: Req<'dev:runStep'>): Promise<Result<Res<'dev:runStep'>>>
   devExtract(): Promise<Result<Res<'dev:extract'>>>
   checkUrl(url: string): Promise<Result<Res<'net:checkUrl'>>>
   /** Real path of a dropped File. Only the preload can read this. */

@@ -15,7 +15,8 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "test": "vitest run",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "skills:sync": "node scripts/skills-sync.mts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.135.0",

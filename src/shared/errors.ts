@@ -5,6 +5,8 @@ export const PROVIDER_ERROR_CODES = [
   'rate_limited',
   'overloaded',
   'network',
+  'web_search_disabled',
+  'spend_limit_reached',
   'unknown'
 ] as const
 export type ProviderErrorCode = (typeof PROVIDER_ERROR_CODES)[number]
@@ -29,6 +31,10 @@ export const ERROR_COPY: Record<ErrorCode, string> = {
   rate_limited: 'Anthropic is busy. Try again in a moment.',
   overloaded: 'Anthropic is busy. Try again in a moment.',
   network: "Can't reach Anthropic. Check your internet connection.",
+  web_search_disabled:
+    "Web search isn't turned on for your Anthropic account. An admin can enable it in the Console under Settings, then Capabilities.",
+  spend_limit_reached:
+    'Your Anthropic account has reached its spend limit. Raise the limit in the Console, or wait until it resets.',
   unknown: 'Something went wrong.',
   invalid_payload: 'Something went wrong. Please try again.',
   forbidden: 'Something went wrong. Please try again.',
