@@ -117,6 +117,43 @@ export const channels = {
     req: z.object({ url: z.string().max(2048) }),
     res: z.object({ reachable: z.boolean(), finalUrl: z.string().nullable() })
   },
+  // Dev-only: run local ingestion directly. Refused in packaged builds. Replaced by the task engine in Phase 5.
+  'dev:crawl': {
+    req: z.object({
+      url: z.string().max(2048),
+      forceRender: z.boolean().optional(),
+      pageBudget: z.number().int().min(1).max(30).optional()
+    }),
+    res: z.object({
+      pages: z.array(
+        z.object({
+          url: z.string(),
+          title: z.string(),
+          words: z.number(),
+          rendered: z.boolean(),
+          slug: z.string()
+        })
+      ),
+      social: z.array(z.object({ network: z.string(), url: z.string() })),
+      skipped: z.array(z.object({ url: z.string(), reason: z.string() })),
+      robots: z.enum(['honoured', 'none']),
+      indexPath: z.string()
+    })
+  },
+  'dev:extract': {
+    req: z.undefined(),
+    res: z.array(
+      z.object({
+        category: z.string(),
+        file: z.string(),
+        status: z.string(),
+        output: z.string().nullable(),
+        chars: z.number(),
+        truncated: z.boolean(),
+        error: z.string().optional()
+      })
+    )
+  },
   'docs:openInEditor': { req: z.object({ path: z.string().min(1).max(500) }), res: z.null() },
   'chat:start': {
     req: z.object({
@@ -168,6 +205,8 @@ export interface Api {
   ): Promise<Result<Res<'inputs:add'>>>
   browseInputs(category: Req<'inputs:browse'>['category']): Promise<Result<Res<'inputs:browse'>>>
   removeInput(category: Req<'inputs:remove'>['category'], name: string): Promise<Result<null>>
+  devCrawl(req: Req<'dev:crawl'>): Promise<Result<Res<'dev:crawl'>>>
+  devExtract(): Promise<Result<Res<'dev:extract'>>>
   checkUrl(url: string): Promise<Result<Res<'net:checkUrl'>>>
   /** Real path of a dropped File. Only the preload can read this. */
   getFilePath(file: File): string
