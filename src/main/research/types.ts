@@ -1,0 +1,71 @@
+import type { Profile } from '@shared/profile'
+import type { InputCategory } from '@shared/workspace'
+import type { TaskKind } from './estimates'
+
+/** What a task can see when it runs. Reads are always inside the workspace. */
+export interface TaskContext {
+  profile: Profile
+  runId: string
+  /** File-name-safe company name, used in output paths. */
+  company: string
+  /** Output of an earlier task, or null when it is missing (skipped, failed or deleted). */
+  readOutput(taskId: string): Promise<string | null>
+}
+
+export type LocalHandler = 'crawl' | 'extract' | 'assemble-company-research' | 'assemble-playbook'
+
+export interface WebTools {
+  search: { maxUses: number }
+  fetch?: { maxUses: number; maxContentTokens: number }
+}
+
+export interface TaskDef {
+  id: string
+  title: string
+  /** Display grouping, 1 to 5 (REQUIREMENTS-v1 3.1). */
+  stage: 1 | 2 | 3 | 4 | 5
+  kind: TaskKind
+  dependsOn: string[]
+
+  /** A task that runs on this computer and calls no AI. */
+  local?: LocalHandler
+
+  // AI tasks
+  skill?: string
+  rules?: string[]
+  asset?: string
+  instruction?: string
+  /** Earlier outputs and user files this task is shown. */
+  inputs?: {
+    /** Task outputs that must exist (a missing one is simply left out of the prompt). */
+    outputs: string[]
+    /** Task outputs used when present, without waiting for them. */
+    optionalOutputs?: string[]
+    /** User file categories shown to this task. Never combined with web tools. */
+    inputCategories: InputCategory[]
+  }
+  /** Web search and fetch for this task, or false for none. */
+  web: false | WebTools
+  /** A local step that runs right after this AI task's output is written (assembling a combined document). */
+  after?: LocalHandler
+  /** Mark this task's documents as a prompt cache breakpoint (many tasks share them). */
+  cacheDocuments?: boolean
+
+  /** Workspace-relative path of the main output. */
+  output(ctx: TaskContext): string
+
+  /**
+   * A group task creates one child per item once its dependencies are done
+   * (one competitor profile per competitor). The group is done when its children are.
+   */
+  fanOut?: (ctx: TaskContext) => Promise<TaskDef[]> | TaskDef[]
+}
+
+export interface TaskOutcome {
+  costUsd: number
+  usage?: unknown
+  /** Workspace-relative path written. */
+  output: string | null
+  /** Free-form note shown on the progress screen, such as "Output was cut off". */
+  note?: string
+}

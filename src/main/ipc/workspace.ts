@@ -39,6 +39,7 @@ export function registerWorkspace(handle: Handle, ctx: AppContext): void {
     })
     // v1: the full folder tree, alongside anything already in the folder. Never overwrites.
     await createLayout(path)
+    ctx.research.reset()
     ctx.watcher.watch(path)
     return { path, existing: result.existing }
   })

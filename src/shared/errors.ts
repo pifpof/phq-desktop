@@ -1,3 +1,5 @@
+import { z } from 'zod'
+
 export const PROVIDER_ERROR_CODES = [
   'invalid_key',
   'no_permission',
@@ -22,6 +24,7 @@ export const APP_ERROR_CODES = [
   'internal'
 ] as const
 export type ErrorCode = (typeof APP_ERROR_CODES)[number]
+export const ErrorCodeSchema = z.enum(APP_ERROR_CODES)
 
 export const ERROR_COPY: Record<ErrorCode, string> = {
   invalid_key: "That key didn't work. Check you copied all of it.",

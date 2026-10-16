@@ -1,12 +1,10 @@
 import { net } from 'electron'
 import { normalizeWebsite } from '@shared/url'
 import type { AppContext } from '../context'
+import { userAgent } from '../user-agent'
 import type { Handle } from './register'
 
 const TIMEOUT_MS = 10_000
-
-export const userAgent = (version: string): string =>
-  `PositioningHQ/${version} (+https://parallel79.com/positioninghq/)`
 
 export function registerNet(handle: Handle, ctx: AppContext): void {
   /** Does this website answer at all? Any HTTP response counts, even 403 from bot protection. */

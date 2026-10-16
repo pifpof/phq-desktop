@@ -1,6 +1,7 @@
 import { z } from 'zod'
-import { APP_ERROR_CODES, type ErrorCode } from './errors'
+import { ErrorCodeSchema, type ErrorCode } from './errors'
 import { ProfileSchema } from './profile'
+import { RunViewSchema, type RunView } from './research'
 import {
   AddResultSchema,
   DetectionSchema,
@@ -10,7 +11,7 @@ import {
   InputFileSchema
 } from './workspace'
 
-export const ErrorCodeSchema = z.enum(APP_ERROR_CODES)
+export { ErrorCodeSchema }
 
 export const ResultSchema = <T extends z.ZodType>(data: T) =>
   z.discriminatedUnion('ok', [
@@ -119,27 +120,42 @@ export const channels = {
     res: z.object({ reachable: z.boolean(), finalUrl: z.string().nullable() })
   },
   // Dev-only: run local ingestion directly. Refused in packaged builds. Replaced by the task engine in Phase 5.
-  'dev:crawl': {
-    req: z.object({
-      url: z.string().max(2048),
-      forceRender: z.boolean().optional(),
-      pageBudget: z.number().int().min(1).max(30).optional()
-    }),
+  'research:estimate': {
+    req: z.undefined(),
     res: z.object({
-      pages: z.array(
-        z.object({
-          url: z.string(),
-          title: z.string(),
-          words: z.number(),
-          rendered: z.boolean(),
-          slug: z.string()
-        })
-      ),
-      social: z.array(z.object({ network: z.string(), url: z.string() })),
-      skipped: z.array(z.object({ url: z.string(), reason: z.string() })),
-      robots: z.enum(['honoured', 'none']),
-      indexPath: z.string()
+      costUsd: z.object({ low: z.number(), high: z.number() }),
+      minutes: z.object({ low: z.number(), high: z.number() }),
+      searches: z.object({ low: z.number(), high: z.number() }),
+      tasks: z.number(),
+      model: z.string(),
+      modelKnown: z.boolean(),
+      webSearch: z.boolean().nullable(),
+      concurrency: z.number(),
+      budgetCapUsd: z.number(),
+      pricingUpdated: z.string()
     })
+  },
+  'research:start': {
+    req: z.object({
+      budgetCapUsd: z.number().min(0.01).max(10_000).optional(),
+      concurrency: z.number().int().min(1).max(6).optional()
+    }),
+    res: RunViewSchema
+  },
+  'research:getRun': { req: z.undefined(), res: RunViewSchema.nullable() },
+  'research:pause': { req: z.undefined(), res: z.null() },
+  'research:resume': {
+    req: z.object({
+      skipWeb: z.boolean().optional(),
+      budgetCapUsd: z.number().min(0.01).max(10_000).optional()
+    }),
+    res: z.null()
+  },
+  'research:cancel': { req: z.undefined(), res: z.null() },
+  'research:retryTask': { req: z.object({ taskId: z.string().min(1).max(200) }), res: z.null() },
+  'research:setBudget': {
+    req: z.object({ budgetCapUsd: z.number().min(0.01).max(10_000) }),
+    res: z.null()
   },
   'dev:runStep': {
     req: z.object({
@@ -165,20 +181,6 @@ export const channels = {
       model: z.string()
     })
   },
-  'dev:extract': {
-    req: z.undefined(),
-    res: z.array(
-      z.object({
-        category: z.string(),
-        file: z.string(),
-        status: z.string(),
-        output: z.string().nullable(),
-        chars: z.number(),
-        truncated: z.boolean(),
-        error: z.string().optional()
-      })
-    )
-  },
   'docs:openInEditor': { req: z.object({ path: z.string().min(1).max(500) }), res: z.null() },
   'chat:start': {
     req: z.object({
@@ -200,6 +202,7 @@ export type Res<C extends ChannelName> = z.infer<(typeof channels)[C]['res']>
 export const EVENT_CHAT = 'chat:event'
 export const EVENT_OPEN_SETTINGS = 'menu:openSettings'
 export const EVENT_WORKSPACE_CHANGED = 'workspace:changed'
+export const EVENT_RESEARCH = 'research:event'
 
 export const WorkspaceChangedSchema = z.object({ paths: z.array(z.string()) })
 export type WorkspaceChanged = z.infer<typeof WorkspaceChangedSchema>
@@ -230,9 +233,15 @@ export interface Api {
   ): Promise<Result<Res<'inputs:add'>>>
   browseInputs(category: Req<'inputs:browse'>['category']): Promise<Result<Res<'inputs:browse'>>>
   removeInput(category: Req<'inputs:remove'>['category'], name: string): Promise<Result<null>>
-  devCrawl(req: Req<'dev:crawl'>): Promise<Result<Res<'dev:crawl'>>>
+  estimateResearch(): Promise<Result<Res<'research:estimate'>>>
+  startResearch(options?: Req<'research:start'>): Promise<Result<Res<'research:start'>>>
+  getResearchRun(): Promise<Result<Res<'research:getRun'>>>
+  pauseResearch(): Promise<Result<null>>
+  resumeResearch(options?: Req<'research:resume'>): Promise<Result<null>>
+  cancelResearch(): Promise<Result<null>>
+  retryResearchTask(taskId: string): Promise<Result<null>>
+  setResearchBudget(budgetCapUsd: number): Promise<Result<null>>
   devRunStep(req: Req<'dev:runStep'>): Promise<Result<Res<'dev:runStep'>>>
-  devExtract(): Promise<Result<Res<'dev:extract'>>>
   checkUrl(url: string): Promise<Result<Res<'net:checkUrl'>>>
   /** Real path of a dropped File. Only the preload can read this. */
   getFilePath(file: File): string
@@ -243,4 +252,5 @@ export interface Api {
   onChatEvent(cb: (e: ChatEnvelope) => void): () => void
   onOpenSettings(cb: () => void): () => void
   onWorkspaceChanged(cb: (e: WorkspaceChanged) => void): () => void
+  onResearchEvent(cb: (run: RunView) => void): () => void
 }

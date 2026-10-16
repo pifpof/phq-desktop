@@ -1,8 +1,10 @@
+import { RunViewSchema } from '@shared/research'
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import {
   ChatEnvelopeSchema,
   EVENT_CHAT,
   EVENT_OPEN_SETTINGS,
+  EVENT_RESEARCH,
   EVENT_WORKSPACE_CHANGED,
   WorkspaceChangedSchema,
   type Api,
@@ -31,9 +33,15 @@ const api: Api = {
   addInputs: (category, paths) => invoke('inputs:add', { category, paths }),
   browseInputs: (category) => invoke('inputs:browse', { category }),
   removeInput: (category, name) => invoke('inputs:remove', { category, name }),
-  devCrawl: (req) => invoke('dev:crawl', req),
+  estimateResearch: () => invoke('research:estimate'),
+  startResearch: (options) => invoke('research:start', options ?? {}),
+  getResearchRun: () => invoke('research:getRun'),
+  pauseResearch: () => invoke('research:pause'),
+  resumeResearch: (options) => invoke('research:resume', options ?? {}),
+  cancelResearch: () => invoke('research:cancel'),
+  retryResearchTask: (taskId) => invoke('research:retryTask', { taskId }),
+  setResearchBudget: (budgetCapUsd) => invoke('research:setBudget', { budgetCapUsd }),
   devRunStep: (req) => invoke('dev:runStep', req),
-  devExtract: () => invoke('dev:extract'),
   checkUrl: (url) => invoke('net:checkUrl', { url }),
   getFilePath: (file) => webUtils.getPathForFile(file),
   startChat: (args) => invoke('chat:start', args),
@@ -47,6 +55,14 @@ const api: Api = {
     }
     ipcRenderer.on(EVENT_CHAT, listener)
     return () => ipcRenderer.removeListener(EVENT_CHAT, listener)
+  },
+  onResearchEvent: (cb) => {
+    const listener = (_e: unknown, raw: unknown): void => {
+      const parsed = RunViewSchema.safeParse(raw)
+      if (parsed.success) cb(parsed.data)
+    }
+    ipcRenderer.on(EVENT_RESEARCH, listener)
+    return () => ipcRenderer.removeListener(EVENT_RESEARCH, listener)
   },
   onWorkspaceChanged: (cb) => {
     const listener = (_e: unknown, raw: unknown): void => {

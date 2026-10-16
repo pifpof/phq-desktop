@@ -165,5 +165,38 @@ export async function extractInputs(root: string, runId = 'manual'): Promise<Ext
       }
     }
   }
+  await writeIndex(root, results, runId)
   return results
+}
+
+const STATUS_TEXT: Record<ExtractResult['status'], string> = {
+  ok: 'read',
+  empty: 'no readable text',
+  failed: 'could not be read',
+  'not-read': 'not read (unsupported type)'
+}
+
+/** index.md lists every file and whether it was read. It is also what marks this task as complete. */
+async function writeIndex(root: string, results: ExtractResult[], runId: string): Promise<void> {
+  const dir = join(root, 'memory', 'research', 'inputs-extracted')
+  await mkdir(dir, { recursive: true })
+  const rows = results.map(
+    (r) =>
+      `| ${r.category} | ${r.file} | ${STATUS_TEXT[r.status]}${r.truncated ? ' (shortened)' : ''} |`
+  )
+  const body = results.length
+    ? ['# Files', '', '| Category | File | Status |', '|---|---|---|', ...rows].join('\n')
+    : '# Files\n\nNo files were added.'
+  await writeFile(
+    join(dir, 'index.md'),
+    matter.stringify(body + '\n', {
+      title: 'Your files',
+      task: 'extract-input-files',
+      run_id: runId,
+      created: new Date().toISOString(),
+      status: 'draft',
+      files: results.length,
+      read: results.filter((r) => r.status === 'ok').length
+    })
+  )
 }

@@ -1,0 +1,409 @@
+import { safeName } from '../workspace/safe-name'
+import type { TaskContext, TaskDef, WebTools } from './types'
+
+/** The research pipeline as data (REQUIREMENTS-v1 3.1). Add or re-run tasks by editing this list. */
+
+const search = (
+  maxUses: number,
+  fetch?: { maxUses: number; maxContentTokens: number }
+): WebTools => ({
+  search: { maxUses },
+  ...(fetch ? { fetch } : {})
+})
+const FETCH = { maxUses: 3, maxContentTokens: 20_000 }
+
+const STEPS = 'memory/company-research/steps'
+const SECTIONS = 'memory/positioning-playbook/sections'
+
+const companyResearchStep = (n: string, slug: string, title: string): TaskDef => ({
+  id: `research-${n}-${slug}`,
+  title,
+  stage: 1,
+  kind: 'web-research',
+  dependsOn: [],
+  skill: 'company-research',
+  rules: ['references/format-rules.md'],
+  asset: `assets/${n}-${slug === 'product' ? 'product-analysis' : slug}.md`,
+  instruction: 'Research this step on the web and write the document now.',
+  inputs: { outputs: [], inputCategories: [] },
+  web: search(5, FETCH),
+  output: () => `${STEPS}/${n}-${slug === 'product' ? 'product-analysis' : slug}.md`
+})
+
+const playbookSection = (
+  n: string,
+  slug: string,
+  title: string,
+  dependsOn: string[],
+  outputs: string[],
+  inputCategories: NonNullable<TaskDef['inputs']>['inputCategories']
+): TaskDef => ({
+  id: `playbook-${n}-${slug}`,
+  title,
+  stage: 4,
+  kind: 'playbook-section',
+  dependsOn: [...dependsOn, ...(inputCategories.length ? ['extract-input-files'] : [])],
+  skill: 'positioning-playbook',
+  rules: ['references/tone-style.md'],
+  asset: `assets/${n}-${slugFile[slug]}.md`,
+  instruction: 'Write this playbook section now, using only the documents provided.',
+  inputs: { outputs, inputCategories },
+  web: false,
+  cacheDocuments: true,
+  output: () => `${SECTIONS}/${n}-${slugFile[slug]}.md`
+})
+
+const slugFile: Record<string, string> = {
+  market: 'market-overview',
+  icp: 'target-customers',
+  value: 'value-drivers',
+  moat: 'distinct-advantages',
+  statement: 'positioning-statement',
+  competitive: 'competitive-intelligence',
+  proof: 'customer-proof-points'
+}
+
+/** Rows of a markdown table: first cell is the name, second the website. Header and separator rows are skipped. */
+export function parseCompetitors(markdown: string): { name: string; website: string }[] {
+  const out: { name: string; website: string }[] = []
+  for (const line of markdown.split('\n')) {
+    if (!line.trim().startsWith('|')) continue
+    const cells = line
+      .trim()
+      .replace(/^\||\|$/g, '')
+      .split('|')
+      .map((c) => c.trim())
+    if (cells.length < 2 || /^[-: ]+$/.test(cells[0])) continue
+    if (/^(name|competitor|company)$/i.test(cells[0])) continue
+    const name = cells[0].replace(/[*_`[\]]/g, '').trim()
+    const website = (
+      /https?:\/\/[^\s)|]+|(?:[a-z0-9-]+\.)+[a-z]{2,}[^\s)|]*/i.exec(cells[1])?.[0] ?? ''
+    ).trim()
+    if (name && !out.some((c) => c.name.toLowerCase() === name.toLowerCase()))
+      out.push({ name, website })
+  }
+  return out.slice(0, 5)
+}
+
+async function competitorsFor(ctx: TaskContext): Promise<{ name: string; website: string }[]> {
+  const found = parseCompetitors((await ctx.readOutput('competitor-discovery')) ?? '')
+  if (found.length) return found
+  // Discovery gave nothing usable: fall back to the names the user typed.
+  return ctx.profile.company.competitors.slice(0, 5).map((name) => ({ name, website: '' }))
+}
+
+const competitorProfile = (c: { name: string; website: string }): TaskDef => ({
+  id: `competitor-profiles:${safeName(c.name).toLowerCase().replace(/\s+/g, '-')}`,
+  title: `Profile: ${c.name}`,
+  stage: 2,
+  kind: 'web-profile',
+  dependsOn: ['competitor-discovery'],
+  skill: 'competitor-profile',
+  instruction: `Profile this competitor: ${c.name}${c.website ? ` (${c.website})` : ''}.`,
+  inputs: { outputs: ['competitor-discovery'], inputCategories: [] },
+  web: search(6, { maxUses: 4, maxContentTokens: 20_000 }),
+  output: () => `memory/research/competitors/${safeName(c.name)}.md`
+})
+
+export const TASKS: TaskDef[] = [
+  // Stage 1: start immediately, in parallel
+  {
+    id: 'crawl-website',
+    title: 'Read your website',
+    stage: 1,
+    kind: 'local',
+    dependsOn: [],
+    local: 'crawl',
+    web: false,
+    output: () => 'memory/research/website/index.md'
+  },
+  {
+    id: 'extract-input-files',
+    title: 'Read your files',
+    stage: 1,
+    kind: 'local',
+    dependsOn: [],
+    local: 'extract',
+    web: false,
+    output: () => 'memory/research/inputs-extracted/index.md'
+  },
+  {
+    id: 'find-social-profiles',
+    title: 'Find social profiles',
+    stage: 1,
+    kind: 'web-research',
+    dependsOn: [],
+    skill: 'social-taglines',
+    instruction: 'Find the company social profiles and list them with a confidence for each.',
+    inputs: { outputs: [], optionalOutputs: ['crawl-website'], inputCategories: [] },
+    web: search(6),
+    output: () => 'memory/research/social-profiles.md'
+  },
+  companyResearchStep('02', 'product', 'Product and service analysis'),
+  companyResearchStep('03', 'market-segment', 'Market segment'),
+  companyResearchStep('04', 'customer-segment', 'Customer segment'),
+  companyResearchStep('05', 'strengths', 'Strengths'),
+  companyResearchStep('06', 'weaknesses', 'Weaknesses'),
+  companyResearchStep('07', 'recent-developments', 'Recent developments'),
+  {
+    id: 'competitor-discovery',
+    title: 'Find competitors',
+    stage: 1,
+    kind: 'web-research',
+    dependsOn: [],
+    skill: 'competitor-discovery',
+    instruction:
+      'Confirm or find the 3 to 5 most relevant competitors. Output a markdown table: Name, Website, One line, Type.',
+    inputs: { outputs: [], inputCategories: [] },
+    web: search(6),
+    output: () => 'memory/research/competitors.md'
+  },
+
+  // Stage 2
+  {
+    id: 'website-positioning',
+    title: 'Analyse your website positioning',
+    stage: 2,
+    kind: 'synthesis',
+    dependsOn: ['crawl-website'],
+    skill: 'website-positioning',
+    instruction: 'Describe how the company positions itself on its own website today.',
+    inputs: { outputs: ['crawl-website'], inputCategories: [] },
+    web: false,
+    cacheDocuments: true,
+    output: () => 'memory/research/website-positioning.md'
+  },
+  {
+    id: 'research-01-overview',
+    title: 'Company overview',
+    stage: 2,
+    kind: 'synthesis',
+    dependsOn: ['crawl-website', 'website-positioning'],
+    skill: 'company-research',
+    rules: ['references/format-rules.md'],
+    asset: 'assets/01-company-overview.md',
+    instruction:
+      'Write the company overview from the documents provided. They include the crawl of the company website.',
+    inputs: { outputs: ['crawl-website', 'website-positioning'], inputCategories: [] },
+    web: false,
+    cacheDocuments: true,
+    output: () => `${STEPS}/01-company-overview.md`
+  },
+  {
+    id: 'social-taglines',
+    title: 'Collect social taglines',
+    stage: 2,
+    kind: 'web-profile',
+    dependsOn: ['find-social-profiles'],
+    skill: 'social-taglines',
+    instruction:
+      'For each profile, collect the headline, tagline or bio from public sources. Mark profiles you cannot read as not found.',
+    inputs: {
+      outputs: ['find-social-profiles'],
+      optionalOutputs: ['crawl-website'],
+      inputCategories: []
+    },
+    web: search(6, { maxUses: 6, maxContentTokens: 10_000 }),
+    output: () => 'memory/research/social-taglines.md'
+  },
+  {
+    id: 'competitor-profiles',
+    title: 'Profile competitors',
+    stage: 2,
+    kind: 'local',
+    dependsOn: ['competitor-discovery'],
+    web: false,
+    output: () => 'memory/research/competitors',
+    fanOut: async (ctx) => (await competitorsFor(ctx)).map(competitorProfile)
+  },
+  {
+    id: 'proof-gathering',
+    title: 'Gather reviews and public proof',
+    stage: 2,
+    kind: 'web-profile',
+    dependsOn: ['competitor-discovery'],
+    skill: 'proof-gathering',
+    instruction:
+      'Find reviews, forum threads and analyst mentions about the company. Quote them exactly.',
+    inputs: { outputs: [], inputCategories: [] },
+    web: search(8, { maxUses: 4, maxContentTokens: 15_000 }),
+    output: () => 'memory/research/proof-public.md'
+  },
+
+  // Stage 3
+  {
+    id: 'research-08-competitive',
+    title: 'Competitive analysis',
+    stage: 3,
+    kind: 'synthesis-large',
+    dependsOn: ['competitor-profiles', 'extract-input-files'],
+    skill: 'company-research',
+    rules: ['references/format-rules.md'],
+    asset: 'assets/08-competitive-analysis.md',
+    instruction:
+      'Write the competitive analysis for the single most direct competitor, chosen from the profiles provided.',
+    inputs: {
+      outputs: ['competitor-profiles', 'competitor-discovery'],
+      inputCategories: ['competitive-intel']
+    },
+    web: false,
+    cacheDocuments: true,
+    output: () => `${STEPS}/08-competitive-analysis.md`
+  },
+  {
+    id: 'research-09-synthesis',
+    title: 'Market overview',
+    stage: 3,
+    kind: 'synthesis-large',
+    dependsOn: [
+      'research-02-product',
+      'research-03-market-segment',
+      'research-04-customer-segment',
+      'research-05-strengths',
+      'research-06-weaknesses',
+      'research-07-recent-developments',
+      'research-01-overview',
+      'research-08-competitive',
+      'extract-input-files'
+    ],
+    skill: 'company-research',
+    rules: ['references/format-rules.md'],
+    asset: 'assets/09-synthesis.md',
+    instruction: 'Synthesise the research steps provided into the final Market Overview.',
+    inputs: {
+      outputs: [
+        'research-01-overview',
+        'research-02-product',
+        'research-03-market-segment',
+        'research-04-customer-segment',
+        'research-05-strengths',
+        'research-06-weaknesses',
+        'research-07-recent-developments',
+        'research-08-competitive'
+      ],
+      inputCategories: ['company strategy']
+    },
+    web: false,
+    cacheDocuments: true,
+    after: 'assemble-company-research',
+    output: () => `${STEPS}/09-synthesis.md`
+  },
+
+  // Stage 4: the playbook
+  playbookSection(
+    '01',
+    'market',
+    'Playbook: market overview',
+    ['research-09-synthesis'],
+    ['research-09-synthesis', 'website-positioning'],
+    ['company strategy', 'sales collateral']
+  ),
+  playbookSection(
+    '02',
+    'icp',
+    'Playbook: target customers',
+    ['research-09-synthesis'],
+    ['research-09-synthesis', 'website-positioning'],
+    ['sales collateral', 'customer references', 'company strategy']
+  ),
+  playbookSection(
+    '06',
+    'competitive',
+    'Playbook: competitive intelligence',
+    ['competitor-profiles', 'research-08-competitive'],
+    ['competitor-profiles', 'research-08-competitive'],
+    ['competitive-intel', 'sales collateral']
+  ),
+  playbookSection(
+    '07',
+    'proof',
+    'Playbook: customer proof points',
+    ['proof-gathering'],
+    ['proof-gathering'],
+    ['customer references']
+  ),
+  playbookSection(
+    '03',
+    'value',
+    'Playbook: value drivers',
+    ['playbook-02-icp'],
+    ['playbook-02-icp', 'research-09-synthesis'],
+    ['sales collateral', 'help-docs', 'customer references']
+  ),
+  playbookSection(
+    '04',
+    'moat',
+    'Playbook: distinct advantages',
+    ['playbook-03-value'],
+    ['playbook-03-value', 'playbook-02-icp', 'research-09-synthesis'],
+    ['roadmap', 'company strategy', 'competitive-intel']
+  ),
+  playbookSection(
+    '05',
+    'statement',
+    'Playbook: positioning statement',
+    [
+      'playbook-01-market',
+      'playbook-02-icp',
+      'playbook-03-value',
+      'playbook-04-moat',
+      'playbook-06-competitive'
+    ],
+    [
+      'playbook-01-market',
+      'playbook-02-icp',
+      'playbook-03-value',
+      'playbook-04-moat',
+      'playbook-06-competitive'
+    ],
+    ['company strategy']
+  ),
+  {
+    id: 'playbook-assemble',
+    title: 'Publish the playbook',
+    stage: 4,
+    kind: 'local',
+    dependsOn: [
+      'playbook-01-market',
+      'playbook-02-icp',
+      'playbook-03-value',
+      'playbook-04-moat',
+      'playbook-05-statement',
+      'playbook-06-competitive',
+      'playbook-07-proof'
+    ],
+    local: 'assemble-playbook',
+    web: false,
+    output: (ctx) => `memory/positioning-playbook/${ctx.company}.md`
+  },
+
+  // Stage 5
+  {
+    id: 'messaging-analysis',
+    title: 'Analyse your messaging',
+    stage: 5,
+    kind: 'messaging-analysis',
+    dependsOn: [
+      'website-positioning',
+      'social-taglines',
+      'playbook-assemble',
+      'extract-input-files'
+    ],
+    skill: 'messaging-analysis',
+    instruction: 'Write the messaging analysis now. Start with the scorecard JSON block.',
+    inputs: {
+      outputs: [
+        'website-positioning',
+        'social-taglines',
+        'playbook-assemble',
+        'competitor-profiles'
+      ],
+      inputCategories: ['sales collateral']
+    },
+    web: false,
+    cacheDocuments: true,
+    output: (ctx) => `memory/messaging-analysis/${ctx.company}.md`
+  }
+]
+
+export const taskById = (id: string): TaskDef | undefined => TASKS.find((t) => t.id === id)
