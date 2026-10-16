@@ -3,6 +3,8 @@ import {
   ChatEnvelopeSchema,
   EVENT_CHAT,
   EVENT_OPEN_SETTINGS,
+  EVENT_WORKSPACE_CHANGED,
+  WorkspaceChangedSchema,
   type Api,
   type ChannelName
 } from '@shared/ipc-contract'
@@ -19,6 +21,12 @@ const api: Api = {
   useDefaultFolder: () => invoke('workspace:useDefault'),
   confirmWorkspace: (path) => invoke('workspace:confirm', { path }),
   revealWorkspace: () => invoke('workspace:reveal'),
+  detectWorkspace: (path) => invoke('workspace:detect', { path }),
+  getProfile: () => invoke('profile:get'),
+  saveProfile: (profile) => invoke('profile:save', profile),
+  listDocs: (dir) => invoke('docs:list', { dir }),
+  readDoc: (path) => invoke('docs:read', { path }),
+  openDoc: (path) => invoke('docs:openInEditor', { path }),
   startChat: (args) => invoke('chat:start', args),
   cancelChat: (streamId) => invoke('chat:cancel', { streamId }),
   disconnect: () => invoke('secrets:disconnect'),
@@ -30,6 +38,14 @@ const api: Api = {
     }
     ipcRenderer.on(EVENT_CHAT, listener)
     return () => ipcRenderer.removeListener(EVENT_CHAT, listener)
+  },
+  onWorkspaceChanged: (cb) => {
+    const listener = (_e: unknown, raw: unknown): void => {
+      const parsed = WorkspaceChangedSchema.safeParse(raw)
+      if (parsed.success) cb(parsed.data)
+    }
+    ipcRenderer.on(EVENT_WORKSPACE_CHANGED, listener)
+    return () => ipcRenderer.removeListener(EVENT_WORKSPACE_CHANGED, listener)
   },
   onOpenSettings: (cb) => {
     const listener = (): void => cb()

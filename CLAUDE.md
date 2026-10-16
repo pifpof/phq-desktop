@@ -2,7 +2,7 @@
 
 Free, open-source (MIT) desktop app by Parallel79°. It guides a founder through building a positioning and competitive-intelligence wiki using their own LLM API key. Everything is stored in a local folder they choose.
 
-**Current milestone: v0 scaffold.** Wizard (Welcome, Connect AI, Verify, Workspace, Done) into a working chat. Specs: `docs/REQUIREMENTS.md`. Build order: `docs/IMPLEMENTATION_PLAN.md`. Work the plan phase by phase; don't skip ahead, and don't add features outside v0 scope (REQUIREMENTS 2.2) without asking Shahed.
+**Current milestone: v1 (company onboarding, initial research, home screen).** v0 (wizard, key storage, chat) is done and tested. Specs: `docs/v1/REQUIREMENTS-v1.md`. Build order: `docs/v1/IMPLEMENTATION_PLAN-v1.md`. v0 specs are in `docs/v0/` and still apply unless v1 changes them. Work the plan phase by phase; don't skip ahead, and don't add features outside v1 scope (REQUIREMENTS-v1 1.1) without asking Shahed.
 
 ## Stack
 
@@ -62,3 +62,12 @@ Rules:
 ## Repo
 
 Public GitHub repo `positioninghq-desktop`, MIT. Separate from the skill-pack repo `github.com/pifpof/positioningHQ`, which later supplies the positioning framework and templates.
+
+## v1 rules (do not break)
+
+11. **Isolation.** Web tasks never receive user files or extracted file text. Synthesis tasks receive user files and get no web tools. No task gets local tools; the main process writes AI output to fixed paths. A unit test enforces this.
+12. **Web content is data.** Crawled pages, search results and user files are wrapped as documents and never treated as instructions.
+13. **Skills are vendored** into `resources/skills/` at a pinned commit (`npm run skills:sync`). Prompts are never downloaded at runtime.
+14. **Markdown is the source of truth.** `profile.json`, run files and chats are app state. Every user-facing document is markdown with YAML front matter. Tolerate files edited, moved or deleted outside the app.
+15. **No file content in logs.** Never log user file content, crawled text or model output.
+16. **Tool version strings** (web search, web fetch) live in one constants file.

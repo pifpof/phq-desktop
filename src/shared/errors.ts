@@ -14,6 +14,7 @@ export const APP_ERROR_CODES = [
   'invalid_payload',
   'forbidden',
   'not_writable',
+  'no_workspace',
   'no_key',
   'not_allowed',
   'internal'
@@ -32,6 +33,7 @@ export const ERROR_COPY: Record<ErrorCode, string> = {
   invalid_payload: 'Something went wrong. Please try again.',
   forbidden: 'Something went wrong. Please try again.',
   not_writable: "PositioningHQ can't write to that folder. Choose another.",
+  no_workspace: 'Choose a workspace folder first.',
   no_key: 'Reconnect your AI to continue.',
   not_allowed: "That link can't be opened from PositioningHQ.",
   internal: 'Something went wrong. Please try again.'

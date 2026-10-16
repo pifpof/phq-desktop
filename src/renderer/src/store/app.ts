@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { AppState } from '@shared/types'
+import type { Detection } from '@shared/workspace'
 import { api, unwrap } from '@/lib/api'
 
 export type Step = 'welcome' | 'connect' | 'verify' | 'workspace' | 'done' | 'chat'
@@ -13,6 +14,9 @@ interface AppStore {
   note: string | null
   /** Held only between "Verify key" and a successful verification. */
   pendingKey: string
+  /** What was found in the chosen folder before it was set up. Drives onboarding in later steps. */
+  detection: Detection | null
+  setDetection(d: Detection | null): void
   settingsOpen: boolean
   loadError: boolean
   init(): Promise<void>
@@ -31,6 +35,8 @@ export const useApp = create<AppStore>((set, get) => ({
   flow: 'wizard',
   note: null,
   pendingKey: '',
+  detection: null,
+  setDetection: (detection) => set({ detection }),
   settingsOpen: false,
   loadError: false,
 

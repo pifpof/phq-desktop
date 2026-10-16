@@ -1,5 +1,7 @@
 import { z } from 'zod'
 import { APP_ERROR_CODES, type ErrorCode } from './errors'
+import { ProfileSchema } from './profile'
+import { DetectionSchema, DocMetaSchema, DocSchema } from './workspace'
 
 export const ErrorCodeSchema = z.enum(APP_ERROR_CODES)
 
@@ -77,6 +79,18 @@ export const channels = {
     res: WorkspaceInfoSchema
   },
   'workspace:reveal': { req: z.undefined(), res: z.null() },
+  'workspace:detect': {
+    req: z.object({ path: z.string().min(1).max(4096) }),
+    res: DetectionSchema
+  },
+  'profile:get': { req: z.undefined(), res: ProfileSchema.nullable() },
+  'profile:save': { req: ProfileSchema, res: z.null() },
+  'docs:list': {
+    req: z.object({ dir: z.string().max(500).optional() }),
+    res: z.array(DocMetaSchema)
+  },
+  'docs:read': { req: z.object({ path: z.string().min(1).max(500) }), res: DocSchema.nullable() },
+  'docs:openInEditor': { req: z.object({ path: z.string().min(1).max(500) }), res: z.null() },
   'chat:start': {
     req: z.object({
       modeId: z.enum(['general']),
@@ -96,6 +110,10 @@ export type Res<C extends ChannelName> = z.infer<(typeof channels)[C]['res']>
 /** Push channels, main to renderer. */
 export const EVENT_CHAT = 'chat:event'
 export const EVENT_OPEN_SETTINGS = 'menu:openSettings'
+export const EVENT_WORKSPACE_CHANGED = 'workspace:changed'
+
+export const WorkspaceChangedSchema = z.object({ paths: z.array(z.string()) })
+export type WorkspaceChanged = z.infer<typeof WorkspaceChangedSchema>
 
 export const ChatEnvelopeSchema = z.object({ streamId: z.string(), event: ChatStreamEventSchema })
 export type ChatEnvelope = z.infer<typeof ChatEnvelopeSchema>
@@ -110,10 +128,17 @@ export interface Api {
   useDefaultFolder(): Promise<Result<Res<'workspace:useDefault'>>>
   confirmWorkspace(path: string): Promise<Result<Res<'workspace:confirm'>>>
   revealWorkspace(): Promise<Result<null>>
+  detectWorkspace(path: string): Promise<Result<Res<'workspace:detect'>>>
+  getProfile(): Promise<Result<Res<'profile:get'>>>
+  saveProfile(profile: Req<'profile:save'>): Promise<Result<null>>
+  listDocs(dir?: string): Promise<Result<Res<'docs:list'>>>
+  readDoc(path: string): Promise<Result<Res<'docs:read'>>>
+  openDoc(path: string): Promise<Result<null>>
   startChat(args: Req<'chat:start'>): Promise<Result<Res<'chat:start'>>>
   cancelChat(streamId: string): Promise<Result<null>>
   disconnect(): Promise<Result<null>>
   openExternal(url: string): Promise<Result<null>>
   onChatEvent(cb: (e: ChatEnvelope) => void): () => void
   onOpenSettings(cb: () => void): () => void
+  onWorkspaceChanged(cb: (e: WorkspaceChanged) => void): () => void
 }

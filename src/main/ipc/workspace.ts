@@ -1,4 +1,6 @@
 import { dialog, shell } from 'electron'
+import { createLayout } from '../workspace/layout'
+import { detectWorkspace } from '../workspace/detect'
 import type { AppContext } from '../context'
 import {
   confirmWorkspace,
@@ -35,8 +37,13 @@ export function registerWorkspace(handle: Handle, ctx: AppContext): void {
       workspacePath: path,
       onboardingComplete: ctx.secrets.loadKey() !== null || ctx.settings.get().onboardingComplete
     })
+    // v1: the full folder tree, alongside anything already in the folder. Never overwrites.
+    await createLayout(path)
+    ctx.watcher.watch(path)
     return { path, existing: result.existing }
   })
+
+  handle('workspace:detect', ({ path }) => detectWorkspace(path))
 
   handle('workspace:reveal', async () => {
     const path = ctx.settings.get().workspacePath

@@ -1,9 +1,10 @@
 import { app, BrowserWindow, safeStorage } from 'electron'
-import { EVENT_OPEN_SETTINGS } from '@shared/ipc-contract'
+import { EVENT_OPEN_SETTINGS, EVENT_WORKSPACE_CHANGED } from '@shared/ipc-contract'
 import { registerIpc } from './ipc'
 import { createLogger } from './log'
 import { isSecureStorageAvailable, quitWhenAllWindowsClosed } from './platform'
 import { buildMenu } from './platform/menu'
+import { createWorkspaceWatcher } from './workspace/watcher'
 import { createChatService } from './services/chat'
 import { createSecretsStore } from './services/secrets'
 import { createSettingsStore } from './services/settings'
@@ -34,11 +35,15 @@ if (!app.requestSingleInstanceLock()) {
       log
     })
     const chat = createChatService()
+    const watcher = createWorkspaceWatcher((paths) =>
+      win?.webContents.send(EVENT_WORKSPACE_CHANGED, { paths })
+    )
 
     registerIpc({
       settings,
       secrets,
       chat,
+      watcher,
       log,
       getWindow: () => win,
       appVersion: app.getVersion(),
@@ -52,11 +57,15 @@ if (!app.requestSingleInstanceLock()) {
       win.on('closed', () => (win = null))
     }
     open()
+    watcher.watch(settings.get().workspacePath)
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) open()
     })
-    app.on('before-quit', () => chat.cancelAll())
+    app.on('before-quit', () => {
+      chat.cancelAll()
+      void watcher.close()
+    })
   })
 
   app.on('window-all-closed', () => {

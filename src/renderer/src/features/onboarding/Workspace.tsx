@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Folder, FolderOpen } from 'lucide-react'
+import type { Detection } from '@shared/workspace'
 import { Button } from '@/components/ui/button'
 import { api, ApiError, unwrap } from '@/lib/api'
 import { useApp } from '@/store/app'
@@ -9,6 +10,7 @@ interface Choice {
   kind: 'default' | 'custom'
   path: string
   existing: boolean
+  detection: Detection
 }
 
 function Option({
@@ -48,11 +50,22 @@ export function Workspace() {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
+  const [acknowledged, setAcknowledged] = useState(false)
+
+  const select = async (
+    kind: Choice['kind'],
+    r: { path: string; existing: boolean }
+  ): Promise<Choice> => {
+    const detection = await unwrap(api.detectWorkspace(r.path))
+    return { kind, ...r, detection }
+  }
+
   const pickDefault = async (): Promise<void> => {
     try {
-      const r = await unwrap(api.useDefaultFolder())
+      const next = await select('default', await unwrap(api.useDefaultFolder()))
       setError(null)
-      setChoice({ kind: 'default', ...r })
+      setAcknowledged(false)
+      setChoice(next)
     } catch (err) {
       setChoice(null)
       setError(err instanceof ApiError ? err.message : null)
@@ -63,8 +76,9 @@ export function Workspace() {
   useEffect(() => {
     let cancelled = false
     unwrap(api.useDefaultFolder())
-      .then((r) => {
-        if (!cancelled) setChoice((c) => c ?? { kind: 'default', ...r })
+      .then(async (r) => {
+        const next = await select('default', r)
+        if (!cancelled) setChoice((c) => c ?? next)
       })
       .catch((err: Error) => {
         if (!cancelled) setError(err.message)
@@ -78,7 +92,10 @@ export function Workspace() {
     setError(null)
     try {
       const r = await unwrap(api.chooseFolder())
-      if (r) setChoice({ kind: 'custom', ...r })
+      if (!r) return
+      const next = await select('custom', r)
+      setAcknowledged(false)
+      setChoice(next)
     } catch (err) {
       setError(err instanceof ApiError ? err.message : null)
     }
@@ -90,6 +107,7 @@ export function Workspace() {
     setError(null)
     try {
       await unwrap(api.confirmWorkspace(choice.path))
+      useApp.getState().setDetection(choice.detection)
       await useApp.getState().refresh()
       if (flow === 'wizard') useApp.getState().go('done')
       else await useApp.getState().endFlow()
@@ -99,6 +117,9 @@ export function Workspace() {
       setBusy(false)
     }
   }
+
+  const kind = choice?.detection.kind
+  const needsAck = kind === 'non-empty' && !acknowledged
 
   // The key is already saved by now, so Back from the wizard goes to Connect, not Verify.
   const back =
@@ -132,9 +153,22 @@ export function Workspace() {
         />
       </div>
 
-      {choice?.existing && (
+      {(kind === 'phq-complete' || kind === 'phq-incomplete') && (
         <p className="text-primary mt-4 text-sm font-semibold" role="status">
           Found an existing PositioningHQ workspace.
+        </p>
+      )}
+      {kind === 'skillpack-vault' && (
+        <p className="text-primary mt-4 text-sm font-semibold" role="status">
+          Found a PositioningHQ vault
+          {choice?.detection.company?.name ? ` for ${choice.detection.company.name}` : ''}.
+          We&apos;ll keep your existing files.
+        </p>
+      )}
+      {needsAck && (
+        <p className="bg-secondary mt-4 rounded-[10px] px-4 py-3 text-sm" role="alert">
+          This folder already has files in it. PositioningHQ will add its own folders alongside
+          them.
         </p>
       )}
       {error && (
@@ -143,9 +177,20 @@ export function Workspace() {
         </p>
       )}
 
-      <Button className="mt-8 w-full" disabled={!choice || busy} onClick={() => void confirm()}>
-        Continue
-      </Button>
+      {needsAck ? (
+        <div className="mt-8 flex gap-3">
+          <Button className="flex-1" onClick={() => setAcknowledged(true)}>
+            Use it anyway
+          </Button>
+          <Button className="flex-1" variant="outline" onClick={() => void choose()}>
+            Choose another folder
+          </Button>
+        </div>
+      ) : (
+        <Button className="mt-8 w-full" disabled={!choice || busy} onClick={() => void confirm()}>
+          Continue
+        </Button>
+      )}
     </WizardShell>
   )
 }

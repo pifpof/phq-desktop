@@ -1,5 +1,6 @@
 import type { BrowserWindow } from 'electron'
 import type { Logger } from './log'
+import type { WorkspaceWatcher } from './workspace/watcher'
 import type { ChatService } from './services/chat'
 import type { SecretsStore } from './services/secrets'
 import type { SettingsStore } from './services/settings'
@@ -9,6 +10,7 @@ export interface AppContext {
   settings: SettingsStore
   secrets: SecretsStore
   chat: ChatService
+  watcher: WorkspaceWatcher
   log: Logger
   getWindow: () => BrowserWindow | null
   appVersion: string
