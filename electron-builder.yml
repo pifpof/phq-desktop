@@ -1,0 +1,33 @@
+appId: com.parallel79.positioninghq
+productName: PositioningHQ
+directories:
+  buildResources: resources
+files:
+  - out/**
+  - package.json
+  - LICENSE
+extraResources:
+  - from: src/renderer/src/assets/fonts/LICENSE-DejaVu.txt
+    to: LICENSE-DejaVu.txt
+mac:
+  target:
+    - target: dmg
+      arch: [arm64, x64]
+  category: public.app-category.productivity
+  identity: null
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+linux:
+  target:
+    - target: AppImage
+      arch: [x64]
+    - target: deb
+      arch: [x64]
+  category: Office
+  maintainer: Parallel79 <shahed@parallel79.com>
+artifactName: ${productName}-${version}-${arch}.${ext}

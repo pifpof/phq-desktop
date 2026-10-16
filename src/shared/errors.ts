@@ -1,0 +1,50 @@
+export const PROVIDER_ERROR_CODES = [
+  'invalid_key',
+  'no_permission',
+  'no_credit',
+  'rate_limited',
+  'overloaded',
+  'network',
+  'unknown'
+] as const
+export type ProviderErrorCode = (typeof PROVIDER_ERROR_CODES)[number]
+
+export const APP_ERROR_CODES = [
+  ...PROVIDER_ERROR_CODES,
+  'invalid_payload',
+  'forbidden',
+  'not_writable',
+  'no_key',
+  'not_allowed',
+  'internal'
+] as const
+export type ErrorCode = (typeof APP_ERROR_CODES)[number]
+
+export const ERROR_COPY: Record<ErrorCode, string> = {
+  invalid_key: "That key didn't work. Check you copied all of it.",
+  no_permission: "This key doesn't have access. Create a new key in the Console.",
+  no_credit:
+    'Your key works, but your account has no credit. Add credits under Billing, then try again.',
+  rate_limited: 'Anthropic is busy. Try again in a moment.',
+  overloaded: 'Anthropic is busy. Try again in a moment.',
+  network: "Can't reach Anthropic. Check your internet connection.",
+  unknown: 'Something went wrong.',
+  invalid_payload: 'Something went wrong. Please try again.',
+  forbidden: 'Something went wrong. Please try again.',
+  not_writable: "PositioningHQ can't write to that folder. Choose another.",
+  no_key: 'Reconnect your AI to continue.',
+  not_allowed: "That link can't be opened from PositioningHQ.",
+  internal: 'Something went wrong. Please try again.'
+}
+
+/** Safe display text for an error. `detail` is a provider error type, never a key. */
+export function errorMessage(code: ErrorCode, detail?: string): string {
+  const base = ERROR_COPY[code]
+  return code === 'unknown' && detail ? `${base} (${detail})` : base
+}
+
+export function isRetryable(code: ErrorCode): boolean {
+  return (
+    code === 'rate_limited' || code === 'overloaded' || code === 'network' || code === 'unknown'
+  )
+}
