@@ -31,6 +31,9 @@ export function registerWorkspace(handle: Handle, ctx: AppContext): void {
   })
 
   handle('workspace:confirm', async ({ path }) => {
+    // Moving to another folder mid-run would abandon the run. The person has to stop it first.
+    if (ctx.research.isActive() && path !== ctx.settings.get().workspacePath)
+      throw new HandlerError('research_running')
     const result = await confirmWorkspace(path, ctx.appVersion)
     if (!result) throw new HandlerError('not_writable')
     ctx.settings.update({

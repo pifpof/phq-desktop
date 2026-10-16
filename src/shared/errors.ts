@@ -19,6 +19,7 @@ export const APP_ERROR_CODES = [
   'forbidden',
   'not_writable',
   'no_workspace',
+  'research_running',
   'no_key',
   'not_allowed',
   'internal'
@@ -43,6 +44,7 @@ export const ERROR_COPY: Record<ErrorCode, string> = {
   forbidden: 'Something went wrong. Please try again.',
   not_writable: "PositioningHQ can't write to that folder. Choose another.",
   no_workspace: 'Choose a workspace folder first.',
+  research_running: 'Research is running in this workspace. Stop it before changing folders.',
   no_key: 'Reconnect your AI to continue.',
   not_allowed: "That link can't be opened from PositioningHQ.",
   internal: 'Something went wrong. Please try again.'

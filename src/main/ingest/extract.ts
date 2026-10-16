@@ -4,6 +4,7 @@ import matter from 'gray-matter'
 import JSZip from 'jszip'
 import mammoth from 'mammoth'
 import { extractText, getDocumentProxy } from 'unpdf'
+import { replaceEmDashes } from '../research/postprocess'
 import { INPUT_CATEGORIES, READABLE_EXTENSIONS, type InputCategory } from '@shared/workspace'
 
 /** Per-file budget. Tokens are estimated as characters divided by 4. */
@@ -108,7 +109,10 @@ export async function extractInputs(root: string, runId = 'manual'): Promise<Ext
         continue
       }
       try {
-        const text = clean(await extractText_(join(root, 'inputs', category, file)))
+        // The copy rule applies to everything the app writes, so dashes in extracted text become commas too.
+        const text = replaceEmDashes(
+          clean(await extractText_(join(root, 'inputs', category, file)))
+        )
         if (!text || text === '```csv\n\n```') {
           results.push({
             category,

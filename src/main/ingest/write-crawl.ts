@@ -1,6 +1,7 @@
 import { mkdir, readdir, rm, writeFile } from 'fs/promises'
 import { join } from 'path'
 import matter from 'gray-matter'
+import { replaceEmDashes } from '../research/postprocess'
 import type { CrawlResult } from './crawler'
 
 const dirOf = (root: string): string => join(root, 'memory', 'research', 'website')
@@ -18,7 +19,10 @@ export async function writeCrawl(
   const created = new Date().toISOString()
 
   for (const p of crawl.pages) {
-    const body = [`# ${p.h1[0] || p.title || p.url}`, '', p.markdown, ''].join('\n')
+    // Every document the app writes follows the copy rule, including copies of web pages.
+    const body = replaceEmDashes(
+      [`# ${p.h1[0] || p.title || p.url}`, '', p.markdown, ''].join('\n')
+    )
     await writeFile(
       join(pagesDir, `${p.slug}.md`),
       matter.stringify(body, {

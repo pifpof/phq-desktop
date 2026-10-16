@@ -86,7 +86,7 @@ describe('chat service', () => {
       },
       streamChat: ({ system, signal, onEvent }) =>
         new Promise<void>((resolve) => {
-          seenSystem = system
+          seenSystem = typeof system === 'string' ? system : system.map((b) => b.text).join('\n')
           onEvent({ type: 'delta', text: 'hi' })
           signal.addEventListener('abort', () => {
             onEvent({ type: 'done', stopped: true })
@@ -100,7 +100,7 @@ describe('chat service', () => {
       provider: fake,
       key: 'k',
       model: 'm',
-      modeId: 'general',
+      system: 'You are PositioningHQ, a test.',
       messages: [{ role: 'user', content: 'x' }],
       send: (_id, e) => events.push(e.type)
     })

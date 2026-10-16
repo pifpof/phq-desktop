@@ -17,7 +17,7 @@ Output as:
 
 Rules for the table:
 - Keep the columns exactly as above, in this order.
-- **Tagline or bio** is the exact text in quotes, or "Not found".
+- **Tagline or bio** is the exact text in quotes, or "Not found". Write any "|" in the text as "\|" so the table stays intact.
 - **Source** is "Search snippet", "Profile page" or "Website".
 - **Status** is exactly "Found" or "Not found". A profile that blocks reading is "Not found", never an error.
 - Include every network from the profiles list, including those not found, so the person can fill them in later.

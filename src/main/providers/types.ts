@@ -29,7 +29,8 @@ export type VerifyResult =
 export interface StreamChatArgs {
   key: string
   model: string
-  system: string
+  /** A plain prompt, or blocks with cache breakpoints (the workspace mode caches its documents). */
+  system: string | PromptBlock[]
   messages: ChatMessage[]
   signal: AbortSignal
   onEvent: (e: ChatStreamEvent) => void

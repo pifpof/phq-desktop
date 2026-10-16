@@ -295,3 +295,27 @@ describe('parsePage links', () => {
     expect(p.markdown).toContain('(https://acme.com/logo.png)')
   })
 })
+
+describe('crawled pages follow the copy rule', () => {
+  it('writes pages without em dashes', async () => {
+    const { mkdtempSync, readFileSync } = await import('fs')
+    const { tmpdir } = await import('os')
+    const { join } = await import('path')
+    const { writeCrawl } = await import('../../src/main/ingest/write-crawl')
+    const root = mkdtempSync(join(tmpdir(), 'phq-wc-'))
+    const p = parsePage(
+      `<html><body><h1>Fast — cheap</h1><p>${lorem(150)} — more</p><table><tr><th>a</th></tr><tr><td>—</td></tr></table></body></html>`,
+      'https://a.com/'
+    )
+    await writeCrawl(root, {
+      startUrl: 'https://a.com/',
+      pages: [{ ...p, url: 'https://a.com/', slug: 'home', rendered: false }],
+      social: [],
+      skipped: [],
+      robots: 'none'
+    })
+    expect(readFileSync(join(root, 'memory/research/website/pages/home.md'), 'utf8')).not.toContain(
+      '—'
+    )
+  })
+})

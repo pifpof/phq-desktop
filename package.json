@@ -1,6 +1,6 @@
 {
   "name": "positioninghq-desktop",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Build your positioning and competitive intelligence with an AI guide. Free and open source.",
   "main": "./out/main/index.js",
   "author": "Parallel79°",

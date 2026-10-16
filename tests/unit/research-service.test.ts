@@ -625,3 +625,14 @@ describe('research service: web search and budget', () => {
     s2.service.reset()
   })
 })
+
+describe('research service: active state', () => {
+  it('is active while a run is going and not once it is cancelled', async () => {
+    const s = makeService(fakeProvider({ onCall: () => new Promise(() => undefined) }).provider)
+    expect(s.service.isActive()).toBe(false)
+    await s.service.start()
+    expect(s.service.isActive()).toBe(true)
+    await s.service.cancel()
+    expect(s.service.isActive()).toBe(false)
+  })
+})

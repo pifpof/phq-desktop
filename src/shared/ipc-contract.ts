@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { ErrorCodeSchema, type ErrorCode } from './errors'
+import { ChatIdSchema, ChatRecordSchema, ChatSummarySchema } from './chat'
 import { ProfileSchema } from './profile'
 import { RunViewSchema, type RunView } from './research'
 import {
@@ -213,11 +214,19 @@ export const channels = {
   'docs:openInEditor': { req: z.object({ path: z.string().min(1).max(500) }), res: z.null() },
   'chat:start': {
     req: z.object({
-      modeId: z.enum(['general']),
+      modeId: z.enum(['general', 'workspace']),
       messages: z.array(ChatMessageSchema).min(1).max(500)
     }),
     res: z.object({ streamId: z.string() })
   },
+  'chats:list': { req: z.undefined(), res: z.array(ChatSummarySchema) },
+  'chats:get': { req: z.object({ id: ChatIdSchema }), res: ChatRecordSchema.nullable() },
+  'chats:save': { req: ChatRecordSchema, res: z.null() },
+  'chats:rename': {
+    req: z.object({ id: ChatIdSchema, title: z.string().min(1).max(200) }),
+    res: z.null()
+  },
+  'chats:delete': { req: z.object({ id: ChatIdSchema }), res: z.null() },
   'chat:cancel': { req: z.object({ streamId: z.string() }), res: z.null() },
   'secrets:disconnect': { req: z.undefined(), res: z.null() },
   'shell:openExternal': { req: z.object({ url: z.string().max(2048) }), res: z.null() }
@@ -284,6 +293,11 @@ export interface Api {
   getFilePath(file: File): string
   startChat(args: Req<'chat:start'>): Promise<Result<Res<'chat:start'>>>
   cancelChat(streamId: string): Promise<Result<null>>
+  listChats(): Promise<Result<Res<'chats:list'>>>
+  getChat(id: string): Promise<Result<Res<'chats:get'>>>
+  saveChat(chat: Req<'chats:save'>): Promise<Result<null>>
+  renameChat(id: string, title: string): Promise<Result<null>>
+  deleteChat(id: string): Promise<Result<null>>
   disconnect(): Promise<Result<null>>
   openExternal(url: string): Promise<Result<null>>
   onChatEvent(cb: (e: ChatEnvelope) => void): () => void

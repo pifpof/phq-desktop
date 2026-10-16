@@ -80,3 +80,24 @@ describe('renderer research helpers', () => {
     ).toBe('No credit.')
   })
 })
+
+import { goalStarters } from '../../src/renderer/src/features/chat/starters'
+import { emptyProfile } from '../../src/shared/profile'
+
+describe('chat starter prompts', () => {
+  it('follow the goals in order, name the top competitor, and fall back to defaults', () => {
+    const p = emptyProfile()
+    p.goals = ['competitors', 'sales']
+    p.company.competitors = ['Wile Co']
+    expect(goalStarters(p)).toEqual([
+      'How do we win against Wile Co?',
+      'Write a 30-second pitch our sales team can use.',
+      'What is our positioning statement, and how would you tighten it?'
+    ])
+    expect(goalStarters(null)).toEqual([
+      'What is our positioning statement, and how would you tighten it?',
+      'Rewrite our homepage hero using the playbook.',
+      'How do we win against our top competitor?'
+    ])
+  })
+})

@@ -9,12 +9,29 @@ export interface SocialRow {
   found: boolean
 }
 
+/** Table cells, splitting on unescaped pipes only. "\|" is a pipe inside a cell. */
 const cells = (line: string): string[] =>
   line
     .trim()
-    .replace(/^\||\|$/g, '')
-    .split('|')
-    .map((c) => c.trim())
+    .replace(/^\||(?<!\\)\|$/g, '')
+    .split(/(?<!\\)\|/)
+    .map((c) => c.replace(/\\\|/g, '|').trim())
+
+/**
+ * A quoted bio can contain a stray "|" that splits it into extra cells. The extra cells belong to
+ * the tagline, so they are joined back and the columns after it line up again.
+ */
+function realign(c: string[], width: number, taglineCol: number): string[] {
+  if (c.length <= width || taglineCol < 0) return c
+  const extra = c.length - width
+  return [
+    ...c.slice(0, taglineCol),
+    c.slice(taglineCol, taglineCol + extra + 1).join(' | '),
+    ...c.slice(taglineCol + extra + 1)
+  ]
+}
+
+const escapeCell = (c: string): string => c.replace(/\|/g, '\\|')
 
 const isSeparator = (line: string): boolean =>
   /^\|?(\s*:?-{3,}:?\s*\|)+\s*:?-*:?\s*\|?$/.test(line.trim())
@@ -44,7 +61,7 @@ export function parseSocialTable(markdown: string): SocialRow[] {
   const rows: SocialRow[] = []
   for (let i = at + 1; i < lines.length && lines[i].trim().startsWith('|'); i++) {
     if (isSeparator(lines[i])) continue
-    const c = cells(lines[i])
+    const c = realign(cells(lines[i]), header.length, t)
     const network = c[n] ?? ''
     if (!network) continue
     const tagline = (t >= 0 ? c[t] : '') ?? ''
@@ -83,13 +100,14 @@ export function setTagline(markdown: string, network: string, text: string): str
   const clean = text.replace(/\s+/g, ' ').replace(/\|/g, '/').replace(/"/g, "'").trim()
   for (let i = at + 1; i < lines.length && lines[i].trim().startsWith('|'); i++) {
     if (isSeparator(lines[i])) continue
-    const c = cells(lines[i])
+    const c = realign(cells(lines[i]), header.length, t)
     if ((c[n] ?? '').toLowerCase() !== network.toLowerCase()) continue
     while (c.length < header.length) c.push('')
     if (t >= 0) c[t] = `"${clean}"`
     if (s >= 0) c[s] = 'Pasted by you'
     if (st >= 0) c[st] = 'Found'
-    lines[i] = `| ${c.join(' | ')} |`
+    // Rewriting the row fixes any stray pipes in the other cells too.
+    lines[i] = `| ${c.map(escapeCell).join(' | ')} |`
     return lines.join('\n')
   }
   return null

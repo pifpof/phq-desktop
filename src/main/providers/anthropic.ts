@@ -137,14 +137,27 @@ async function streamChat({ key, model, system, messages, signal, onEvent }: Str
   const client = new Anthropic({ apiKey: key, maxRetries: 1 })
   try {
     const stream = client.messages.stream(
-      { model, system, messages, max_tokens: MAX_TOKENS },
+      {
+        model,
+        system: typeof system === 'string' ? system : toParams(system),
+        messages,
+        max_tokens: MAX_TOKENS
+      },
       { signal }
     )
     stream.on('text', (text) => onEvent({ type: 'delta', text }))
     const final = await stream.finalMessage()
     onEvent({
       type: 'usage',
-      usage: { inputTokens: final.usage.input_tokens, outputTokens: final.usage.output_tokens }
+      // Tokens read from or written to the prompt cache are reported apart from input_tokens. They are
+      // still the prompt, so count them: otherwise a cached chat shows "15 in".
+      usage: {
+        inputTokens:
+          final.usage.input_tokens +
+          (final.usage.cache_read_input_tokens ?? 0) +
+          (final.usage.cache_creation_input_tokens ?? 0),
+        outputTokens: final.usage.output_tokens
+      }
     })
     onEvent({ type: 'done', stopped: false })
   } catch (err) {

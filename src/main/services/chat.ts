@@ -1,23 +1,23 @@
 import { randomUUID } from 'crypto'
-import type { ChatMessage, ChatStreamEvent, ModeId } from '@shared/types'
-import { modes } from '../modes'
-import type { Provider } from '../providers/types'
+import type { ChatMessage, ChatStreamEvent } from '@shared/types'
+import type { PromptBlock, Provider } from '../providers/types'
 
 export interface StartStreamArgs {
   provider: Provider
   key: string
   model: string
-  modeId: ModeId
+  /** Built by the mode in the main process. */
+  system: string | PromptBlock[]
   messages: ChatMessage[]
   send: (streamId: string, event: ChatStreamEvent) => void
 }
 
-/** Registry of in-flight streams. The system prompt is always looked up here, never taken from the renderer. */
+/** Registry of in-flight streams. The system prompt comes from the mode, in main, never from the renderer. */
 export function createChatService() {
   const streams = new Map<string, AbortController>()
 
   return {
-    start({ provider, key, model, modeId, messages, send }: StartStreamArgs): string {
+    start({ provider, key, model, system, messages, send }: StartStreamArgs): string {
       const streamId = randomUUID()
       const controller = new AbortController()
       streams.set(streamId, controller)
@@ -25,7 +25,7 @@ export function createChatService() {
         .streamChat({
           key,
           model,
-          system: modes[modeId].systemPrompt,
+          system,
           messages,
           signal: controller.signal,
           onEvent: (e) => send(streamId, e)

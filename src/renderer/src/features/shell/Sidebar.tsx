@@ -13,6 +13,7 @@ import { Wordmark } from '@/components/Wordmark'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { useApp, type HomeView } from '@/store/app'
+import { RecentChats } from './RecentChats'
 import { ResearchPill } from './ResearchPill'
 
 const NAV: { view: HomeView; label: string; Icon: ComponentType<LucideProps> }[] = [
@@ -64,18 +65,20 @@ export function Sidebar() {
 
       <nav className="mt-2 space-y-0.5 px-3" aria-label="Main">
         {NAV.map(({ view: v, label, Icon }) => (
-          <button
-            key={v}
-            type="button"
-            title={collapsed ? label : undefined}
-            aria-label={collapsed ? label : undefined}
-            aria-current={view === v ? 'page' : undefined}
-            onClick={() => useApp.getState().setHomeView(v)}
-            className={cn(item, view === v ? 'bg-accent text-primary' : 'hover:bg-secondary')}
-          >
-            <Icon className="size-[18px] shrink-0" strokeWidth={1.8} />
-            {!collapsed && label}
-          </button>
+          <div key={v}>
+            <button
+              type="button"
+              title={collapsed ? label : undefined}
+              aria-label={collapsed ? label : undefined}
+              aria-current={view === v ? 'page' : undefined}
+              onClick={() => useApp.getState().setHomeView(v)}
+              className={cn(item, view === v ? 'bg-accent text-primary' : 'hover:bg-secondary')}
+            >
+              <Icon className="size-[18px] shrink-0" strokeWidth={1.8} />
+              {!collapsed && label}
+            </button>
+            {v === 'chat' && !collapsed && <RecentChats />}
+          </div>
         ))}
       </nav>
 

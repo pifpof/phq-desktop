@@ -14,6 +14,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/u
 import { api, openExternal, unwrap } from '@/lib/api'
 import { useApp } from '@/store/app'
 import { useChat } from '@/store/chat'
+import { useResearch } from '@/store/research'
+import { isActive } from '@/lib/research'
 
 const REPO_URL = 'https://github.com/parallel79/positioninghq-desktop'
 
@@ -42,6 +44,7 @@ function LinkButton({ href, children }: { href: string; children: React.ReactNod
 export function SettingsSheet() {
   const open = useApp((s) => s.settingsOpen)
   const state = useApp((s) => s.state)
+  const researchActive = useResearch((s) => isActive(s.run))
   const [models, setModels] = useState<ModelInfo[]>([])
   const [modelError, setModelError] = useState<string | null>(null)
   const [confirming, setConfirming] = useState(false)
@@ -158,11 +161,17 @@ export function SettingsSheet() {
                 <Button
                   variant="outline"
                   size="sm"
+                  disabled={researchActive}
                   onClick={() => useApp.getState().startFlow('changeFolder')}
                 >
                   Change folder
                 </Button>
               </div>
+              {researchActive && (
+                <p className="text-muted-foreground mt-2 text-[13px]">
+                  Research is running in this folder. Stop it before changing folders.
+                </p>
+              )}
             </Section>
 
             <Section title="About">

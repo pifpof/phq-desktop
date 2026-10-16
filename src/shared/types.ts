@@ -1,6 +1,6 @@
 import type { ErrorCode } from './errors'
 
-export type ModeId = 'general'
+export type ModeId = 'general' | 'workspace'
 export type ProviderId = 'anthropic' | 'openai' | 'gemini'
 
 export type Route = 'welcome' | 'connect' | 'workspace' | 'home'

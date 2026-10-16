@@ -62,3 +62,28 @@ describe('setTagline', () => {
     expect(setTagline('no table', 'X', 'x')).toBeNull()
   })
 })
+
+describe('pipes inside a tagline', () => {
+  const header = '| Network | URL | Tagline or bio | Source | Status |\n|---|---|---|---|---|\n'
+  it('reads a bio with a stray pipe (as a real model wrote it) without shifting the columns', () => {
+    const md =
+      header +
+      '| X | https://x.com/acme | "B2B SaaS growth expert | I have skied at both ends of the Earth" | Search snippet | Found |'
+    expect(parseSocialTable(md)[0]).toEqual({
+      network: 'X',
+      url: 'https://x.com/acme',
+      tagline: 'B2B SaaS growth expert | I have skied at both ends of the Earth',
+      source: 'Search snippet',
+      found: true
+    })
+  })
+  it('reads escaped pipes, and keeps them escaped when another row is pasted', () => {
+    const md =
+      header +
+      '| X | https://x.com/acme | "A \\| B" | Search snippet | Found |\n| LinkedIn | Not found | Not found | | Not found |'
+    expect(parseSocialTable(md)[0].tagline).toBe('A | B')
+    const out = setTagline(md, 'LinkedIn', 'Left | right')!
+    expect(parseSocialTable(out)[1]).toMatchObject({ tagline: 'Left / right', found: true })
+    expect(parseSocialTable(out)[0].tagline).toBe('A | B')
+  })
+})

@@ -341,6 +341,11 @@ export function createResearchService(d: ServiceDeps) {
       active().setBudget(Math.max(0.01, budgetCapUsd))
     },
 
+    /** True while a run is going or paused (resumable) in this workspace. */
+    isActive(): boolean {
+      return !!engine && !engine.isFinished
+    },
+
     /** The workspace changed: forget the run so the next call looks at the new folder. */
     reset(): void {
       engine?.cancel()

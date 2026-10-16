@@ -2,7 +2,9 @@ import { create } from 'zustand'
 import type { ErrorCode } from '@shared/errors'
 import type { ChatUsage, ModeId } from '@shared/types'
 import type { ChatEnvelope } from '@shared/ipc-contract'
-import { api } from '@/lib/api'
+import { chatTitle } from '@shared/chat'
+import { api, unwrap } from '@/lib/api'
+import { useChats } from './chats'
 
 export type MessageStatus = 'streaming' | 'done' | 'stopped' | 'error'
 
@@ -21,7 +23,13 @@ interface ChatStore {
   /** Events that arrive before chat:start has returned the stream ID. */
   early: ChatEnvelope[]
   starting: boolean
+  /** The saved chat this conversation belongs to, or null before the first message. */
+  chatId: string | null
+  createdAt: number
+  modeId: ModeId
   send(modeId: ModeId, text: string): Promise<void>
+  /** Opens a saved chat. */
+  open(id: string): Promise<void>
   retry(modeId: ModeId): Promise<void>
   stop(): void
   reset(): void
@@ -63,10 +71,36 @@ export const useChat = create<ChatStore>((set, get) => {
     } else if (e.type === 'done') {
       patchLast({ status: e.stopped ? 'stopped' : 'done' })
       set({ streamId: null })
+      void persist()
     } else {
       patchLast({ status: 'error', error: { code: e.code, message: e.message } })
       set({ streamId: null })
+      void persist()
     }
+  }
+
+  /** Saves the conversation to the workspace after each reply. Failed replies are not kept. */
+  const persist = async (): Promise<void> => {
+    const { chatId, createdAt, modeId, messages } = get()
+    const firstUser = messages.find((m) => m.role === 'user')
+    if (!chatId || !firstUser) return
+    const kept = messages.filter(
+      (m) => m.role === 'user' || ((m.status === 'done' || m.status === 'stopped') && m.content)
+    )
+    await api.saveChat({
+      id: chatId,
+      title: chatTitle(firstUser.content),
+      modeId,
+      createdAt,
+      updatedAt: Date.now(),
+      messages: kept.map((m) => ({
+        role: m.role,
+        content: m.content,
+        ...(m.role === 'assistant' ? { status: m.status as 'done' | 'stopped' } : {}),
+        ...(m.usage ? { usage: m.usage } : {})
+      }))
+    })
+    void useChats.getState().refresh()
   }
 
   const run = async (modeId: ModeId): Promise<void> => {
@@ -101,10 +135,14 @@ export const useChat = create<ChatStore>((set, get) => {
     streamId: null,
     early: [],
     starting: false,
+    chatId: null,
+    createdAt: 0,
+    modeId: 'general',
 
     async send(modeId, text) {
       const content = text.trim()
       if (!content || get().streamId || get().starting) return
+      if (!get().chatId) set({ chatId: uid(), createdAt: Date.now(), modeId })
       set((s) => ({
         messages: [
           ...s.messages,
@@ -136,12 +174,31 @@ export const useChat = create<ChatStore>((set, get) => {
       // Mark stopped now; late events for this stream are ignored.
       patchLast({ status: 'stopped' })
       set({ streamId: null, starting: starting ? false : starting })
+      void persist()
+    },
+
+    async open(id) {
+      get().reset()
+      const chat = await unwrap(api.getChat(id)).catch(() => null)
+      if (!chat) return
+      set({
+        chatId: chat.id,
+        createdAt: chat.createdAt,
+        modeId: chat.modeId,
+        messages: chat.messages.map((m) => ({
+          id: uid(),
+          role: m.role,
+          content: m.content,
+          status: m.role === 'assistant' ? (m.status ?? 'done') : 'done',
+          ...(m.usage ? { usage: m.usage } : {})
+        }))
+      })
     },
 
     reset() {
       const { streamId } = get()
       if (streamId) void api.cancelChat(streamId)
-      set({ messages: [], streamId: null, early: [], starting: false })
+      set({ messages: [], streamId: null, early: [], starting: false, chatId: null, createdAt: 0 })
     },
 
     handleEvent(env) {
