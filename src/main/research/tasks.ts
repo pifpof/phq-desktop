@@ -1,3 +1,4 @@
+import { checkSocialTable } from '@shared/social'
 import { safeName } from '../workspace/safe-name'
 import type { TaskContext, TaskDef, WebTools } from './types'
 
@@ -176,10 +177,14 @@ export const TASKS: TaskDef[] = [
     title: 'Find social profiles',
     stage: 1,
     kind: 'web-research',
-    dependsOn: [],
+    // Waits for the crawl (seconds) so links from the company's own site are used first.
+    dependsOn: ['crawl-website'],
     skill: 'social-taglines',
-    instruction: 'Find the company social profiles and list them with a confidence for each.',
-    inputs: { outputs: [], optionalOutputs: ['crawl-website'], inputCategories: [] },
+    rules: ['references/rules.md'],
+    asset: 'assets/social-profiles.md',
+    instruction:
+      'List the company social profiles now. Use the links in the crawl index first, then search for the rest.',
+    inputs: { outputs: ['crawl-website'], inputCategories: [] },
     web: search(6),
     output: () => 'memory/research/social-profiles.md'
   },
@@ -244,14 +249,13 @@ export const TASKS: TaskDef[] = [
     kind: 'web-profile',
     dependsOn: ['find-social-profiles'],
     skill: 'social-taglines',
+    rules: ['references/rules.md'],
+    asset: 'assets/social-taglines.md',
     instruction:
-      'For each profile, collect the headline, tagline or bio from public sources. Mark profiles you cannot read as not found.',
-    inputs: {
-      outputs: ['find-social-profiles'],
-      optionalOutputs: ['crawl-website'],
-      inputCategories: []
-    },
+      'Collect the tagline or bio of every profile in the social profiles list now. Mark any profile you cannot read as Not found.',
+    inputs: { outputs: ['find-social-profiles', 'crawl-website'], inputCategories: [] },
     web: search(6, { maxUses: 6, maxContentTokens: 10_000 }),
+    validate: checkSocialTable,
     output: () => 'memory/research/social-taglines.md'
   },
   {

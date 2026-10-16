@@ -28,14 +28,7 @@ import type { RunView } from '../../src/shared/research'
 
 const root = join(__dirname, '../..')
 // Skills written in later phases. Until they exist, the test stands in a stub so the whole graph can run.
-const PENDING = new Set([
-  'website-positioning',
-  'social-taglines',
-  'competitor-discovery',
-  'competitor-profile',
-  'proof-gathering',
-  'messaging-analysis'
-])
+const PENDING = new Set(['messaging-analysis'])
 const disk = diskSkillReader(join(root, 'resources/skills'))
 const readSkill = (skill: string, file: string): string =>
   PENDING.has(skill) && !existsSync(join(root, 'resources/skills', skill, file))
@@ -86,9 +79,11 @@ function fakeProvider(
         if (opts.failWeb && call.web) throw new ProviderError('web_search_disabled')
         await opts.onCall?.(call, a.signal)
         if (a.signal.aborted) throw new Error('aborted')
-        const body = /most relevant competitors now/.test(instruction)
-          ? '# Competitors\n\n| Name | Website | One line | Type |\n|---|---|---|---|\n| Wile Co | wile.example | Rockets | Direct |\n| Road Runner Inc | roadrunner.example | Speed | Indirect |'
-          : `# Output\n\nWritten for: ${instruction.slice(0, 40)} — with a dash.\n\n\`\`\`\ncode — stays\n\`\`\``
+        const body = /^Collect the tagline/.test(instruction)
+          ? '# Social Taglines\n\n| Network | URL | Tagline or bio | Source | Status |\n|---|---|---|---|---|\n| LinkedIn | https://linkedin.com/company/acme | "Rockets for coyotes" | Search snippet | Found |\n| X | Not found | Not found | | Not found |'
+          : /most relevant competitors now/.test(instruction)
+            ? '# Competitors\n\n| Name | Website | One line | Type |\n|---|---|---|---|\n| Wile Co | wile.example | Rockets | Direct |\n| Road Runner Inc | roadrunner.example | Speed | Indirect |'
+            : `# Output\n\nWritten for: ${instruction.slice(0, 40)} — with a dash.\n\n\`\`\`\ncode — stays\n\`\`\``
         return {
           text: body,
           citations: a.tools.webSearch
@@ -300,6 +295,28 @@ describe('research service: the full pipeline', () => {
     expect(positioningCall.text).toContain(
       '<document path="memory/research/website/pages/home.md">'
     )
+  })
+})
+
+describe('research service: social taglines', () => {
+  it('finds profiles after the crawl, from its index, and writes a table the app can read', async () => {
+    const f = fakeProvider()
+    const s = makeService(f.provider)
+    await s.service.start()
+    await s.until(() => s.finished.length === 1, 'finish')
+    const find = f.calls.find((c) => c.id.startsWith('List the company social profiles'))!
+    // The crawl was done first, and only its index was shown to this web task.
+    expect(find.text).toContain('<document path="memory/research/website/index.md">')
+    expect(find.text).not.toContain('We sell rockets to coyotes.')
+    const { parseSocialTable } = await import('../../src/shared/social')
+    const rows = parseSocialTable(
+      readFileSync(join(ws, 'memory/research/social-taglines.md'), 'utf8')
+    )
+    expect(rows.map((r) => [r.network, r.found])).toEqual([
+      ['LinkedIn', true],
+      ['X', false]
+    ])
+    expect(s.last().tasks.find((t) => t.id === 'social-taglines')?.note).toBeNull()
   })
 })
 

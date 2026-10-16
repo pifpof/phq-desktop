@@ -83,7 +83,7 @@ describe('task graph', () => {
     }
   })
 
-  it('matches REQUIREMENTS-v1 3.1: stage 1 starts without dependencies on AI output', () => {
+  it('matches REQUIREMENTS-v1 3.1: stage 1 waits on no AI output (only on local tasks)', () => {
     const stage1 = TASKS.filter((t) => t.stage === 1)
     expect(stage1.map((t) => t.id).sort()).toEqual(
       [
@@ -99,18 +99,12 @@ describe('task graph', () => {
         'research-07-recent-developments'
       ].sort()
     )
-    for (const t of stage1) expect(t.dependsOn, t.id).toEqual([])
+    for (const t of stage1)
+      for (const d of t.dependsOn) expect(byId.get(d)!.local, `${t.id} -> ${d}`).toBeTruthy()
   })
 
   // App skills that are written in later phases. Remove each name here when its skill lands.
-  const PENDING_SKILLS = new Set([
-    'website-positioning',
-    'social-taglines',
-    'competitor-discovery',
-    'competitor-profile',
-    'proof-gathering',
-    'messaging-analysis'
-  ])
+  const PENDING_SKILLS = new Set(['messaging-analysis'])
   it('points at skill files that exist, apart from skills still to be written', async () => {
     const children = await byId.get('competitor-profiles')!.fanOut!(ctx)
     for (const t of [...TASKS, ...children]) {

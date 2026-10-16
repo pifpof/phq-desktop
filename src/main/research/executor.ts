@@ -92,10 +92,15 @@ async function readDocument(root: string, rel: string): Promise<PromptDocument |
 }
 
 /** The documents an earlier task's output stands for: one file, a folder of files, or a crawl's index and pages. */
+/**
+ * Web tasks get only the crawl's index (page list, headings, social links), not every page:
+ * it keeps prompts that pay for search results small, and the index is all they need.
+ */
 export async function documentsFor(
   root: string,
   task: TaskDef,
-  ctx: TaskContext
+  ctx: TaskContext,
+  options: { pages: boolean } = { pages: true }
 ): Promise<PromptDocument[]> {
   const rel = task.output(ctx)
   const full = resolveInside(root, rel)
@@ -104,7 +109,7 @@ export async function documentsFor(
   if (await isDir(full)) paths.push(...(await mdFiles(root, rel)))
   else {
     paths.push(rel)
-    if (task.local === 'crawl') {
+    if (task.local === 'crawl' && options.pages) {
       const pages = await mdFiles(root, `${dirname(rel)}/pages`)
       // The home page first, then the rest in a stable order.
       paths.push(
@@ -200,7 +205,8 @@ export function createExecutor(
     const docs: PromptDocument[] = []
     for (const id of [...(task.inputs?.outputs ?? []), ...(task.inputs?.optionalOutputs ?? [])]) {
       const source = d.tasks.find((t) => t.id === id)
-      if (source) docs.push(...(await documentsFor(d.root, source, ctx)))
+      if (source)
+        docs.push(...(await documentsFor(d.root, source, ctx, { pages: task.web === false })))
     }
     if (categories.length) docs.push(...(await userFileDocuments(d.root, categories)))
     const documents = fitDocuments(docs)
@@ -219,17 +225,34 @@ export function createExecutor(
       d.readSkill
     )
 
-    const result = await d.provider.runTask({
-      key,
-      model: d.model,
-      system,
-      user,
-      tools: task.web
-        ? { webSearch: task.web.search, ...(task.web.fetch ? { webFetch: task.web.fetch } : {}) }
-        : {},
-      signal
-    })
+    const tools = task.web
+      ? { webSearch: task.web.search, ...(task.web.fetch ? { webFetch: task.web.fetch } : {}) }
+      : {}
+    let result = await d.provider.runTask({ key, model: d.model, system, user, tools, signal })
     if (!result.text.trim()) throw new Error('The model returned no text.')
+    let costUsd = costOf(d.pricing, d.model, result.usage).usd
+
+    // The format check: one retry with the problem explained, then save what we have.
+    let formatNote: string | undefined
+    const problem = task.validate?.(result.text)
+    if (problem) {
+      const again = await d.provider.runTask({
+        key,
+        model: d.model,
+        system,
+        user: [
+          ...user,
+          {
+            text: `Your previous answer was not in the required format: ${problem}\n\nReturn the whole document again, in the exact format required.`
+          }
+        ],
+        tools,
+        signal
+      })
+      costUsd += costOf(d.pricing, d.model, again.usage).usd
+      if (again.text.trim() && !task.validate?.(again.text)) result = again
+      else formatNote = 'Saved as written: the answer did not match the expected format.'
+    }
 
     const rel = task.output(ctx)
     await writeAtomic(
@@ -249,17 +272,12 @@ export function createExecutor(
       })
     )
 
-    let note = result.truncated ? 'The output was cut off at the length limit.' : undefined
+    let note = result.truncated ? 'The output was cut off at the length limit.' : formatNote
     if (task.after) {
       const after = await runLocal(task.after, task, signal)
       note ??= after.note
     }
-    return {
-      costUsd: costOf(d.pricing, d.model, result.usage).usd,
-      usage: result.usage,
-      output: rel,
-      note
-    }
+    return { costUsd, usage: result.usage, output: rel, note }
   }
 }
 

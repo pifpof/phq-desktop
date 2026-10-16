@@ -1,0 +1,73 @@
+/** The social taglines table (memory/research/social-taglines.md). Read by the app, filled in by the person. */
+export const SOCIAL_COLUMNS = ['Network', 'URL', 'Tagline or bio', 'Source', 'Status'] as const
+
+export interface SocialRow {
+  network: string
+  url: string
+  tagline: string
+  source: string
+  found: boolean
+}
+
+const cells = (line: string): string[] =>
+  line
+    .trim()
+    .replace(/^\||\|$/g, '')
+    .split('|')
+    .map((c) => c.trim())
+
+const isSeparator = (line: string): boolean =>
+  /^\|?(\s*:?-{3,}:?\s*\|)+\s*:?-*:?\s*\|?$/.test(line.trim())
+
+/** Finds the header line of the social table, or -1. */
+function headerIndex(lines: string[]): number {
+  return lines.findIndex((l) => {
+    if (!l.trim().startsWith('|')) return false
+    const h = cells(l).map((c) => c.toLowerCase())
+    return h.includes('network') && h.includes('url') && h.includes('status')
+  })
+}
+
+export function parseSocialTable(markdown: string): SocialRow[] {
+  const lines = markdown.split('\n')
+  const at = headerIndex(lines)
+  if (at < 0) return []
+  const header = cells(lines[at]).map((c) => c.toLowerCase())
+  const col = (name: string): number => header.findIndex((h) => h.startsWith(name))
+  const [n, u, t, s, st] = [
+    col('network'),
+    col('url'),
+    col('tagline'),
+    col('source'),
+    col('status')
+  ]
+  const rows: SocialRow[] = []
+  for (let i = at + 1; i < lines.length && lines[i].trim().startsWith('|'); i++) {
+    if (isSeparator(lines[i])) continue
+    const c = cells(lines[i])
+    const network = c[n] ?? ''
+    if (!network) continue
+    const tagline = (t >= 0 ? c[t] : '') ?? ''
+    rows.push({
+      network,
+      url: c[u] ?? '',
+      tagline: tagline.replace(/^"|"$/g, ''),
+      source: (s >= 0 ? c[s] : '') ?? '',
+      found: /^found$/i.test((c[st] ?? '').trim())
+    })
+  }
+  return rows
+}
+
+/** Null when the document has a usable social table, otherwise what is wrong. */
+export function checkSocialTable(markdown: string): string | null {
+  const lines = markdown.split('\n')
+  if (headerIndex(lines) < 0) {
+    return `The table is missing. It must have the columns: ${SOCIAL_COLUMNS.join(', ')}.`
+  }
+  const rows = parseSocialTable(markdown)
+  if (rows.length === 0)
+    return 'The table has no rows. Include one row for every network, found or not.'
+  const bad = rows.filter((r) => !/^(found|not found)$/i.test(r.found ? 'found' : 'not found'))
+  return bad.length ? 'Status must be exactly "Found" or "Not found".' : null
+}

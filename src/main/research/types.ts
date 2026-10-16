@@ -51,6 +51,12 @@ export interface TaskDef {
   /** Mark this task's documents as a prompt cache breakpoint (many tasks share them). */
   cacheDocuments?: boolean
 
+  /**
+   * Checks the model's answer before it is saved. Returns what is wrong, or null.
+   * A failing answer is retried once with the problem explained; a second failure is saved with a note.
+   */
+  validate?: (text: string) => string | null
+
   /** Workspace-relative path of the main output. */
   output(ctx: TaskContext): string
 
