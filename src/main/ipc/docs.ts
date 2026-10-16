@@ -22,6 +22,13 @@ export function registerDocs(handle: Handle, ctx: AppContext): void {
   handle('docs:list', ({ dir }) => listDocs(root(), dir))
   handle('docs:read', ({ path }) => readDoc(root(), path))
 
+  handle('docs:reveal', async ({ path }) => {
+    const full = resolveInside(root(), path)
+    if (!full || !(await exists(full))) throw new HandlerError('not_allowed')
+    shell.showItemInFolder(full)
+    return null
+  })
+
   handle('docs:openInEditor', async ({ path }) => {
     const full = resolveInside(root(), path)
     if (!full || !(await exists(full))) throw new HandlerError('not_allowed')

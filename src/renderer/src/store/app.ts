@@ -5,9 +5,13 @@ import { emptyProfile, type Profile } from '@shared/profile'
 import { api, unwrap } from '@/lib/api'
 import { isProfileStep, type WizardStep } from '@/features/onboarding/steps'
 
-export type Step = 'welcome' | WizardStep | 'chat'
-/** `wizard` is first-run setup. The others re-run one step from Settings and return to chat. */
-export type Flow = 'wizard' | 'replaceKey' | 'changeFolder'
+export type Step = 'welcome' | WizardStep | 'home' | 'progress'
+/**
+ * `wizard` is first-run setup. `replaceKey` and `changeFolder` re-run one step from Settings,
+ * and `research` opens the start-research card from home. All of them return home.
+ */
+export type Flow = 'wizard' | 'replaceKey' | 'changeFolder' | 'research'
+export type HomeView = 'chat' | 'playbook'
 
 interface AppStore {
   state: AppState | null
@@ -20,6 +24,10 @@ interface AppStore {
   detection: Detection | null
   setDetection(d: Detection | null): void
   profile: Profile | null
+  homeView: HomeView
+  setHomeView(view: HomeView): void
+  /** Home, showing this view. */
+  goHome(view?: HomeView): Promise<void>
   settingsOpen: boolean
   loadError: boolean
   init(): Promise<void>
@@ -46,6 +54,20 @@ export const useApp = create<AppStore>((set, get) => ({
   pendingKey: '',
   detection: null,
   profile: null,
+  homeView: 'chat',
+  setHomeView: (homeView) => set({ homeView }),
+  async goHome(view) {
+    await get().refresh()
+    const profile = await unwrap(api.getProfile()).catch(() => get().profile)
+    set({
+      flow: 'wizard',
+      step: 'home',
+      note: null,
+      pendingKey: '',
+      profile,
+      ...(view ? { homeView: view } : {})
+    })
+  },
   setDetection: (detection) => set({ detection }),
   settingsOpen: false,
   loadError: false,
@@ -55,10 +77,11 @@ export const useApp = create<AppStore>((set, get) => ({
       const state = await unwrap(api.getState())
       set({ state, step: state.route, note: state.note, flow: 'wizard', loadError: false })
       // Quit mid-onboarding: resume at the step the user reached.
-      if (state.route === 'chat') {
+      if (state.route === 'home') {
         const profile = await unwrap(api.getProfile()).catch(() => null)
+        set({ profile })
         if (profile && !profile.onboarding.complete && isProfileStep(profile.onboarding.step)) {
-          set({ profile, step: profile.onboarding.step })
+          set({ step: profile.onboarding.step })
         }
       }
     } catch {
@@ -81,7 +104,7 @@ export const useApp = create<AppStore>((set, get) => ({
   startFlow(flow) {
     set({
       flow,
-      step: flow === 'replaceKey' ? 'connect' : 'workspace',
+      step: flow === 'replaceKey' ? 'connect' : flow === 'research' ? 'start' : 'workspace',
       note: null,
       settingsOpen: false,
       pendingKey: ''
@@ -89,8 +112,7 @@ export const useApp = create<AppStore>((set, get) => ({
   },
 
   async endFlow() {
-    await get().refresh()
-    set({ flow: 'wizard', step: 'chat', note: null, pendingKey: '' })
+    await get().goHome()
   },
 
   async advance(edit, next) {

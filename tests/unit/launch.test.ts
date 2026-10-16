@@ -18,9 +18,9 @@ describe('launch routing', () => {
     const r = computeRoute({ settings: done, hasKey: true, workspaceWritable: false })
     expect(r).toEqual({ route: 'workspace', note: "We couldn't find your workspace folder" })
   })
-  it('goes to chat when everything is valid', () => {
+  it('goes home when everything is valid', () => {
     expect(computeRoute({ settings: done, hasKey: true, workspaceWritable: true })).toEqual({
-      route: 'chat',
+      route: 'home',
       note: null
     })
   })

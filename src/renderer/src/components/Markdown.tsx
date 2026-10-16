@@ -1,13 +1,45 @@
-import { memo } from 'react'
+import { Children, isValidElement, memo, type ReactNode } from 'react'
 import ReactMarkdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { anchor } from '@shared/anchor'
 import { isAllowedExternalUrl } from '@shared/links'
 import { openExternal } from '@/lib/api'
 
+/** Plain text of rendered children, for heading anchors. */
+function textOf(children: ReactNode): string {
+  return Children.toArray(children)
+    .map((c) =>
+      typeof c === 'string' || typeof c === 'number'
+        ? String(c)
+        : isValidElement<{ children?: ReactNode }>(c)
+          ? textOf(c.props.children)
+          : ''
+    )
+    .join('')
+}
+
 const components: Components = {
-  h1: (p) => <h1 className="mt-6 mb-2 text-[22px] leading-tight first:mt-0" {...strip(p)} />,
-  h2: (p) => <h2 className="mt-5 mb-2 text-xl leading-tight first:mt-0" {...strip(p)} />,
-  h3: (p) => <h3 className="mt-4 mb-1.5 text-[17px] leading-snug first:mt-0" {...strip(p)} />,
+  h1: (p) => (
+    <h1
+      id={anchor(textOf(p.children))}
+      className="mt-6 mb-2 scroll-mt-4 text-[22px] leading-tight first:mt-0"
+      {...strip(p)}
+    />
+  ),
+  h2: (p) => (
+    <h2
+      id={anchor(textOf(p.children))}
+      className="mt-5 mb-2 scroll-mt-4 text-xl leading-tight first:mt-0"
+      {...strip(p)}
+    />
+  ),
+  h3: (p) => (
+    <h3
+      id={anchor(textOf(p.children))}
+      className="mt-4 mb-1.5 scroll-mt-4 text-[17px] leading-snug first:mt-0"
+      {...strip(p)}
+    />
+  ),
   p: (p) => <p className="my-3 first:mt-0 last:mb-0" {...strip(p)} />,
   ul: (p) => <ul className="my-3 list-disc space-y-1 pl-6" {...strip(p)} />,
   ol: (p) => <ol className="my-3 list-decimal space-y-1 pl-6" {...strip(p)} />,
@@ -19,6 +51,23 @@ const components: Components = {
   ),
   hr: () => <hr className="my-5" />,
   a: ({ href, children }) => {
+    // Links within the document (a table of contents) scroll to the heading.
+    if (href?.startsWith('#')) {
+      return (
+        <a
+          href={href}
+          onClick={(e) => {
+            e.preventDefault()
+            document
+              .getElementById(decodeURIComponent(href.slice(1)))
+              ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          }}
+          className="text-primary hover:text-primary-hover underline underline-offset-2"
+        >
+          {children}
+        </a>
+      )
+    }
     // Links never navigate inside the app. Only allowlisted https links open, in the browser.
     if (href && isAllowedExternalUrl(href)) {
       return (

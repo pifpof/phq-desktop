@@ -1,6 +1,7 @@
 import { mkdir, readdir, readFile, rename, writeFile } from 'fs/promises'
 import { join } from 'path'
 import matter from 'gray-matter'
+import { anchor } from '@shared/anchor'
 import type { Profile } from '@shared/profile'
 import { safeName } from '../workspace/safe-name'
 import { setVaultStatus } from '../workspace/vault-config'
@@ -27,15 +28,6 @@ const SECTION_FILES: Record<string, string> = {
   '05': '05-positioning-statement.md',
   '06': '06-competitive-intelligence.md',
   '07': '07-customer-proof-points.md'
-}
-
-/** GitHub-style heading anchor, so contents links work in GitHub, Obsidian and the app. */
-export function anchor(heading: string): string {
-  return heading
-    .toLowerCase()
-    .trim()
-    .replace(/[^\p{L}\p{N}\s-]/gu, '')
-    .replace(/\s/g, '-')
 }
 
 /** Moves every heading down one level (# to ##), outside code blocks. */
@@ -86,6 +78,8 @@ export interface AssembleArgs {
 }
 
 /** memory/company-research/<Company>.md: every step plus the synthesis, as the skill pack does. */
+export { anchor }
+
 export async function assembleCompanyResearch(
   a: AssembleArgs
 ): Promise<{ output: string; note: string }> {

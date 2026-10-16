@@ -3,7 +3,7 @@ import type { ErrorCode } from './errors'
 export type ModeId = 'general'
 export type ProviderId = 'anthropic' | 'openai' | 'gemini'
 
-export type Route = 'welcome' | 'connect' | 'workspace' | 'chat'
+export type Route = 'welcome' | 'connect' | 'workspace' | 'home'
 
 export interface ModelInfo {
   id: string

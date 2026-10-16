@@ -1,4 +1,4 @@
-import { app, BrowserWindow, safeStorage } from 'electron'
+import { app, BrowserWindow, Notification, safeStorage } from 'electron'
 import { EVENT_OPEN_SETTINGS, EVENT_RESEARCH, EVENT_WORKSPACE_CHANGED } from '@shared/ipc-contract'
 import { registerIpc } from './ipc'
 import { createLogger } from './log'
@@ -54,6 +54,22 @@ if (!app.requestSingleInstanceLock()) {
       readSkill: diskSkillReader(skillsDir()),
       local: localHandlers(app.getVersion()),
       send: (run) => win?.webContents.send(EVENT_RESEARCH, run),
+      onFinished: (run) => {
+        // Tell the person when they are looking at something else (REQUIREMENTS-v1 3.5).
+        if (win?.isFocused() || !Notification.isSupported() || run.status === 'cancelled') return
+        const published = run.tasks.some((t) => t.id === 'playbook-assemble' && t.status === 'done')
+        const n = new Notification({
+          title: 'PositioningHQ',
+          body: published
+            ? 'Your positioning playbook is ready.'
+            : 'Research stopped before the playbook was finished.'
+        })
+        n.on('click', () => {
+          if (win?.isMinimized()) win.restore()
+          win?.focus()
+        })
+        n.show()
+      },
       log
     })
 

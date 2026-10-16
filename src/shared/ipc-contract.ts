@@ -33,7 +33,7 @@ export const ModelInfoSchema = z.object({
 })
 
 export const AppStateSchema = z.object({
-  route: z.enum(['welcome', 'connect', 'workspace', 'chat']),
+  route: z.enum(['welcome', 'connect', 'workspace', 'home']),
   note: z.string().nullable(),
   provider: z.enum(['anthropic', 'openai', 'gemini']),
   model: z.string().nullable(),
@@ -181,6 +181,7 @@ export const channels = {
       model: z.string()
     })
   },
+  'docs:reveal': { req: z.object({ path: z.string().min(1).max(500) }), res: z.null() },
   'docs:openInEditor': { req: z.object({ path: z.string().min(1).max(500) }), res: z.null() },
   'chat:start': {
     req: z.object({
@@ -226,6 +227,7 @@ export interface Api {
   listDocs(dir?: string): Promise<Result<Res<'docs:list'>>>
   readDoc(path: string): Promise<Result<Res<'docs:read'>>>
   openDoc(path: string): Promise<Result<null>>
+  revealDoc(path: string): Promise<Result<null>>
   listInputs(): Promise<Result<Res<'inputs:list'>>>
   addInputs(
     category: Req<'inputs:add'>['category'],

@@ -143,11 +143,7 @@ export function FilesStep() {
     await reload()
   }
 
-  // The research start card arrives in a later phase; for now both choices finish setup.
-  const finish = (): void =>
-    void useApp
-      .getState()
-      .advance((p) => ({ ...p, onboarding: { ...p.onboarding, complete: true } }), 'done')
+  const finish = (): void => void useApp.getState().advance((p) => p, 'start')
 
   return (
     <WizardShell step={stepNumber('files')} onBack={() => useApp.getState().go('loop')}>
@@ -171,7 +167,7 @@ export function FilesStep() {
       </div>
       <div className="mt-8 flex gap-3">
         <Button className="flex-1" onClick={finish}>
-          Continue
+          Start research
         </Button>
         <Button className="flex-1" variant="outline" onClick={finish}>
           Skip for now

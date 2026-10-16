@@ -17,5 +17,5 @@ export function computeRoute({ settings, hasKey, workspaceWritable }: LaunchInpu
   if (!settings.workspacePath || !workspaceWritable) {
     return { route: 'workspace', note: "We couldn't find your workspace folder" }
   }
-  return { route: 'chat', note: null }
+  return { route: 'home', note: null }
 }
