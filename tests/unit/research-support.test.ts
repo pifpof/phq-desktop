@@ -144,6 +144,9 @@ describe('prompt builder', () => {
       'senior B2B Product Marketing leader'
     )
     expect(roleOf('---\nname: x\n---\nNo role here')).toBe('')
+    expect(roleOf('---\ndescription: bad: yaml: here\n---\nYou are still found.')).toBe(
+      'You are still found.'
+    )
   })
 
   it("builds a web task prompt without any of the skill pack's interactive instructions", () => {

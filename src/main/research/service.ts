@@ -139,6 +139,11 @@ export function createResearchService(d: ServiceDeps) {
       context: () => ctx,
       execute,
       verifyOutput: outputVerifier(root, ctx),
+      // Error messages from our own code and the file system only. Model output never becomes an error message.
+      onTaskError: (task, err) =>
+        d.log.warn(
+          `Task ${task.id} failed: ${err instanceof ProviderError ? err.code : err instanceof Error ? err.message.slice(0, 300) : 'unknown'}`
+        ),
       save: (run) => saveRun(root, run),
       emit: (run) => {
         d.send(run)

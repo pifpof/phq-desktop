@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, existsSync, writeFileSync } from 'fs'
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, existsSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import matter from 'gray-matter'
@@ -9,6 +9,7 @@ import {
   type RunTaskArgs,
   type RunTaskResult
 } from '../../src/main/providers/types'
+import { assembleCompanyResearch, assemblePlaybook } from '../../src/main/research/assemble'
 import { extractInputs } from '../../src/main/ingest/extract'
 import { diskSkillReader } from '../../src/main/research/prompt-builder'
 import { parsePricing } from '../../src/main/research/pricing'
@@ -85,7 +86,7 @@ function fakeProvider(
         if (opts.failWeb && call.web) throw new ProviderError('web_search_disabled')
         await opts.onCall?.(call, a.signal)
         if (a.signal.aborted) throw new Error('aborted')
-        const body = /competitors\. Output a markdown table/.test(instruction)
+        const body = /most relevant competitors now/.test(instruction)
           ? '# Competitors\n\n| Name | Website | One line | Type |\n|---|---|---|---|\n| Wile Co | wile.example | Rockets | Direct |\n| Road Runner Inc | roadrunner.example | Speed | Indirect |'
           : `# Output\n\nWritten for: ${instruction.slice(0, 40)} — with a dash.\n\n\`\`\`\ncode — stays\n\`\`\``
         return {
@@ -118,6 +119,7 @@ function fakeProvider(
 }
 
 let ws: string
+const logs: string[] = []
 beforeEach(async () => {
   ws = mkdtempSync(join(tmpdir(), 'phq-svc-'))
   await createLayout(ws)
@@ -154,19 +156,11 @@ const fakeLocal = (): ServiceDeps['local'] => ({
     await extractInputs(r, runId)
     return { output: 'memory/research/inputs-extracted/index.md' }
   },
-  'assemble-company-research': async ({ root: r }) => {
-    writeFileSync(
-      join(r, 'memory/company-research/Acme Rockets.md'),
-      '---\nstatus: draft\n---\n# Acme research\n'
-    )
-    return { output: 'memory/company-research/Acme Rockets.md' }
-  },
-  'assemble-playbook': async ({ root: r, task }) => {
-    const out = `memory/positioning-playbook/Acme Rockets.md`
-    writeFileSync(join(r, out), '---\nstatus: draft\n---\n# Positioning Playbook: Acme Rockets\n')
-    void task
-    return { output: out }
-  }
+  // The real assembly steps, so the test covers the playbook and its versions.
+  'assemble-company-research': ({ root: r, profile, runId }) =>
+    assembleCompanyResearch({ root: r, profile, runId }),
+  'assemble-playbook': ({ root: r, profile, runId }) =>
+    assemblePlaybook({ root: r, profile, runId })
 })
 
 function makeService(provider: Provider, over: Partial<ServiceDeps> = {}) {
@@ -182,7 +176,11 @@ function makeService(provider: Provider, over: Partial<ServiceDeps> = {}) {
     local: fakeLocal(),
     send: (r) => void events.push(r),
     onFinished: (r) => void finished.push(r),
-    log: { info: () => undefined, warn: () => undefined, error: () => undefined },
+    log: {
+      info: () => undefined,
+      warn: (m: string) => void logs.push(m),
+      error: (m: string) => void logs.push(m)
+    },
     engine: { sleep: async () => undefined, random: () => 0 },
     ...over
   })
@@ -207,6 +205,12 @@ describe('research service: the full pipeline', () => {
     await s.service.start()
     await s.until(() => s.finished.length === 1, 'run to finish')
     const run = s.last()
+    expect(logs).toEqual([])
+    expect(
+      run.tasks
+        .filter((t) => t.status !== 'done')
+        .map((t) => `${t.id}:${t.status}:${t.error?.message}`)
+    ).toEqual([])
     expect(run.status).toBe('done')
     expect(run.tasks.filter((t) => t.status !== 'done').map((t) => `${t.id}:${t.status}`)).toEqual(
       []
@@ -286,11 +290,11 @@ describe('research service: the full pipeline', () => {
     await s.service.start()
     await s.until(() => s.finished.length === 1, 'finish')
     const positioningCall = f.calls.find((c) =>
-      c.id.startsWith('Describe how the company positions itself')
+      c.id.startsWith('Write the website positioning audit')
     )!
     expect(positioningCall.text).toContain('We sell rockets to coyotes.')
     expect(positioningCall.web).toBe(false)
-    const statement = f.calls.find((c) => c.id.startsWith('Write this playbook section'))
+    const statement = f.calls.find((c) => /^Write Section \d of the playbook/.test(c.id))
     expect(statement).toBeTruthy()
     // Documents are wrapped as data.
     expect(positioningCall.text).toContain(
@@ -299,12 +303,50 @@ describe('research service: the full pipeline', () => {
   })
 })
 
+describe('research service: playbook versions', () => {
+  it('a full run publishes playbook v1 with seven sections; a second run publishes v2 and leaves v1 alone', async () => {
+    const f = fakeProvider()
+    const s = makeService(f.provider)
+    await s.service.start()
+    await s.until(() => s.finished.length === 1, 'first run')
+    expect(s.last().status).toBe('done')
+    const versions = join(ws, 'memory/positioning-playbook/versions')
+    const v1Name = readdirSync(versions)[0]
+    expect(v1Name).toMatch(/^Acme Rockets-v1-\d{4}-\d{2}-\d{2}\.md$/)
+    const v1 = readFileSync(join(versions, v1Name), 'utf8')
+    const current = matter(
+      readFileSync(join(ws, 'memory/positioning-playbook/Acme Rockets.md'), 'utf8')
+    )
+    expect(current.data.version).toBe(1)
+    expect([...current.content.matchAll(/^## Section \d: /gm)]).toHaveLength(7)
+    expect(current.content).toContain('## Table of Contents')
+    expect(s.last().tasks.find((t) => t.id === 'playbook-assemble')?.note).toBe('Version 1')
+    // The company research file holds every step.
+    const research = readFileSync(join(ws, 'memory/company-research/Acme Rockets.md'), 'utf8')
+    expect(research).toContain('## Competitive Analysis')
+    expect(research).not.toContain('did not run')
+    // The vault config is ticked, so the skill pack's other skills see a finished vault.
+    const vault = readFileSync(join(ws, 'vault.config.md'), 'utf8')
+    expect(vault).toContain('- [x] Company Research')
+    expect(vault).toContain('- [x] Positioning Playbook')
+
+    await s.service.start()
+    await s.until(() => s.finished.length === 2, 'second run')
+    expect(readdirSync(versions)).toHaveLength(2)
+    expect(readFileSync(join(versions, v1Name), 'utf8')).toBe(v1)
+    expect(
+      matter(readFileSync(join(ws, 'memory/positioning-playbook/Acme Rockets.md'), 'utf8')).data
+        .version
+    ).toBe(2)
+  })
+})
+
 describe('research service: interruptions', () => {
   it('survives quitting mid-run: the next launch offers resume and skips finished tasks', async () => {
     let hold = true
     const f1 = fakeProvider({
       onCall: async (c, signal) => {
-        if (hold && c.id.startsWith('Write this playbook section'))
+        if (hold && /^Write Section \d of the playbook/.test(c.id))
           await new Promise<void>((_r, rej) => {
             if (signal.aborted) return rej(new Error('aborted'))
             signal.addEventListener('abort', () => rej(new Error('aborted')))
@@ -318,7 +360,12 @@ describe('research service: interruptions', () => {
       'playbook running'
     )
     s1.service.interrupt()
-    await s1.until(() => !s1.last().tasks.some((t) => t.status === 'running'), 'tasks to stop')
+    // A group (competitor profiles) stays in progress while its children wait, so only real tasks count.
+    const isGroup = (id: string) => s1.last().tasks.some((t) => t.parent === id)
+    await s1.until(
+      () => !s1.last().tasks.some((t) => t.status === 'running' && !isGroup(t.id)),
+      'tasks to stop'
+    )
     await s1.service.flush()
     const doneBefore = s1
       .last()
@@ -383,7 +430,7 @@ describe('research service: interruptions', () => {
   it('cancel keeps finished outputs and stops the rest', async () => {
     const f = fakeProvider({
       onCall: async (c, signal) => {
-        if (c.id.startsWith('Write this playbook section'))
+        if (/^Write Section \d of the playbook/.test(c.id))
           await new Promise<void>((_r, rej) => {
             if (signal.aborted) return rej(new Error('aborted'))
             signal.addEventListener('abort', () => rej(new Error('aborted')))

@@ -35,6 +35,8 @@ export interface EngineDeps {
   /** Resolves after `ms`, or early when the signal aborts. */
   sleep?(ms: number, signal: AbortSignal): Promise<void>
   random?(): number
+  /** Told about every task failure, for the main-process log. Never shown to the person as-is. */
+  onTaskError?(task: TaskDef, err: unknown): void
 }
 
 export interface EngineOptions {
@@ -595,6 +597,7 @@ export class ResearchEngine {
             this.pauseRun(verdict.reason, verdict.message, true)
             return
           }
+          this.deps.onTaskError?.(t.def, err)
           t.status = 'failed'
           t.error = verdict.error
           t.endedAt = this.now()

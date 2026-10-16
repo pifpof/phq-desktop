@@ -4,10 +4,11 @@ import { renderPage } from '../ingest/render-window'
 import { writeCrawl } from '../ingest/write-crawl'
 import { normalizeWebsite } from '@shared/url'
 import { userAgent } from '../user-agent'
+import { assembleCompanyResearch, assemblePlaybook } from './assemble'
 import type { LocalHandler } from './types'
 import type { LocalRunner } from './executor'
 
-/** The local tasks that exist so far. The assemble steps arrive with the research and playbook tasks. */
+/** Tasks that run on this computer and call no AI. */
 export function localHandlers(appVersion: string): Partial<Record<LocalHandler, LocalRunner>> {
   return {
     crawl: async ({ root, profile, runId, signal }) => {
@@ -20,12 +21,12 @@ export function localHandlers(appVersion: string): Partial<Record<LocalHandler, 
         signal
       })
       if (crawl.pages.length === 0) throw new Error("We couldn't read any pages from your website.")
-      const output = await writeCrawl(root, crawl, runId)
-      return {
-        output: 'memory/research/website/index.md',
-        note: `${crawl.pages.length} pages${output ? '' : ''}`
-      }
+      await writeCrawl(root, crawl, runId)
+      return { output: 'memory/research/website/index.md', note: `${crawl.pages.length} pages` }
     },
+    'assemble-company-research': ({ root, profile, runId }) =>
+      assembleCompanyResearch({ root, profile, runId }),
+    'assemble-playbook': ({ root, profile, runId }) => assemblePlaybook({ root, profile, runId }),
     extract: async ({ root, runId }) => {
       const results = await extractInputs(root, runId)
       const read = results.filter((r) => r.status === 'ok').length

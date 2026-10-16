@@ -46,12 +46,23 @@ const playbookSection = (
   skill: 'positioning-playbook',
   rules: ['references/tone-style.md'],
   asset: `assets/${n}-${slugFile[slug]}.md`,
-  instruction: 'Write this playbook section now, using only the documents provided.',
+  instruction: `Write Section ${Number(n)} of the playbook now, using only the documents provided. Start with the heading "## Section ${Number(n)}: ${SECTION_TITLES[n]}". Use generic category terms, never competitor brand names.`,
   inputs: { outputs, inputCategories },
   web: false,
   cacheDocuments: true,
   output: () => `${SECTIONS}/${n}-${slugFile[slug]}.md`
 })
+
+/** Section titles from the skill pack, used as fixed headings so the playbook assembles cleanly. */
+export const SECTION_TITLES: Record<string, string> = {
+  '01': 'Market Overview',
+  '02': 'Target Customers',
+  '03': 'Value Drivers',
+  '04': 'Distinct Advantages',
+  '05': 'Positioning Statement',
+  '06': 'Competitive Intelligence',
+  '07': 'Customer Proof Points'
+}
 
 const slugFile: Record<string, string> = {
   market: 'market-overview',
@@ -63,43 +74,76 @@ const slugFile: Record<string, string> = {
   proof: 'customer-proof-points'
 }
 
-/** Rows of a markdown table: first cell is the name, second the website. Header and separator rows are skipped. */
-export function parseCompetitors(markdown: string): { name: string; website: string }[] {
-  const out: { name: string; website: string }[] = []
-  for (const line of markdown.split('\n')) {
-    if (!line.trim().startsWith('|')) continue
-    const cells = line
-      .trim()
-      .replace(/^\||\|$/g, '')
-      .split('|')
-      .map((c) => c.trim())
-    if (cells.length < 2 || /^[-: ]+$/.test(cells[0])) continue
-    if (/^(name|competitor|company)$/i.test(cells[0])) continue
-    const name = cells[0].replace(/[*_`[\]]/g, '').trim()
-    const website = (
-      /https?:\/\/[^\s)|]+|(?:[a-z0-9-]+\.)+[a-z]{2,}[^\s)|]*/i.exec(cells[1])?.[0] ?? ''
-    ).trim()
-    if (name && !out.some((c) => c.name.toLowerCase() === name.toLowerCase()))
-      out.push({ name, website })
+export interface Competitor {
+  name: string
+  website: string
+  type: string
+}
+
+const cellsOf = (line: string): string[] =>
+  line
+    .trim()
+    .replace(/^\||\|$/g, '')
+    .split('|')
+    .map((c) => c.trim().replace(/[*_`]/g, ''))
+
+/**
+ * Reads the competitor table: the first table whose header has a Name column and a Website column.
+ * Any other table in the document (pricing, features) is ignored.
+ */
+export function parseCompetitors(markdown: string): Competitor[] {
+  const lines = markdown.split('\n')
+  const out: Competitor[] = []
+  for (let i = 0; i < lines.length; i++) {
+    if (!lines[i].trim().startsWith('|')) continue
+    const header = cellsOf(lines[i]).map((c) => c.toLowerCase())
+    const nameCol = header.findIndex((c) => /^(name|competitor|company|alternative)$/.test(c))
+    const siteCol = header.findIndex((c) => /^(website|site|url|domain)$/.test(c))
+    const typeCol = header.findIndex((c) => /^type$/.test(c))
+    if (nameCol < 0 || siteCol < 0) continue
+    for (let j = i + 1; j < lines.length && lines[j].trim().startsWith('|'); j++) {
+      const cells = cellsOf(lines[j])
+      if (cells.every((c) => /^[-: ]*$/.test(c))) continue
+      const name = (cells[nameCol] ?? '').replace(/[[\]]/g, '').trim()
+      const rawSite = cells[siteCol] ?? ''
+      const website =
+        /https?:\/\/[^\s)|]+/i.exec(rawSite)?.[0] ??
+        /(?:[a-z0-9-]+\.)+[a-z]{2,}[^\s)|\]]*/i.exec(rawSite)?.[0] ??
+        (/^n\/?a$/i.test(rawSite) ? 'n/a' : '')
+      const type = typeCol >= 0 ? (cells[typeCol] ?? '') : ''
+      if (name && !out.some((c) => c.name.toLowerCase() === name.toLowerCase()))
+        out.push({ name, website, type })
+    }
+    break
   }
-  return out.slice(0, 5)
+  return out.slice(0, 6)
 }
 
-async function competitorsFor(ctx: TaskContext): Promise<{ name: string; website: string }[]> {
-  const found = parseCompetitors((await ctx.readOutput('competitor-discovery')) ?? '')
-  if (found.length) return found
+const isStatusQuo = (c: Competitor): boolean =>
+  /status quo|do nothing|doing nothing/i.test(c.type) || /^n\/?a$/i.test(c.website)
+
+/** The companies to profile: discovery's table without the status quo (there is no company to research), at most five. */
+async function competitorsFor(ctx: TaskContext): Promise<Competitor[]> {
+  const found = parseCompetitors((await ctx.readOutput('competitor-discovery')) ?? '').filter(
+    (c) => !isStatusQuo(c)
+  )
+  if (found.length) return found.slice(0, 5)
   // Discovery gave nothing usable: fall back to the names the user typed.
-  return ctx.profile.company.competitors.slice(0, 5).map((name) => ({ name, website: '' }))
+  return ctx.profile.company.competitors
+    .slice(0, 5)
+    .map((name) => ({ name, website: '', type: 'Direct' }))
 }
 
-const competitorProfile = (c: { name: string; website: string }): TaskDef => ({
+const competitorProfile = (c: Competitor): TaskDef => ({
   id: `competitor-profiles:${safeName(c.name).toLowerCase().replace(/\s+/g, '-')}`,
   title: `Profile: ${c.name}`,
   stage: 2,
   kind: 'web-profile',
   dependsOn: ['competitor-discovery'],
   skill: 'competitor-profile',
-  instruction: `Profile this competitor: ${c.name}${c.website ? ` (${c.website})` : ''}.`,
+  rules: ['references/rules.md'],
+  asset: 'assets/competitor-profile.md',
+  instruction: `Profile this competitor: ${c.name}${c.website ? ` (${c.website})` : ''}. Research it on the web and write the profile now.`,
   inputs: { outputs: ['competitor-discovery'], inputCategories: [] },
   web: search(6, { maxUses: 4, maxContentTokens: 20_000 }),
   output: () => `memory/research/competitors/${safeName(c.name)}.md`
@@ -152,8 +196,10 @@ export const TASKS: TaskDef[] = [
     kind: 'web-research',
     dependsOn: [],
     skill: 'competitor-discovery',
+    rules: ['references/rules.md'],
+    asset: 'assets/competitors.md',
     instruction:
-      'Confirm or find the 3 to 5 most relevant competitors. Output a markdown table: Name, Website, One line, Type.',
+      'Confirm or find the 3 to 5 most relevant competitors now. Output the table exactly as specified.',
     inputs: { outputs: [], inputCategories: [] },
     web: search(6),
     output: () => 'memory/research/competitors.md'
@@ -167,7 +213,9 @@ export const TASKS: TaskDef[] = [
     kind: 'synthesis',
     dependsOn: ['crawl-website'],
     skill: 'website-positioning',
-    instruction: 'Describe how the company positions itself on its own website today.',
+    rules: ['references/rules.md'],
+    asset: 'assets/website-positioning.md',
+    instruction: 'Write the website positioning audit now, from the crawled pages provided.',
     inputs: { outputs: ['crawl-website'], inputCategories: [] },
     web: false,
     cacheDocuments: true,
@@ -223,8 +271,9 @@ export const TASKS: TaskDef[] = [
     kind: 'web-profile',
     dependsOn: ['competitor-discovery'],
     skill: 'proof-gathering',
-    instruction:
-      'Find reviews, forum threads and analyst mentions about the company. Quote them exactly.',
+    rules: ['references/rules.md'],
+    asset: 'assets/proof-public.md',
+    instruction: 'Search for public proof about the company now and write the document.',
     inputs: { outputs: [], inputCategories: [] },
     web: search(8, { maxUses: 4, maxContentTokens: 15_000 }),
     output: () => 'memory/research/proof-public.md'

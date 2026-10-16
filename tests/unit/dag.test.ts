@@ -219,13 +219,33 @@ describe('parseCompetitors', () => {
     const md =
       '# Competitors\n\n| Name | Website | One line | Type |\n|---|---|---|---|\n| **Wile Co** | https://wile.example | Rockets | Direct |\n| Road Runner Inc | roadrunner.example/about | Fast | Indirect |\n| wile co | x.com | dup | Direct |\n'
     expect(parseCompetitors(md)).toEqual([
-      { name: 'Wile Co', website: 'https://wile.example' },
-      { name: 'Road Runner Inc', website: 'roadrunner.example/about' }
+      { name: 'Wile Co', website: 'https://wile.example', type: 'Direct' },
+      { name: 'Road Runner Inc', website: 'roadrunner.example/about', type: 'Indirect' }
     ])
   })
+  it('profiles companies but not the status quo, and falls back to the names the user typed', async () => {
+    const md =
+      '| Name | Website | One line | Type |\n|---|---|---|---|\n| Wile Co | wile.example | Rockets | Direct |\n| Spreadsheets | n/a | Manual tracking | Status quo |\n| Agency | n/a | Outsourced | Indirect |'
+    const group = TASKS.find((t) => t.id === 'competitor-profiles')!
+    const kids = await group.fanOut!({ ...ctx, readOutput: async () => md })
+    expect(kids.map((k) => k.title)).toEqual(['Profile: Wile Co'])
+    const fallback = await group.fanOut!({ ...ctx, readOutput: async () => 'no table' })
+    expect(fallback.map((k) => k.title)).toEqual(['Profile: Wile Co', 'Profile: Road Runner Inc'])
+  })
+
+  it('ignores other tables and only reads the one with Name and Website columns', () => {
+    const md =
+      '| a | b |\n|---|---|\n| 1 | 2 |\n\n| Plan | Price |\n|---|---|\n| Pro | $9 |\n\n| Website | Competitor | Type |\n|---|---|---|\n| [wile.example](https://wile.example) | Wile Co | Direct |'
+    expect(parseCompetitors(md)).toEqual([
+      { name: 'Wile Co', website: 'https://wile.example', type: 'Direct' }
+    ])
+    expect(parseCompetitors('| a | b |\n|---|---|\n| 1 | 2 |')).toEqual([])
+  })
+
   it('caps at five and tolerates junk', () => {
     const rows = Array.from({ length: 8 }, (_, i) => `| Co ${i} | co${i}.com | x | y |`).join('\n')
-    expect(parseCompetitors(`| Name | Site |\n|---|---|\n${rows}`)).toHaveLength(5)
+    expect(parseCompetitors(`| Name | Site |\n|---|---|\n${rows}`)).toHaveLength(6)
+    expect(parseCompetitors(`| Name | Notes |\n|---|---|\n${rows}`)).toEqual([])
     expect(parseCompetitors('no table here')).toEqual([])
   })
 })

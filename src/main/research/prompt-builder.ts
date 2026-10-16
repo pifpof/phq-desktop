@@ -55,7 +55,13 @@ const NO_WEB_RULES = `You have no web access. Use only the documents provided an
 
 /** First sentence starting "You are ...", from a skill's SKILL.md. The rest of SKILL.md is interactive and is not used. */
 export function roleOf(skillMd: string): string {
-  const body = matter(skillMd).content
+  let body: string
+  try {
+    body = matter(skillMd).content
+  } catch {
+    // Broken front matter must not stop a task: read the text as it is.
+    body = skillMd
+  }
   const line = body.split('\n').find((l) => /^You are /.test(l))
   if (!line) return ''
   return /^You are .*?[.!](?=\s|$)/.exec(line)?.[0] ?? line
