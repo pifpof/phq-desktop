@@ -4,6 +4,7 @@ import type { Detection } from '@shared/workspace'
 import { Button } from '@/components/ui/button'
 import { api, ApiError, unwrap } from '@/lib/api'
 import { useApp } from '@/store/app'
+import { stepNumber } from './steps'
 import { Note, WizardShell } from './WizardShell'
 
 interface Choice {
@@ -109,8 +110,7 @@ export function Workspace() {
       await unwrap(api.confirmWorkspace(choice.path))
       useApp.getState().setDetection(choice.detection)
       await useApp.getState().refresh()
-      if (flow === 'wizard') useApp.getState().go('done')
-      else await useApp.getState().endFlow()
+      await useApp.getState().beginOnboarding(choice.detection)
     } catch (err) {
       setError(err instanceof ApiError ? err.message : null)
     } finally {
@@ -128,7 +128,7 @@ export function Workspace() {
       : () => void useApp.getState().endFlow()
 
   return (
-    <WizardShell step={flow === 'wizard' ? 3 : null} onBack={back}>
+    <WizardShell step={flow === 'wizard' ? stepNumber('workspace') : null} onBack={back}>
       {note && <Note>{note}</Note>}
       <h2>Choose where your work lives</h2>
       <p className="lede mt-3">

@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
 import { api, ApiError, unwrap } from '@/lib/api'
 import { useApp } from '@/store/app'
+import { stepNumber } from './steps'
 import { WizardShell } from './WizardShell'
 
 type View =
@@ -69,7 +70,10 @@ export function Verify() {
   }
 
   return (
-    <WizardShell step={flow === 'wizard' ? 2 : null} onBack={view.kind === 'ok' ? undefined : back}>
+    <WizardShell
+      step={flow === 'wizard' ? stepNumber('verify') : null}
+      onBack={view.kind === 'ok' ? undefined : back}
+    >
       {view.kind === 'checking' && (
         <div role="status" className="py-6">
           <Loader2 className="text-primary size-7 animate-spin" strokeWidth={1.8} />

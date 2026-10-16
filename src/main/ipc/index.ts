@@ -2,6 +2,8 @@ import type { AppContext } from '../context'
 import { registerApp } from './app'
 import { registerChat } from './chat'
 import { registerDocs } from './docs'
+import { registerInputs } from './inputs'
+import { registerNet } from './net'
 import { registerProvider } from './provider'
 import { makeHandle } from './register'
 import { registerShell } from './shell'
@@ -14,5 +16,7 @@ export function registerIpc(ctx: AppContext): void {
   registerWorkspace(handle, ctx)
   registerChat(handle, ctx)
   registerDocs(handle, ctx)
+  registerInputs(handle, ctx)
+  registerNet(handle, ctx)
   registerShell(handle)
 }

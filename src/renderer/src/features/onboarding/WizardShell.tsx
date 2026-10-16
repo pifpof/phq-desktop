@@ -1,10 +1,11 @@
 import type { ReactNode } from 'react'
 import { ArrowLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { WIZARD_TOTAL } from './steps'
 import { DragRegion } from '@/components/DragRegion'
 
 interface Props {
-  /** 1 to 4 during first-run setup. Null hides the indicator. */
+  /** Step number during first-run setup. Null hides the indicator. */
   step?: number | null
   onBack?: () => void
   children: ReactNode
@@ -26,7 +27,9 @@ export function WizardShell({ step, onBack, children }: Props) {
               <span />
             )}
             {step ? (
-              <span className="text-muted-foreground text-[13px]">Step {step} of 4</span>
+              <span className="text-muted-foreground text-[13px]">
+                Step {step} of {WIZARD_TOTAL}
+              </span>
             ) : null}
           </div>
         )}

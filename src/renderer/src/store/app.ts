@@ -1,9 +1,11 @@
 import { create } from 'zustand'
 import type { AppState } from '@shared/types'
 import type { Detection } from '@shared/workspace'
+import { emptyProfile, type Profile } from '@shared/profile'
 import { api, unwrap } from '@/lib/api'
+import { isProfileStep, type WizardStep } from '@/features/onboarding/steps'
 
-export type Step = 'welcome' | 'connect' | 'verify' | 'workspace' | 'done' | 'chat'
+export type Step = 'welcome' | WizardStep | 'chat'
 /** `wizard` is first-run setup. The others re-run one step from Settings and return to chat. */
 export type Flow = 'wizard' | 'replaceKey' | 'changeFolder'
 
@@ -17,6 +19,7 @@ interface AppStore {
   /** What was found in the chosen folder before it was set up. Drives onboarding in later steps. */
   detection: Detection | null
   setDetection(d: Detection | null): void
+  profile: Profile | null
   settingsOpen: boolean
   loadError: boolean
   init(): Promise<void>
@@ -24,6 +27,12 @@ interface AppStore {
   go(step: Step): void
   startFlow(flow: Flow): void
   endFlow(): Promise<void>
+  /** Applies a change to the profile, saves it, and moves to the next step (resumable). */
+  advance(edit: (p: Profile) => Profile, next: Step): Promise<void>
+  /** Saves the profile without leaving the step. */
+  saveProfile(edit: (p: Profile) => Profile): Promise<void>
+  /** Decides what happens after the workspace is confirmed (REQUIREMENTS-v1 2.1). */
+  beginOnboarding(detection: Detection): Promise<void>
   setPendingKey(key: string): void
   setSettingsOpen(open: boolean): void
   afterDisconnect(): Promise<void>
@@ -36,6 +45,7 @@ export const useApp = create<AppStore>((set, get) => ({
   note: null,
   pendingKey: '',
   detection: null,
+  profile: null,
   setDetection: (detection) => set({ detection }),
   settingsOpen: false,
   loadError: false,
@@ -44,6 +54,13 @@ export const useApp = create<AppStore>((set, get) => ({
     try {
       const state = await unwrap(api.getState())
       set({ state, step: state.route, note: state.note, flow: 'wizard', loadError: false })
+      // Quit mid-onboarding: resume at the step the user reached.
+      if (state.route === 'chat') {
+        const profile = await unwrap(api.getProfile()).catch(() => null)
+        if (profile && !profile.onboarding.complete && isProfileStep(profile.onboarding.step)) {
+          set({ profile, step: profile.onboarding.step })
+        }
+      }
     } catch {
       set({ loadError: true })
     }
@@ -74,6 +91,36 @@ export const useApp = create<AppStore>((set, get) => ({
   async endFlow() {
     await get().refresh()
     set({ flow: 'wizard', step: 'chat', note: null, pendingKey: '' })
+  },
+
+  async advance(edit, next) {
+    const profile = edit(get().profile ?? emptyProfile())
+    profile.onboarding.step = next
+    set({ profile })
+    await unwrap(api.saveProfile(profile))
+    set({ step: next, note: null })
+  },
+
+  async saveProfile(edit) {
+    const profile = edit(get().profile ?? emptyProfile())
+    set({ profile })
+    await unwrap(api.saveProfile(profile))
+  },
+
+  async beginOnboarding(detection) {
+    if (detection.kind === 'phq-complete') return get().endFlow()
+    const existing = await unwrap(api.getProfile())
+    if (existing?.onboarding.complete) return get().endFlow()
+    const profile = existing ?? emptyProfile()
+    // A skill-pack vault already knows the company. Prefill what's empty.
+    if (detection.company) {
+      profile.company.name ||= detection.company.name
+      profile.company.website ||= detection.company.website
+    }
+    const step = isProfileStep(profile.onboarding.step) ? profile.onboarding.step : 'company'
+    profile.onboarding.step = step
+    await unwrap(api.saveProfile(profile))
+    set({ profile, flow: 'wizard', step, note: null })
   },
 
   setPendingKey: (pendingKey) => set({ pendingKey }),

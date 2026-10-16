@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/button'
 import { useApp } from '@/store/app'
+import { stepNumber } from './steps'
 import { WizardShell } from './WizardShell'
 
 function Row({ label, value }: { label: string; value: string }) {
@@ -14,7 +15,7 @@ function Row({ label, value }: { label: string; value: string }) {
 export function Done() {
   const s = useApp((st) => st.state)
   return (
-    <WizardShell step={4} onBack={() => useApp.getState().go('workspace')}>
+    <WizardShell step={stepNumber('done')} onBack={() => useApp.getState().go('files')}>
       <h2>You&apos;re set up.</h2>
       <dl className="mt-6 divide-y rounded-xl border px-5">
         <Row label="Provider" value="Claude (Anthropic)" />

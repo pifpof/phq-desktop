@@ -2,6 +2,11 @@ import { useEffect } from 'react'
 import { useApp } from '@/store/app'
 import { ChatScreen } from '@/features/chat/ChatScreen'
 import { ConnectAI } from '@/features/onboarding/ConnectAI'
+import { AboutYouStep } from '@/features/onboarding/AboutYouStep'
+import { CompanyStep } from '@/features/onboarding/CompanyStep'
+import { FilesStep } from '@/features/onboarding/FilesStep'
+import { GoalsStep } from '@/features/onboarding/GoalsStep'
+import { StayInLoopStep } from '@/features/onboarding/StayInLoopStep'
 import { Done } from '@/features/onboarding/Done'
 import { Verify } from '@/features/onboarding/Verify'
 import { Welcome } from '@/features/onboarding/Welcome'
@@ -34,6 +39,11 @@ export default function App() {
       {step === 'connect' && <ConnectAI />}
       {step === 'verify' && <Verify />}
       {step === 'workspace' && <Workspace />}
+      {step === 'company' && <CompanyStep />}
+      {step === 'about' && <AboutYouStep />}
+      {step === 'goals' && <GoalsStep />}
+      {step === 'loop' && <StayInLoopStep />}
+      {step === 'files' && <FilesStep />}
       {step === 'done' && <Done />}
       {step === 'chat' && <ChatScreen />}
       <SettingsSheet />

@@ -1,7 +1,14 @@
 import { z } from 'zod'
 import { APP_ERROR_CODES, type ErrorCode } from './errors'
 import { ProfileSchema } from './profile'
-import { DetectionSchema, DocMetaSchema, DocSchema } from './workspace'
+import {
+  AddResultSchema,
+  DetectionSchema,
+  DocMetaSchema,
+  DocSchema,
+  InputCategorySchema,
+  InputFileSchema
+} from './workspace'
 
 export const ErrorCodeSchema = z.enum(APP_ERROR_CODES)
 
@@ -90,6 +97,26 @@ export const channels = {
     res: z.array(DocMetaSchema)
   },
   'docs:read': { req: z.object({ path: z.string().min(1).max(500) }), res: DocSchema.nullable() },
+  'inputs:list': {
+    req: z.undefined(),
+    res: z.record(InputCategorySchema, z.array(InputFileSchema))
+  },
+  'inputs:add': {
+    req: z.object({
+      category: InputCategorySchema,
+      paths: z.array(z.string().max(4096)).min(1).max(100)
+    }),
+    res: AddResultSchema
+  },
+  'inputs:browse': { req: z.object({ category: InputCategorySchema }), res: AddResultSchema },
+  'inputs:remove': {
+    req: z.object({ category: InputCategorySchema, name: z.string().min(1).max(255) }),
+    res: z.null()
+  },
+  'net:checkUrl': {
+    req: z.object({ url: z.string().max(2048) }),
+    res: z.object({ reachable: z.boolean(), finalUrl: z.string().nullable() })
+  },
   'docs:openInEditor': { req: z.object({ path: z.string().min(1).max(500) }), res: z.null() },
   'chat:start': {
     req: z.object({
@@ -134,6 +161,16 @@ export interface Api {
   listDocs(dir?: string): Promise<Result<Res<'docs:list'>>>
   readDoc(path: string): Promise<Result<Res<'docs:read'>>>
   openDoc(path: string): Promise<Result<null>>
+  listInputs(): Promise<Result<Res<'inputs:list'>>>
+  addInputs(
+    category: Req<'inputs:add'>['category'],
+    paths: string[]
+  ): Promise<Result<Res<'inputs:add'>>>
+  browseInputs(category: Req<'inputs:browse'>['category']): Promise<Result<Res<'inputs:browse'>>>
+  removeInput(category: Req<'inputs:remove'>['category'], name: string): Promise<Result<null>>
+  checkUrl(url: string): Promise<Result<Res<'net:checkUrl'>>>
+  /** Real path of a dropped File. Only the preload can read this. */
+  getFilePath(file: File): string
   startChat(args: Req<'chat:start'>): Promise<Result<Res<'chat:start'>>>
   cancelChat(streamId: string): Promise<Result<null>>
   disconnect(): Promise<Result<null>>

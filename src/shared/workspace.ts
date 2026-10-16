@@ -37,3 +37,22 @@ export const INPUT_CATEGORIES = [
   'help-docs'
 ] as const
 export type InputCategory = (typeof INPUT_CATEGORIES)[number]
+
+export const INPUT_LIMITS = { maxFileBytes: 25 * 1024 * 1024, maxFiles: 50 } as const
+/** Extensions the app can read. Others are copied but marked "not read". */
+export const READABLE_EXTENSIONS = ['pdf', 'docx', 'pptx', 'md', 'txt', 'csv'] as const
+
+export const InputFileSchema = z.object({
+  name: z.string(),
+  size: z.number(),
+  readable: z.boolean()
+})
+export type InputFile = z.infer<typeof InputFileSchema>
+
+export const AddResultSchema = z.object({
+  added: z.array(InputFileSchema),
+  refused: z.array(z.object({ name: z.string(), reason: z.string() }))
+})
+export type AddResult = z.infer<typeof AddResultSchema>
+
+export const InputCategorySchema = z.enum(INPUT_CATEGORIES)

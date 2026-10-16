@@ -5,8 +5,10 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { NumberedStep } from '@/components/NumberedStep'
+import { links } from '@shared/links'
 import { openExternal } from '@/lib/api'
 import { useApp } from '@/store/app'
+import { stepNumber } from './steps'
 import { Note, WizardShell } from './WizardShell'
 
 function ProviderCard({ name, disabled }: { name: string; disabled?: boolean }) {
@@ -44,7 +46,7 @@ export function ConnectAI() {
       : () => useApp.getState().go('welcome')
 
   return (
-    <WizardShell step={flow === 'wizard' ? 1 : null} onBack={back}>
+    <WizardShell step={flow === 'wizard' ? stepNumber('connect') : null} onBack={back}>
       {note && <Note>{note}</Note>}
       <h2>Connect your AI</h2>
       <p className="lede mt-3">
@@ -67,7 +69,7 @@ export function ConnectAI() {
               variant="outline"
               size="sm"
               className="mt-2"
-              onClick={() => openExternal('https://console.anthropic.com/')}
+              onClick={() => openExternal(links.anthropicConsole)}
             >
               Open the Console
               <ExternalLink strokeWidth={1.8} />
