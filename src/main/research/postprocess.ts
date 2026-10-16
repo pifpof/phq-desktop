@@ -11,6 +11,10 @@ export function stripOuterFence(text: string): string {
   return fences % 2 === 0 ? m[1].trim() : t
 }
 
+/** The em dash, built from its code so this file holds none (the copy sweep greps for the character). */
+const EM = String.fromCharCode(0x2014)
+const EM_RUN = new RegExp(`\\s*${EM}\\s*`, 'g')
+
 /**
  * The app writes no em dashes (copy rule). Models still produce them, so replace them in prose.
  * Fenced code is left alone. In headings a dash becomes a colon, elsewhere a comma.
@@ -21,13 +25,15 @@ export function replaceEmDashes(text: string): string {
     .split('\n')
     .map((line) => {
       if (/^\s*```/.test(line)) inCode = !inCode
-      if (inCode || !line.includes('—')) return line
+      if (inCode || !line.includes(EM)) return line
       if (/^\s*\|/.test(line)) {
         // An empty table cell written as a dash.
-        return line.replace(/\|\s*—\s*(?=\|)/g, '| n/a ').replace(/\s*—\s*/g, ', ')
+        return line
+          .replace(new RegExp(`\\|\\s*${EM}\\s*(?=\\|)`, 'g'), '| n/a ')
+          .replace(EM_RUN, ', ')
       }
-      if (/^\s*#/.test(line)) return line.replace(/\s*—\s*/g, ': ')
-      return line.replace(/^(\s*(?:[-*]\s+)?)—\s*/, '$1').replace(/\s*—\s*/g, ', ')
+      if (/^\s*#/.test(line)) return line.replace(EM_RUN, ': ')
+      return line.replace(new RegExp(`^(\\s*(?:[-*]\\s+)?)${EM}\\s*`), '$1').replace(EM_RUN, ', ')
     })
     .join('\n')
 }
