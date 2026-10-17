@@ -1,21 +1,99 @@
+import { app, dialog, shell } from 'electron'
+import { readFile } from 'fs/promises'
+import { isAbsolute, join, relative, sep } from 'path'
+import { CheckReportSchema } from '@shared/conformance'
 import type { AppContext } from '../context'
+import { exportSingleFile, exportZip } from '../export/wiki-export'
+import { assemblePlaybook } from '../research/assemble-playbook'
+import { draftDecision, recordDecision } from '../research/decisions'
+import { recordProvenance } from '../state/provenance'
+import { stateDir } from '../state/app-state'
 import { checkWiki } from '../wiki/conformance'
-import { findHub, isRegistered, registerInHub } from '../wiki/hub'
-import { readProfile } from '../workspace/profile'
-import { wikiDescription } from '../wiki/templates'
-import { relative, isAbsolute, sep } from 'path'
 import { fixWiki } from '../wiki/fix'
-import { writableRoot } from './guard'
+import { findHub, isRegistered, registerInHub } from '../wiki/hub'
+import { isoDay } from '../wiki/paths'
+import { wikiDescription } from '../wiki/templates'
+import { articleDetail, listArticles, listOutputs, listSources } from '../wiki/views'
+import { readProfile } from '../workspace/profile'
+import { workspaceRoot, writableRoot } from './guard'
 import { HandlerError, type Handle } from './register'
 
 export function registerWiki(handle: Handle, ctx: AppContext): void {
-  const root = (): string => {
-    const r = ctx.settings.get().workspacePath
-    if (!r) throw new HandlerError('no_workspace')
-    return r
+  const root = (): string => workspaceRoot(ctx)
+  /** Writes that touch articles or outputs wait until a run is not writing them too. */
+  const idleRoot = async (): Promise<string> => {
+    if (ctx.research.isActive()) throw new HandlerError('research_running')
+    return writableRoot(ctx)
   }
 
   handle('wiki:check', () => checkWiki(root()))
+  handle('wiki:fix', async () => fixWiki(await idleRoot()))
+  handle('wiki:lastCheck', async () => {
+    try {
+      const raw = await readFile(join(await stateDir(root()), 'conformance.json'), 'utf8')
+      const parsed = CheckReportSchema.safeParse(JSON.parse(raw))
+      return parsed.success ? parsed.data : null
+    } catch {
+      return null
+    }
+  })
+
+  handle('wiki:articles', () => listArticles(root()))
+  handle('wiki:article', ({ path }) => articleDetail(root(), path))
+  handle('wiki:sources', () => listSources(root()))
+  handle('wiki:outputs', ({ kind }) => listOutputs(root(), kind))
+
+  // Reassemble (REQUIREMENTS-v2 4.2): the playbook from the current articles, no model call.
+  handle('wiki:reassemble', async () => {
+    const r = await idleRoot()
+    const company = (await readProfile(r))?.company.name || 'Company'
+    const out = await assemblePlaybook(r, company, isoDay())
+    await recordProvenance(r, {
+      [out.output]: {
+        task: 'reassemble',
+        runId: 'manual',
+        model: 'none',
+        at: new Date().toISOString(),
+        inputs: out.sources
+      }
+    })
+    return { path: out.output, version: out.version }
+  })
+
+  handle('decision:preview', async (input) => {
+    const d = await draftDecision(root(), input)
+    return { path: d.path, text: d.text }
+  })
+  handle('decision:record', async (input) => ({
+    path: await recordDecision(await idleRoot(), input)
+  }))
+
+  handle('wiki:exportFile', async ({ includePrivate }) =>
+    exportSingleFile(await idleRoot(), { includePrivate })
+  )
+  handle('wiki:exportZip', async () => {
+    const r = root()
+    const win = ctx.getWindow()
+    const options = {
+      title: 'Export the wiki as a zip',
+      defaultPath: join(app.getPath('downloads'), `positioninghq-wiki-${isoDay()}.zip`),
+      filters: [{ name: 'Zip', extensions: ['zip'] }]
+    }
+    const result = win
+      ? await dialog.showSaveDialog(win, options)
+      : await dialog.showSaveDialog(options)
+    if (result.canceled || !result.filePath) return null
+    // Never write the zip inside the wiki it is a copy of.
+    const rel = relative(r, result.filePath)
+    if (!rel.startsWith('..') && !isAbsolute(rel)) throw new HandlerError('not_allowed')
+    return { path: result.filePath, files: await exportZip(r, result.filePath) }
+  })
+
+  // Open as an Obsidian vault: the one extra URL scheme the app opens (REQUIREMENTS-v2 7.4).
+  handle('shell:openObsidian', async () => {
+    await shell.openExternal(`obsidian://open?path=${encodeURIComponent(root())}`)
+    return null
+  })
 
   handle('hub:get', async () => {
     const hub = await findHub()
@@ -37,19 +115,8 @@ export function registerWiki(handle: Handle, ctx: AppContext): void {
     if (!hub) throw new HandlerError('no_hub')
     const ws = root()
     const company = (await readProfile(ws))?.company.name
-    if (
-      !(await registerInHub(
-        hub,
-        ws,
-        company ? wikiDescription(company) : 'PositioningHQ positioning wiki'
-      ))
-    )
-      throw new HandlerError('no_hub')
+    const description = company ? wikiDescription(company) : 'PositioningHQ positioning wiki'
+    if (!(await registerInHub(hub, ws, description))) throw new HandlerError('no_hub')
     return null
-  })
-  handle('wiki:fix', () => {
-    // Fixes move files and regenerate indexes; a run may be writing the same folders.
-    if (ctx.research.isActive()) throw new HandlerError('research_running')
-    return writableRoot(ctx).then((r) => fixWiki(r))
   })
 }

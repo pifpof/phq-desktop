@@ -1,9 +1,10 @@
 import { clipboard, shell } from 'electron'
-import { readdir, readFile, stat, writeFile, rename } from 'fs/promises'
+import { readdir, readFile, stat } from 'fs/promises'
 import { join } from 'path'
 import matter from 'gray-matter'
 import { isAllowedExternalUrl } from '@shared/links'
-import { setTagline } from '@shared/social'
+import { parseSocialTable } from '@shared/social'
+import { pasteSocialNote } from '../ingest/files-to-raw'
 import type { AppContext } from '../context'
 import { listDocs, readDoc } from '../workspace/documents'
 import { exists } from '../workspace/fs-util'
@@ -49,38 +50,35 @@ export function registerDocs(handle: Handle, ctx: AppContext): void {
         return false
       }
     }
+    // The person's files are private raw sources now.
     let inputs = false
-    try {
-      for (const e of await readdir(join(r, 'inputs'), { recursive: true, withFileTypes: true })) {
-        if (e.isFile() && !e.name.startsWith('.') && (await newer(join(e.parentPath, e.name)))) {
-          inputs = true
-          break
+    for (const dir of ['raw/papers', 'raw/data', 'raw/notes']) {
+      try {
+        for (const e of await readdir(join(r, dir), { withFileTypes: true })) {
+          if (e.isFile() && e.name !== '_index.md' && (await newer(join(r, dir, e.name)))) {
+            inputs = true
+            break
+          }
         }
+      } catch {
+        // folder missing
       }
-    } catch {
-      // no inputs folder
+      if (inputs) break
     }
     return { profile: await newer(join(await stateDir(r), 'profile.json')), inputs }
   })
 
   /** "Paste it": the person's own text for a profile the research could not read. */
   handle('social:setTagline', async ({ network, text }) => {
-    const full = join(await writableRoot(ctx), 'memory', 'research', 'social-taglines.md')
-    let raw: string
-    try {
-      raw = await readFile(full, 'utf8')
-    } catch {
-      throw new HandlerError('not_allowed')
-    }
-    const parsed = matter(raw)
-    const updated = setTagline(parsed.content, network, text)
-    if (updated === null) throw new HandlerError('not_allowed')
-    const tmp = `${full}.tmp`
-    await writeFile(
-      tmp,
-      matter.stringify(updated, { ...parsed.data, edited: new Date().toISOString() })
+    const r = await writableRoot(ctx)
+    // The profile URL, when the research found one, from the taglines article's table.
+    const article = await readFile(join(r, 'wiki/references/social-taglines.md'), 'utf8').catch(
+      () => ''
     )
-    await rename(tmp, full)
+    const row = parseSocialTable(article).find(
+      (x) => x.network.toLowerCase() === network.toLowerCase()
+    )
+    await pasteSocialNote(r, network, text, row?.url ?? '')
     return null
   })
 

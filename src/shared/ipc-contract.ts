@@ -2,6 +2,13 @@ import { z } from 'zod'
 import { ErrorCodeSchema, type ErrorCode } from './errors'
 import { ChatIdSchema, ChatRecordSchema, ChatSummarySchema } from './chat'
 import { CheckReportSchema, FixReportSchema } from './conformance'
+import {
+  ArticleDetailSchema,
+  ArticleSummarySchema,
+  DecisionInputSchema,
+  OutputVersionSchema,
+  SourceSummarySchema
+} from './wiki-views'
 import { ProfileSchema } from './profile'
 import { RunViewSchema, type RunView } from './research'
 import {
@@ -248,6 +255,35 @@ export const channels = {
     res: WorkspaceInfoSchema
   },
   'hub:register': { req: z.undefined(), res: z.null() },
+  'wiki:articles': { req: z.undefined(), res: z.array(ArticleSummarySchema) },
+  'wiki:article': {
+    req: z.object({ path: z.string().min(1).max(500) }),
+    res: ArticleDetailSchema.nullable()
+  },
+  'wiki:sources': { req: z.undefined(), res: z.array(SourceSummarySchema) },
+  'wiki:outputs': {
+    req: z.object({ kind: z.enum(['positioning-playbook', 'messaging-analysis']) }),
+    res: z.array(OutputVersionSchema)
+  },
+  'wiki:reassemble': {
+    req: z.undefined(),
+    res: z.object({ path: z.string(), version: z.number() })
+  },
+  'wiki:lastCheck': { req: z.undefined(), res: CheckReportSchema.nullable() },
+  'wiki:exportFile': {
+    req: z.object({ includePrivate: z.boolean() }),
+    res: z.object({ path: z.string(), articles: z.number(), excludedPrivate: z.number() })
+  },
+  'wiki:exportZip': {
+    req: z.undefined(),
+    res: z.object({ path: z.string(), files: z.number() }).nullable()
+  },
+  'decision:preview': {
+    req: DecisionInputSchema,
+    res: z.object({ path: z.string(), text: z.string() })
+  },
+  'decision:record': { req: DecisionInputSchema, res: z.object({ path: z.string() }) },
+  'shell:openObsidian': { req: z.undefined(), res: z.null() },
   'wiki:fix': { req: z.undefined(), res: FixReportSchema },
   'secrets:disconnect': { req: z.undefined(), res: z.null() },
   'shell:openExternal': { req: z.object({ url: z.string().max(2048) }), res: z.null() }
@@ -323,6 +359,17 @@ export interface Api {
   getHub(): Promise<Result<Res<'hub:get'>>>
   useHubFolder(name: string): Promise<Result<Res<'workspace:useHub'>>>
   registerInHub(): Promise<Result<null>>
+  listArticles(): Promise<Result<Res<'wiki:articles'>>>
+  getArticle(path: string): Promise<Result<Res<'wiki:article'>>>
+  listSources(): Promise<Result<Res<'wiki:sources'>>>
+  listOutputs(kind: Req<'wiki:outputs'>['kind']): Promise<Result<Res<'wiki:outputs'>>>
+  reassemble(): Promise<Result<Res<'wiki:reassemble'>>>
+  lastCheck(): Promise<Result<Res<'wiki:lastCheck'>>>
+  exportFile(includePrivate: boolean): Promise<Result<Res<'wiki:exportFile'>>>
+  exportZip(): Promise<Result<Res<'wiki:exportZip'>>>
+  previewDecision(d: Req<'decision:preview'>): Promise<Result<Res<'decision:preview'>>>
+  recordDecision(d: Req<'decision:record'>): Promise<Result<Res<'decision:record'>>>
+  openObsidian(): Promise<Result<null>>
   fixWiki(): Promise<Result<Res<'wiki:fix'>>>
   disconnect(): Promise<Result<null>>
   openExternal(url: string): Promise<Result<null>>

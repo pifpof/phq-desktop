@@ -188,7 +188,7 @@ const toParams = (blocks: PromptBlock[]) =>
     ...(b.cache ? { cache_control: { type: 'ephemeral' as const } } : {})
   }))
 
-/** An assistant turn to send back before a forced follow-up. */
+/** An assistant turn to send back before the follow-up that asks for the output tool. */
 function lastTurn(
   blocks: Anthropic.Messages.ContentBlock[]
 ): Anthropic.Messages.ContentBlockParam[] {
@@ -228,8 +228,6 @@ async function runTask({
       input_schema: output.schema as Anthropic.Messages.Tool.InputSchema
     })
   }
-  const hasServerTools = !!(tools.webSearch || tools.webFetch)
-  const forced = { type: 'tool' as const, name: output?.name ?? '' }
 
   const messages: Anthropic.Messages.MessageParam[] = [{ role: 'user', content: toParams(user) }]
   const usage = emptyUsage()
@@ -237,17 +235,15 @@ async function runTask({
   let stopReason = 'end_turn'
   let outputArgs: unknown = undefined
 
-  const send = async (
-    toolChoice?: Anthropic.Messages.ToolChoice
-  ): Promise<Anthropic.Messages.Message> => {
+  // tool_choice is always left on auto: current models refuse a forced tool ("tool" or "any").
+  const send = async (): Promise<Anthropic.Messages.Message> => {
     const stream = client.messages.stream(
       {
         model,
         max_tokens: maxTokens ?? MAX_TOKENS,
         system: toParams(system),
         messages,
-        ...(toolParams.length ? { tools: toolParams } : {}),
-        ...(toolChoice ? { tool_choice: toolChoice } : {})
+        ...(toolParams.length ? { tools: toolParams } : {})
       },
       { signal }
     )
@@ -261,12 +257,10 @@ async function runTask({
   }
 
   try {
-    // Without web tools the answer is forced into the output tool at once. With them, the model
-    // researches first and is asked to finish with the output tool.
-    const firstChoice = output && !hasServerTools ? forced : undefined
+    // The prompt asks for the output tool; web tasks research first, then call it.
     let finalMsg: Anthropic.Messages.Message | null = null
     for (let i = 0; i <= MAX_CONTINUATIONS; i++) {
-      const msg = await send(firstChoice)
+      const msg = await send()
       finalMsg = msg
       if (stopReason !== 'pause_turn') break
       // Send the paused assistant turn back unchanged to continue it.
@@ -275,16 +269,16 @@ async function runTask({
         content: msg.content as Anthropic.Messages.ContentBlockParam[]
       })
     }
-    // Finished researching without calling the output tool: ask once more, forcing it.
+    // Finished without calling the output tool: ask once more.
     if (output && outputArgs === undefined && stopReason !== 'max_tokens' && finalMsg) {
       // Earlier paused turns are already in `messages`; add the final one, then ask.
       if (finalMsg.content.length)
         messages.push({ role: 'assistant', content: lastTurn(finalMsg.content) })
       messages.push({
         role: 'user',
-        content: `Now call ${output.name} with the finished output, using what you found.`
+        content: `Now call the ${output.name} tool with the finished output, using what you found. Do not reply with text.`
       })
-      await send(forced)
+      await send()
     }
   } catch (err) {
     if (signal.aborted || isAbort(err)) throw new TaskAbortedError()

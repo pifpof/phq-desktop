@@ -284,3 +284,44 @@ export async function removeInput(
   await writeIndexes(root)
   return true
 }
+
+/**
+ * "Paste it" (REQUIREMENTS-v2 4.1): the founder's own text for a social profile the research
+ * could not read becomes a new raw note. Raw files are never edited, so this never changes an
+ * existing one; the taglines step is re-run to pick it up.
+ */
+export async function pasteSocialNote(
+  root: string,
+  network: string,
+  text: string,
+  url: string,
+  date: string = isoDay()
+): Promise<string> {
+  const net =
+    network
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '') || 'social'
+  const clean = replaceEmDashes(text.replace(/\s+/g, ' ').trim())
+  const rel = await freeRel(root, rawRel('notes', date, `social-${net}-pasted`))
+  const source = /^https?:\/\//i.test(url) ? url : 'Pasted by the founder in PositioningHQ'
+  await writeFile(
+    safeJoin(root, rel),
+    stringifyDoc(
+      'raw',
+      {
+        title: `${network} profile (pasted)`,
+        source,
+        type: 'notes',
+        ingested: date,
+        tags: ['social', net, 'pasted'],
+        summary: `The company's ${network} tagline or bio, pasted by the founder.`
+      },
+      `# ${network} profile (pasted)\n\n${/^https?:/.test(source) ? `URL: ${source}\n\n` : ''}Tagline or bio, as the founder pasted it:\n\n> ${clean}`
+    ),
+    { flag: 'wx' }
+  )
+  await appendLog(root, 'ingest', `${network} tagline pasted by the founder (${rel})`, date)
+  await writeIndexes(root)
+  return rel
+}

@@ -67,6 +67,9 @@ export interface TaskDef {
     | { kind: 'articles'; targets: ArticleTargets; socialNotes?: boolean }
     | { kind: 'output'; name: string; title: string }
 
+  /** Raw sources with any of these tags are shown too (never private ones). */
+  rawTags?: string[]
+
   /** For a competitor's profile: whose pages are "competitor-site" when cited (REQUIREMENTS-v2 3.1). */
   competitor?: { slug: string; website: string }
 

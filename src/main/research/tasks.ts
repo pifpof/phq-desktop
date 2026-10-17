@@ -282,6 +282,8 @@ export const TASKS: TaskDef[] = [
     inputs: { outputs: ['find-social-profiles', 'crawl-website'], inputCategories: [] },
     web: search(6, { maxUses: 6, maxContentTokens: 10_000 }),
     validate: checkSocialTable,
+    // Taglines the founder pasted (and earlier finds) are raw social notes.
+    rawTags: ['social'],
     writes: {
       kind: 'articles',
       targets: { allowed: ['social-taglines'], required: ['social-taglines'] },

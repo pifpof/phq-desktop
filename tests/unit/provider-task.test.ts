@@ -261,15 +261,19 @@ beforeEach(async () => {
       const body = JSON.parse(raw || '{}')
       bodies.push(body)
       if (mode === 'hang') return // never answers
-      // The model answers with the output tool only when the request forces it.
-      if (mode === 'tool' && body.tool_choice?.type === 'tool') {
+      // The model answers with the output tool once it is asked again (the second request).
+      if (
+        mode === 'tool' &&
+        (body.messages.length > 1 ||
+          !body.tools?.some((t: { name: string }) => t.name === 'web_search'))
+      ) {
         sse(res, [
           msgStart(700),
           [
             'content_block_start',
             {
               index: 0,
-              content_block: { type: 'tool_use', id: 'tu1', name: body.tool_choice.name, input: {} }
+              content_block: { type: 'tool_use', id: 'tu1', name: 'write_articles', input: {} }
             }
           ],
           [
@@ -454,17 +458,18 @@ describe('runTask', () => {
     schema: { type: 'object' }
   }
 
-  it('forces the output tool at once for a task without web tools, and returns its arguments', async () => {
+  it('offers the output tool (never forced) and returns its arguments', async () => {
     mode = 'tool'
     const r = await anthropicProvider.runTask(args({ tools: { output } }))
     expect(bodies).toHaveLength(1)
-    const body = bodies[0] as { tools: { name: string }[]; tool_choice: unknown }
+    const body = bodies[0] as { tools: { name: string }[]; tool_choice?: unknown }
     expect(body.tools.map((t) => t.name)).toEqual(['write_articles'])
-    expect(body.tool_choice).toEqual({ type: 'tool', name: 'write_articles' })
+    // Current models refuse tool_choice "tool" and "any".
+    expect(body.tool_choice).toBeUndefined()
     expect(r.output).toEqual({ articles: [{ slug: 'x' }] })
   })
 
-  it('lets a web task research first, then forces the output tool once if it was not called', async () => {
+  it('lets a web task research first, then asks once more if the output tool was not called', async () => {
     mode = 'tool'
     const r = await anthropicProvider.runTask(
       args({ tools: { webSearch: { maxUses: 5 }, output } })
@@ -477,7 +482,7 @@ describe('runTask', () => {
       tool_choice: unknown
       messages: { role: string; content: unknown }[]
     }
-    expect(second.tool_choice).toEqual({ type: 'tool', name: 'write_articles' })
+    expect(second.tool_choice).toBeUndefined()
     expect(second.messages.map((m) => m.role)).toEqual(['user', 'assistant', 'user'])
     expect(r.output).toEqual({ articles: [{ slug: 'x' }] })
     expect(r.usage.requests).toBe(2)

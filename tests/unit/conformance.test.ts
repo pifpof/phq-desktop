@@ -125,7 +125,7 @@ describe('conformance check', () => {
     expect(report.ok).toBe(true)
   })
 
-    it('reports aging apart from format defects', async () => {
+  it('reports aging apart from format defects', async () => {
     const report = await checkWiki(PHQ_MIN, '2026-12-01')
     expect(report.stale).toBe(1)
     expect(report.counts.warning).toBe(1)

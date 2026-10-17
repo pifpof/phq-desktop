@@ -464,6 +464,14 @@ export function createExecutor(
         )
     }
     if (categories.length) docs.push(...(await userFileDocuments(d.wikiRoot, categories)))
+    if (task.rawTags?.length) {
+      for (const f of await scanWiki(d.wikiRoot)) {
+        const tags = stringList(f.data?.tags)
+        if (f.kind !== 'raw' || tags.includes('private')) continue
+        if (!tags.some((t) => task.rawTags!.includes(t)) || !f.body.trim()) continue
+        docs.push({ path: f.rel, content: f.body.trim(), rawSources: [f.rel] })
+      }
+    }
     const documents = fitDocuments(docs)
 
     // The private tag is the isolation boundary (REQUIREMENTS-v2 3.3): a web task may not be shown
