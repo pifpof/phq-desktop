@@ -84,7 +84,8 @@ function section(body: string, heading: string): string {
 }
 
 function field(text: string, label: string): string {
-  const m = new RegExp(`^- \\*\\*${label}:\\*\\*[ \\t]*(.*)$`, 'mi').exec(text)
+  // "- **Name:** Acme" (the app) or "- Name: Acme" (a wiki written by hand or another tool).
+  const m = new RegExp(`^- (?:\\*\\*)?${label}:(?:\\*\\*)?[ \\t]*(.*)$`, 'mi').exec(text)
   const v = m?.[1]?.trim() ?? ''
   return v === NOT_PROVIDED ? '' : v
 }
@@ -93,7 +94,15 @@ const bullets = (text: string): string[] =>
   text
     .split('\n')
     .map((l) => /^- (.*)$/.exec(l.trim())?.[1]?.trim() ?? '')
-    .filter((v) => v && v !== NOT_PROVIDED && !v.startsWith('**'))
+    // A name written as a link ("[[competitor-x|X]] ([X](...))") is read as its title.
+    .map((v) =>
+      v
+        .replace(/\[\[[^\]|]+\|([^\]]*)\]\]\s*\(\[[^\]]*\]\([^)]*\)\)/g, '$1')
+        .replace(/\[\[(?:[^\]|]+\|)?([^\]]*)\]\]/g, '$1')
+        .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+        .trim()
+    )
+    .filter((v) => v && v !== NOT_PROVIDED && !v.startsWith('**') && !/^[A-Z][a-z ]+:\s/.test(v))
 
 /**
  * Rebuilds a profile from the article. Tolerates hand edits: unknown goals and missing fields are

@@ -201,6 +201,22 @@ describe('profile and identity', () => {
   })
 })
 
+describe('a wiki made elsewhere (acceptance 13)', () => {
+  it('opens without conversion, passes the check, and gets its profile from the wiki', async () => {
+    const dir = join(tmp(), 'wiki')
+    await (
+      await import('fs/promises')
+    ).cp(resolve(__dirname, '../fixtures/phq-wiki-min'), dir, { recursive: true })
+    const { detectWorkspace } = await import('../../src/main/workspace/detect')
+    expect((await detectWorkspace(dir)).kind).toBe('phq-complete')
+    expect(await confirmWorkspace(dir, '0.2.0')).toEqual({ ok: true, existing: true })
+    expect((await checkWiki(dir, '2026-10-17')).ok).toBe(true)
+    const p = await readProfile(dir)
+    expect(p?.company.name).toBe('Acme')
+    expect(p?.company.competitors).toEqual(['Ledgerly'])
+  })
+})
+
 describe('llm-wiki hub', () => {
   async function makeHub(home: string, hubPath: string): Promise<string> {
     const hub = join(home, 'wiki')
