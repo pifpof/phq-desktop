@@ -75,6 +75,17 @@ export interface Citation {
   title: string
 }
 
+/** A page the answer cited or the model fetched, with what was taken from it (REQUIREMENTS-v2 3.1). */
+export interface WebSource {
+  url: string
+  title: string
+  /** Text the answer cited from this page (cited_text), in order, without duplicates. */
+  excerpts: string[]
+  /** The whole page, when the model fetched it as text. */
+  fullText?: string
+  cited: boolean
+}
+
 export interface RunTaskResult {
   /** The answer only: narration between tool calls is dropped. */
   text: string
@@ -82,6 +93,8 @@ export interface RunTaskResult {
   citations: Citation[]
   /** Every page the search and fetch tools returned, cited or not. */
   consulted: Citation[]
+  /** Cited and fetched pages, for ingest into raw/. Empty for tasks without web tools. */
+  sources: WebSource[]
   usage: TaskUsage
   stopReason: string
   /** True when the model hit the output token limit. */

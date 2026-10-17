@@ -1,46 +1,23 @@
-import { mkdir, readdir, rm, writeFile } from 'fs/promises'
+import { mkdir, writeFile } from 'fs/promises'
 import { join } from 'path'
 import matter from 'gray-matter'
-import { replaceEmDashes } from '../research/postprocess'
 import type { CrawlResult } from './crawler'
 
 const dirOf = (root: string): string => join(root, 'memory', 'research', 'website')
 
-/** Writes pages/<slug>.md and index.md (REQUIREMENTS-v1 3.3, T1). Replaces any earlier crawl. */
+/**
+ * Writes the crawl index (page list, headings, social links) to the run's drafts. The pages
+ * themselves are raw sources in the wiki (website-to-raw.ts); `rawPages` lists their paths.
+ */
 export async function writeCrawl(
   root: string,
   crawl: CrawlResult,
-  runId = 'manual'
+  runId = 'manual',
+  rawPages: string[] = []
 ): Promise<string> {
   const dir = dirOf(root)
-  const pagesDir = join(dir, 'pages')
-  await mkdir(pagesDir, { recursive: true })
-  for (const f of await readdir(pagesDir)) if (f.endsWith('.md')) await rm(join(pagesDir, f))
+  await mkdir(dir, { recursive: true })
   const created = new Date().toISOString()
-
-  for (const p of crawl.pages) {
-    // Every document the app writes follows the copy rule, including copies of web pages.
-    const body = replaceEmDashes(
-      [`# ${p.h1[0] || p.title || p.url}`, '', p.markdown, ''].join('\n')
-    )
-    await writeFile(
-      join(pagesDir, `${p.slug}.md`),
-      matter.stringify(body, {
-        title: p.title || p.url,
-        task: 'crawl-website',
-        run_id: runId,
-        created,
-        status: 'draft',
-        url: p.url,
-        description: p.description,
-        og_title: p.ogTitle,
-        og_description: p.ogDescription,
-        word_count: p.wordCount,
-        rendered: p.rendered,
-        sources: [p.url]
-      })
-    )
-  }
 
   const rows = crawl.pages.map(
     (p) => `| ${cell(p.title || p.slug)} | ${p.url} | ${p.wordCount} | ${cell(p.h1[0] ?? '')} |`
@@ -85,7 +62,8 @@ export async function writeCrawl(
       status: 'draft',
       pages: crawl.pages.length,
       social: crawl.social,
-      sources: crawl.pages.map((p) => p.url)
+      sources: crawl.pages.map((p) => p.url),
+      raw_pages: rawPages
     })
   )
   return indexPath

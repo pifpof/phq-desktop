@@ -24,6 +24,7 @@ export const APP_ERROR_CODES = [
   'needs_migration',
   'other_wiki',
   'no_hub',
+  'source_in_use',
   'no_key',
   'not_allowed',
   'internal'
@@ -55,6 +56,7 @@ export const ERROR_COPY: Record<ErrorCode, string> = {
   other_wiki:
     'This is an llm-wiki about something else. Choose an empty folder or a PositioningHQ wiki.',
   no_hub: "Your llm-wiki hub couldn't be read.",
+  source_in_use: "Articles in your wiki cite this file, so it can't be removed.",
   no_key: 'Reconnect your AI to continue.',
   not_allowed: "That link can't be opened from PositioningHQ.",
   internal: 'Something went wrong. Please try again.'

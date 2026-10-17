@@ -57,6 +57,9 @@ export interface TaskDef {
    */
   validate?: (text: string) => string | null
 
+  /** For a competitor's profile: whose pages are "competitor-site" when cited (REQUIREMENTS-v2 3.1). */
+  competitor?: { slug: string; website: string }
+
   /** Workspace-relative path of the main output. */
   output(ctx: TaskContext): string
 

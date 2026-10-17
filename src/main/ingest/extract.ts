@@ -1,25 +1,11 @@
-import { mkdir, readFile, readdir, writeFile } from 'fs/promises'
-import { extname, join } from 'path'
-import matter from 'gray-matter'
+import { readFile } from 'fs/promises'
+import { extname } from 'path'
 import JSZip from 'jszip'
 import mammoth from 'mammoth'
 import { extractText, getDocumentProxy } from 'unpdf'
-import { replaceEmDashes } from '../research/postprocess'
-import { INPUT_CATEGORIES, READABLE_EXTENSIONS, type InputCategory } from '@shared/workspace'
 
 /** Per-file budget. Tokens are estimated as characters divided by 4. */
 export const MAX_TOKENS_PER_FILE = 30_000
-const MAX_CHARS = MAX_TOKENS_PER_FILE * 4
-
-export interface ExtractResult {
-  category: InputCategory
-  file: string
-  status: 'ok' | 'empty' | 'failed' | 'not-read'
-  output: string | null
-  chars: number
-  truncated: boolean
-  error?: string
-}
 
 const decodeXml = (s: string): string =>
   s
@@ -75,132 +61,9 @@ export async function extractText_(path: string): Promise<string> {
   }
 }
 
-const clean = (s: string): string =>
+export const cleanText = (s: string): string =>
   s
     .replaceAll('\u0000', '')
     .replace(/\r\n/g, '\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim()
-
-/** T2: text extraction. Writes memory/research/inputs-extracted/<category>/<file>.md. */
-export async function extractInputs(root: string, runId = 'manual'): Promise<ExtractResult[]> {
-  const results: ExtractResult[] = []
-  for (const category of INPUT_CATEGORIES) {
-    let names: string[]
-    try {
-      names = (await readdir(join(root, 'inputs', category), { withFileTypes: true }))
-        .filter((e) => e.isFile() && !e.name.startsWith('.'))
-        .map((e) => e.name)
-        .sort()
-    } catch {
-      continue
-    }
-    for (const file of names) {
-      const ext = extname(file).slice(1).toLowerCase()
-      if (!(READABLE_EXTENSIONS as readonly string[]).includes(ext)) {
-        results.push({
-          category,
-          file,
-          status: 'not-read',
-          output: null,
-          chars: 0,
-          truncated: false
-        })
-        continue
-      }
-      try {
-        // The copy rule applies to everything the app writes, so dashes in extracted text become commas too.
-        const text = replaceEmDashes(
-          clean(await extractText_(join(root, 'inputs', category, file)))
-        )
-        if (!text || text === '```csv\n\n```') {
-          results.push({
-            category,
-            file,
-            status: 'empty',
-            output: null,
-            chars: 0,
-            truncated: false,
-            error: 'No readable text. It may be a scanned document.'
-          })
-          continue
-        }
-        const truncated = text.length > MAX_CHARS
-        const body = truncated
-          ? `${text.slice(0, MAX_CHARS)}\n\n[Truncated: only the first ${MAX_TOKENS_PER_FILE.toLocaleString('en-US')} tokens of ${Math.round(text.length / 4).toLocaleString('en-US')} are included.]`
-          : text
-        const rel = join('memory', 'research', 'inputs-extracted', category, `${file}.md`)
-        await mkdir(join(root, 'memory', 'research', 'inputs-extracted', category), {
-          recursive: true
-        })
-        await writeFile(
-          join(root, rel),
-          matter.stringify(body + '\n', {
-            title: file,
-            task: 'extract-input-files',
-            run_id: runId,
-            created: new Date().toISOString(),
-            status: 'draft',
-            source_file: `inputs/${category}/${file}`,
-            category,
-            truncated,
-            estimated_tokens: Math.round(Math.min(text.length, MAX_CHARS) / 4)
-          })
-        )
-        results.push({
-          category,
-          file,
-          status: 'ok',
-          output: rel.split('\\').join('/'),
-          chars: text.length,
-          truncated
-        })
-      } catch (err) {
-        // Never include file content in the error.
-        results.push({
-          category,
-          file,
-          status: 'failed',
-          output: null,
-          chars: 0,
-          truncated: false,
-          error: err instanceof Error ? err.message.slice(0, 200) : 'Could not read this file.'
-        })
-      }
-    }
-  }
-  await writeIndex(root, results, runId)
-  return results
-}
-
-const STATUS_TEXT: Record<ExtractResult['status'], string> = {
-  ok: 'read',
-  empty: 'no readable text',
-  failed: 'could not be read',
-  'not-read': 'not read (unsupported type)'
-}
-
-/** index.md lists every file and whether it was read. It is also what marks this task as complete. */
-async function writeIndex(root: string, results: ExtractResult[], runId: string): Promise<void> {
-  const dir = join(root, 'memory', 'research', 'inputs-extracted')
-  await mkdir(dir, { recursive: true })
-  const rows = results.map(
-    (r) =>
-      `| ${r.category} | ${r.file} | ${STATUS_TEXT[r.status]}${r.truncated ? ' (shortened)' : ''} |`
-  )
-  const body = results.length
-    ? ['# Files', '', '| Category | File | Status |', '|---|---|---|', ...rows].join('\n')
-    : '# Files\n\nNo files were added.'
-  await writeFile(
-    join(dir, 'index.md'),
-    matter.stringify(body + '\n', {
-      title: 'Your files',
-      task: 'extract-input-files',
-      run_id: runId,
-      created: new Date().toISOString(),
-      status: 'draft',
-      files: results.length,
-      read: results.filter((r) => r.status === 'ok').length
-    })
-  )
-}

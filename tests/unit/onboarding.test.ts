@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { ALLOWED_HOSTS, isAllowedExternalUrl, links, signupUrl } from '../../src/shared/links'
 import { isEmail, normalizeWebsite } from '../../src/shared/url'
 import { addInputs, listInputs, removeInput } from '../../src/main/workspace/inputs'
-import { createLayout } from '../../src/main/workspace/layout'
+import { confirmWorkspace } from '../../src/main/services/workspace'
 import { INPUT_LIMITS } from '../../src/shared/workspace'
 
 const tmp = (): string => mkdtempSync(join(tmpdir(), 'phq-onb-'))
@@ -59,23 +59,23 @@ describe('addInputs', () => {
   it('copies files, never moves them, and suffixes duplicates', async () => {
     const root = tmp()
     const src = tmp()
-    await createLayout(root)
-    writeFileSync(join(src, 'deck.pdf'), 'one')
+    await confirmWorkspace(root, '0.2.0')
+    writeFileSync(join(src, 'deck.txt'), 'one')
     writeFileSync(join(src, 'notes.xyz'), 'two')
     const a = await addInputs(root, 'sales collateral', [
-      join(src, 'deck.pdf'),
+      join(src, 'deck.txt'),
       join(src, 'notes.xyz')
     ])
     expect(a.added.map((f) => [f.name, f.readable])).toEqual([
-      ['deck.pdf', true],
+      ['deck.txt', true],
       ['notes.xyz', false]
     ])
-    const b = await addInputs(root, 'sales collateral', [join(src, 'deck.pdf')])
-    expect(b.added[0].name).toBe('deck-2.pdf')
-    expect(readFileSync(join(src, 'deck.pdf'), 'utf8')).toBe('one')
+    const b = await addInputs(root, 'sales collateral', [join(src, 'deck.txt')])
+    expect(b.added[0].name).toBe('deck-2.txt')
+    expect(readFileSync(join(src, 'deck.txt'), 'utf8')).toBe('one')
     expect((await listInputs(root))['sales collateral'].map((f) => f.name)).toEqual([
-      'deck-2.pdf',
-      'deck.pdf',
+      'deck-2.txt',
+      'deck.txt',
       'notes.xyz'
     ])
   })
@@ -83,7 +83,7 @@ describe('addInputs', () => {
   it('refuses folders, missing files and oversized files', async () => {
     const root = tmp()
     const src = tmp()
-    await createLayout(root)
+    await confirmWorkspace(root, '0.2.0')
     mkdirSync(join(src, 'folder'))
     const big = join(src, 'big.pdf')
     writeFileSync(big, '')
@@ -101,7 +101,7 @@ describe('addInputs', () => {
   it('stops at the total file limit across categories', async () => {
     const root = tmp()
     const src = tmp()
-    await createLayout(root)
+    await confirmWorkspace(root, '0.2.0')
     const paths = Array.from({ length: INPUT_LIMITS.maxFiles + 2 }, (_, i) => {
       const p = join(src, `f${i}.txt`)
       writeFileSync(p, 'x')
@@ -118,7 +118,7 @@ describe('addInputs', () => {
   it('removes only the copy, and refuses path tricks', async () => {
     const root = tmp()
     const src = tmp()
-    await createLayout(root)
+    await confirmWorkspace(root, '0.2.0')
     writeFileSync(join(src, 'a.md'), 'x')
     await addInputs(root, 'roadmap', [join(src, 'a.md')])
     expect(await removeInput(root, 'roadmap', '../../memory/company-profile.md')).toBe(false)

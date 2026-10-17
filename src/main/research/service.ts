@@ -9,6 +9,10 @@ import {
 } from '@shared/research'
 import type { Logger } from '../log'
 import { ProviderError, type Provider } from '../providers/types'
+import { join } from 'path'
+import { RunSources } from '../ingest/citations-to-raw'
+import { stateDir } from '../state/app-state'
+import { isoDay } from '../wiki/paths'
 import { readProfile } from '../workspace/profile'
 import { safeName } from '../workspace/safe-name'
 import { ResearchEngine, type EngineDeps } from './engine'
@@ -147,10 +151,16 @@ export function createResearchService(d: ServiceDeps) {
   ): Promise<{ deps: EngineDeps; root: string; model: string }> {
     const { root, model, profile } = await need()
     const company = safeName(profile.company.name)
-    const base = { root, profile, runId, company, tasks }
+    // Task documents not yet in wiki format live in app state until they become articles.
+    const state = await stateDir(root)
+    const drafts = join(state, 'drafts')
+    const base = { root: drafts, profile, runId, company, tasks }
     const ctx = makeContext(base)
+    const sources = new RunSources(root, join(state, 'runs', `${runId}.sources.json`), isoDay())
     const execute = createExecutor({
       ...base,
+      wikiRoot: root,
+      sources,
       model,
       provider: d.provider(),
       getKey: d.getKey,
@@ -163,7 +173,7 @@ export function createResearchService(d: ServiceDeps) {
       tasks,
       context: () => ctx,
       execute,
-      verifyOutput: outputVerifier(root, ctx),
+      verifyOutput: outputVerifier(drafts, ctx),
       // Error messages from our own code and the file system only. Model output never becomes an error message.
       onTaskError: (task, err) =>
         d.log.warn(

@@ -6,6 +6,14 @@ import { ProviderError, type Provider } from '../providers/types'
 import { INPUT_CATEGORIES } from '@shared/workspace'
 import { resolveInside, toPosix } from '../workspace/paths'
 import { finalizeDocument } from './postprocess'
+import { sourceTagger, type RunSources } from '../ingest/citations-to-raw'
+import { MAX_TOKENS_PER_FILE } from '../ingest/extract'
+import { parseDoc, stringList } from '../wiki/frontmatter'
+import { writeIndexes } from '../wiki/index-gen'
+import { appendLog } from '../wiki/log'
+import { safeJoin } from '../wiki/paths'
+import { scanWiki } from '../wiki/scan'
+import { categoryTag } from '../ingest/files-to-raw'
 import { costOf, type Pricing } from './pricing'
 import { buildPrompt, type PromptDocument, type SkillReader } from './prompt-builder'
 import type { LocalHandler, TaskContext, TaskDef, TaskOutcome } from './types'
@@ -14,7 +22,11 @@ import type { LocalHandler, TaskContext, TaskDef, TaskOutcome } from './types'
 export const MAX_DOCUMENT_CHARS = 600_000
 
 export interface LocalArgs {
+  /** The run's drafts folder in app state (task documents not yet in wiki format). */
   root: string
+  /** The wiki: raw sources are written here. */
+  wikiRoot: string
+  sources: RunSources
   profile: Profile
   runId: string
   signal: AbortSignal
@@ -23,7 +35,12 @@ export interface LocalArgs {
 export type LocalRunner = (args: LocalArgs) => Promise<Partial<TaskOutcome> & { output: string }>
 
 export interface ExecutorDeps {
+  /** Drafts folder in app state: where task documents are written until they become articles. */
   root: string
+  /** The wiki folder. Raw sources (crawled pages, user files, citations) live here. */
+  wikiRoot: string
+  /** This run's cited pages, one raw file per URL. */
+  sources: RunSources
   profile: Profile
   runId: string
   /** File-name-safe company name. */
@@ -100,39 +117,73 @@ export async function documentsFor(
   root: string,
   task: TaskDef,
   ctx: TaskContext,
-  options: { pages: boolean } = { pages: true }
+  options: { pages: boolean; wikiRoot?: string } = { pages: true }
 ): Promise<PromptDocument[]> {
   const rel = task.output(ctx)
   const full = resolveInside(root, rel)
   if (!full) return []
   const paths: string[] = []
   if (await isDir(full)) paths.push(...(await mdFiles(root, rel)))
-  else {
-    paths.push(rel)
-    if (task.local === 'crawl' && options.pages) {
-      const pages = await mdFiles(root, `${dirname(rel)}/pages`)
-      // The home page first, then the rest in a stable order.
-      paths.push(
-        ...pages.sort((a, b) => Number(/\/home\.md$/.test(b)) - Number(/\/home\.md$/.test(a)))
-      )
+  else paths.push(rel)
+  const docs = (await Promise.all(paths.map((p) => readDocument(root, p)))).filter(
+    (d): d is PromptDocument => d !== null && d.content.length > 0
+  )
+  // The crawl's pages are raw sources in the wiki; its index (in drafts) lists them.
+  if (task.local === 'crawl' && options.pages && options.wikiRoot) {
+    const index = await readFile(full, 'utf8').catch(() => '')
+    const pages = stringList(matter(index).data.raw_pages)
+    // The home page first, then the rest in crawl order.
+    const ordered = [...pages].sort(
+      (a, b) => Number(/-home(-\d+)?\.md$/.test(b)) - Number(/-home(-\d+)?\.md$/.test(a))
+    )
+    for (const p of ordered) {
+      const d = await readWikiDocument(options.wikiRoot, p)
+      if (d) docs.push(d)
     }
   }
-  const docs = await Promise.all(paths.map((p) => readDocument(root, p)))
-  return docs.filter((d): d is PromptDocument => d !== null && d.content.length > 0)
+  return docs
 }
 
-/** Extracted text of the user's files in these categories. Only ever given to tasks with no web tools. */
+/** A wiki file as a prompt document, labelled with its wiki path. */
+async function readWikiDocument(wikiRoot: string, rel: string): Promise<PromptDocument | null> {
+  try {
+    const doc = parseDoc(await readFile(safeJoin(wikiRoot, rel), 'utf8'))
+    const content = (doc?.body ?? '').trim()
+    return content ? { path: rel, content } : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * The person's files (raw sources tagged private) in these categories, plus any added without a
+ * category. Only ever given to tasks with no web tools. Each is cut to the per-file budget.
+ */
 export async function userFileDocuments(
-  root: string,
+  wikiRoot: string,
   categories: string[]
 ): Promise<PromptDocument[]> {
+  const wanted = new Set(
+    INPUT_CATEGORIES.filter((c) => categories.includes(c)).map((c) => categoryTag(c))
+  )
+  const allTags = new Set(INPUT_CATEGORIES.map((c) => categoryTag(c)))
+  const max = MAX_TOKENS_PER_FILE * 4
   const out: PromptDocument[] = []
-  for (const cat of INPUT_CATEGORIES) {
-    if (!categories.includes(cat)) continue
-    for (const rel of await mdFiles(root, `memory/research/inputs-extracted/${cat}`)) {
-      const d = await readDocument(root, rel)
-      if (d) out.push(d)
-    }
+  for (const f of await scanWiki(wikiRoot)) {
+    if (f.kind !== 'raw') continue
+    const tags = stringList(f.data?.tags)
+    if (!tags.includes('private')) continue
+    const cats = tags.filter((t) => allTags.has(t))
+    if (cats.length && !cats.some((t) => wanted.has(t))) continue
+    const content = f.body.trim()
+    if (!content) continue
+    out.push({
+      path: f.rel,
+      content:
+        content.length > max
+          ? `${content.slice(0, max)}\n\n[Truncated: only the first ${MAX_TOKENS_PER_FILE.toLocaleString('en-US')} tokens are included.]`
+          : content
+    })
   }
   return out
 }
@@ -186,7 +237,15 @@ export function createExecutor(
   ): Promise<TaskOutcome> => {
     const handler = d.local[name]
     if (!handler) throw new Error('This step is not available yet.')
-    const r = await handler({ root: d.root, profile: d.profile, runId: d.runId, signal, task })
+    const r = await handler({
+      root: d.root,
+      wikiRoot: d.wikiRoot,
+      sources: d.sources,
+      profile: d.profile,
+      runId: d.runId,
+      signal,
+      task
+    })
     return { costUsd: 0, ...r }
   }
 
@@ -206,9 +265,14 @@ export function createExecutor(
     for (const id of [...(task.inputs?.outputs ?? []), ...(task.inputs?.optionalOutputs ?? [])]) {
       const source = d.tasks.find((t) => t.id === id)
       if (source)
-        docs.push(...(await documentsFor(d.root, source, ctx, { pages: task.web === false })))
+        docs.push(
+          ...(await documentsFor(d.root, source, ctx, {
+            pages: task.web === false,
+            wikiRoot: d.wikiRoot
+          }))
+        )
     }
-    if (categories.length) docs.push(...(await userFileDocuments(d.root, categories)))
+    if (categories.length) docs.push(...(await userFileDocuments(d.wikiRoot, categories)))
     const documents = fitDocuments(docs)
 
     const { system, user } = buildPrompt(
@@ -252,6 +316,23 @@ export function createExecutor(
       costUsd += costOf(d.pricing, d.model, again.usage).usd
       if (again.text.trim() && !task.validate?.(again.text)) result = again
       else formatNote = 'Saved as written: the answer did not match the expected format.'
+    }
+
+    // Citation ingest: every cited or fetched page becomes a raw source (REQUIREMENTS-v2 3.1).
+    if (task.web && result.sources.length) {
+      const tagger = sourceTagger({
+        ownSite: d.profile.company.website,
+        competitor: task.competitor
+      })
+      const report = await d.sources.ingest(result.sources, tagger)
+      if (report.created.length) {
+        await appendLog(
+          d.wikiRoot,
+          'ingest',
+          `${report.created.length} web sources cited by "${task.title}" (raw/articles/)`
+        )
+        await writeIndexes(d.wikiRoot)
+      }
     }
 
     const rel = task.output(ctx)

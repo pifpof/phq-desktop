@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, existsSync, writeFileSync } from 'fs'
+import { mkdtempSync, readFileSync, readdirSync, existsSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import matter from 'gray-matter'
@@ -10,7 +10,14 @@ import {
   type RunTaskResult
 } from '../../src/main/providers/types'
 import { assembleCompanyResearch, assemblePlaybook } from '../../src/main/research/assemble'
-import { extractInputs } from '../../src/main/ingest/extract'
+import { writeCrawlToRaw } from '../../src/main/ingest/website-to-raw'
+import { writeCrawl } from '../../src/main/ingest/write-crawl'
+import { localHandlers } from '../../src/main/research/local-handlers'
+import { confirmWorkspace } from '../../src/main/services/workspace'
+import { stateDir } from '../../src/main/state/app-state'
+import { checkWiki } from '../../src/main/wiki/conformance'
+import { scanWiki } from '../../src/main/wiki/scan'
+import type { CrawlResult } from '../../src/main/ingest/crawler'
 import { diskSkillReader } from '../../src/main/research/prompt-builder'
 import { parsePricing } from '../../src/main/research/pricing'
 import {
@@ -21,7 +28,6 @@ import {
 import { latestRun } from '../../src/main/research/run-store'
 import { TASKS } from '../../src/main/research/tasks'
 import { addInputs } from '../../src/main/workspace/inputs'
-import { createLayout } from '../../src/main/workspace/layout'
 import { writeProfile } from '../../src/main/workspace/profile'
 import { emptyProfile } from '../../src/shared/profile'
 import { parseScorecard } from '../../src/shared/scorecard'
@@ -96,6 +102,16 @@ function fakeProvider(
           consulted: a.tools.webSearch
             ? [{ url: 'https://source.example/b', title: 'Source B' }]
             : [],
+          sources: a.tools.webSearch
+            ? [
+                {
+                  url: 'https://source.example/a',
+                  title: 'Source A',
+                  excerpts: [`Cited by ${instruction.slice(0, 20)}`],
+                  cited: true
+                }
+              ]
+            : [],
           usage: {
             inputTokens: 10_000,
             outputTokens: 1000,
@@ -118,10 +134,13 @@ function fakeProvider(
 }
 
 let ws: string
+/** The run's drafts in app state: task documents not yet in wiki format (until v2 phase 6). */
+let drafts: string
 const logs: string[] = []
 beforeEach(async () => {
   ws = mkdtempSync(join(tmpdir(), 'phq-svc-'))
-  await createLayout(ws)
+  await confirmWorkspace(ws, '0.2.0')
+  drafts = join(await stateDir(ws), 'drafts')
   const p = emptyProfile()
   p.company = {
     name: 'Acme Rockets',
@@ -138,23 +157,44 @@ beforeEach(async () => {
   await addInputs(ws, 'company strategy', [join(src, 'board.txt')])
 })
 
+const CRAWL: CrawlResult = {
+  startUrl: 'https://acme.example/',
+  pages: [
+    {
+      url: 'https://acme.example/',
+      slug: 'home',
+      rendered: false,
+      title: 'Acme Rockets',
+      description: 'Rockets for coyotes.',
+      ogTitle: '',
+      ogDescription: '',
+      h1: ['Home'],
+      h2: [],
+      markdown: 'We sell rockets to coyotes.',
+      wordCount: 5,
+      links: [],
+      social: []
+    }
+  ],
+  social: [],
+  skipped: [],
+  robots: 'none'
+}
+
 const fakeLocal = (): ServiceDeps['local'] => ({
-  crawl: async ({ root: r }) => {
-    mkdirSync(join(r, 'memory/research/website/pages'), { recursive: true })
-    writeFileSync(
-      join(r, 'memory/research/website/index.md'),
-      '---\nstatus: draft\n---\n# Website crawl\n'
-    )
-    writeFileSync(
-      join(r, 'memory/research/website/pages/home.md'),
-      '---\nstatus: draft\n---\n# Home\n\nWe sell rockets to coyotes.'
+  // The real website ingest, minus the network.
+  crawl: async ({ root: r, wikiRoot, sources, runId }) => {
+    const pages = await writeCrawlToRaw(wikiRoot, CRAWL, '2026-10-17')
+    await sources.seed(pages)
+    await writeCrawl(
+      r,
+      CRAWL,
+      runId,
+      pages.map((p) => p.rel)
     )
     return { output: 'memory/research/website/index.md' }
   },
-  extract: async ({ root: r, runId }) => {
-    await extractInputs(r, runId)
-    return { output: 'memory/research/inputs-extracted/index.md' }
-  },
+  extract: localHandlers('test').extract,
   // The real assembly steps, so the test covers the playbook and its versions.
   'assemble-company-research': ({ root: r, profile, runId }) =>
     assembleCompanyResearch({ root: r, profile, runId }),
@@ -222,14 +262,14 @@ describe('research service: the full pipeline', () => {
 
     for (const t of run.tasks) {
       if (!t.output || !t.output.endsWith('.md')) continue
-      const file = join(ws, t.output)
+      const file = join(drafts, t.output)
       expect(existsSync(file), t.output).toBe(true)
       expect(matter(readFileSync(file, 'utf8')).data.status, t.output).toBe('draft')
     }
 
     // AI output is cleaned: no em dashes in prose, code untouched, sources listed for web tasks.
     const web = matter(
-      readFileSync(join(ws, 'memory/company-research/steps/02-product-analysis.md'), 'utf8')
+      readFileSync(join(drafts, 'memory/company-research/steps/02-product-analysis.md'), 'utf8')
     )
     const prose = web.content.replace(/```[\s\S]*?```/g, '')
     expect(prose).not.toContain('\u2014')
@@ -244,7 +284,7 @@ describe('research service: the full pipeline', () => {
     })
     expect(web.data.sources).toEqual(['https://source.example/a'])
     const syn = matter(
-      readFileSync(join(ws, 'memory/company-research/steps/09-synthesis.md'), 'utf8')
+      readFileSync(join(drafts, 'memory/company-research/steps/09-synthesis.md'), 'utf8')
     )
     expect(syn.content).not.toContain('## Sources')
 
@@ -254,6 +294,52 @@ describe('research service: the full pipeline', () => {
     expect(saved?.status).toBe('done')
     expect(saved?.spentUsd).toBeCloseTo(run.spentUsd, 6)
     expect(run.spentUsd).toBeGreaterThan(0.1)
+  })
+
+  it('ingests into raw/: own-site pages, private files and one citation record per URL, lint clean', async () => {
+    const f = fakeProvider()
+    const s = makeService(f.provider)
+    await s.service.start()
+    await s.until(() => s.finished.length === 1, 'finish')
+    const raw = (await scanWiki(ws)).filter((x) => x.kind === 'raw')
+    const byTag = (t: string) => raw.filter((x) => (x.data?.tags as string[]).includes(t))
+    expect(byTag('own-site').map((x) => x.rel)).toEqual([
+      'raw/articles/2026-10-17-acme-example-home.md'
+    ])
+    const priv = byTag('private')
+    expect(priv.map((x) => x.rel)).toEqual([
+      expect.stringMatching(/^raw\/papers\/\d{4}-\d{2}-\d{2}-board\.md$/)
+    ])
+    expect(priv[0].data?.tags).toEqual(['private', 'company-strategy'])
+    expect(priv[0].data?.source).toBe('inbox/.processed/board.txt')
+    expect(priv[0].body).toContain(SECRET)
+    // Every web task cited the same URL: one shared record holding every task's excerpt.
+    const cites = byTag('web-citation')
+    expect(cites).toHaveLength(1)
+    expect(cites[0].data?.source).toBe('https://source.example/a')
+    expect(cites[0].body).toContain('Citation record.')
+    // Duplicate excerpts are kept once.
+    const distinct = new Set(f.calls.filter((c) => c.web).map((c) => c.id.slice(0, 20))).size
+    expect((cites[0].body.match(/\(cited /g) ?? []).length).toBe(distinct)
+    // Nothing from the run is left in the wiki except spec files: no memory/, no .positioninghq/.
+    expect(readdirSync(ws).sort()).toEqual(
+      [
+        'README.md',
+        '_index.md',
+        'config.md',
+        'inbox',
+        'log.md',
+        'output',
+        'raw',
+        'schema.md',
+        'wiki'
+      ].sort()
+    )
+    const report = await checkWiki(ws)
+    expect(
+      report.findings.filter((x) => x.severity === 'critical' || x.severity === 'warning')
+    ).toEqual([])
+    expect(readFileSync(join(ws, 'log.md'), 'utf8')).toMatch(/ingest \| 1 web sources cited by/)
   })
 
   it('runs independent stage 1 tasks in parallel, within the concurrency limit', async () => {
@@ -279,7 +365,7 @@ describe('research service: the full pipeline', () => {
     // And every call that saw it had no tools.
     for (const c of withSecret) expect(c.tools, c.id).toEqual({})
     // The confidential text did not leak into web-task outputs on disk either.
-    const social = readFileSync(join(ws, 'memory/research/competitors/Wile Co.md'), 'utf8')
+    const social = readFileSync(join(drafts, 'memory/research/competitors/Wile Co.md'), 'utf8')
     expect(social).not.toContain(SECRET)
   })
 
@@ -297,7 +383,7 @@ describe('research service: the full pipeline', () => {
     expect(statement).toBeTruthy()
     // Documents are wrapped as data.
     expect(positioningCall.text).toContain(
-      '<document path="memory/research/website/pages/home.md">'
+      '<document path="raw/articles/2026-10-17-acme-example-home.md">'
     )
   })
 })
@@ -314,7 +400,7 @@ describe('research service: social taglines', () => {
     expect(find.text).not.toContain('We sell rockets to coyotes.')
     const { parseSocialTable } = await import('../../src/shared/social')
     const rows = parseSocialTable(
-      readFileSync(join(ws, 'memory/research/social-taglines.md'), 'utf8')
+      readFileSync(join(drafts, 'memory/research/social-taglines.md'), 'utf8')
     )
     expect(rows.map((r) => [r.network, r.found])).toEqual([
       ['LinkedIn', true],
@@ -336,7 +422,7 @@ describe('research service: messaging analysis', () => {
     expect(call.text).toContain('memory/research/website-positioning.md')
     expect(call.text).toContain('memory/research/social-taglines.md')
     expect(call.text).toContain('Score each dimension from 1 to 5')
-    const doc = readFileSync(join(ws, 'memory/messaging-analysis/Acme Rockets.md'), 'utf8')
+    const doc = readFileSync(join(drafts, 'memory/messaging-analysis/Acme Rockets.md'), 'utf8')
     expect(parseScorecard(doc)).toHaveLength(5)
     expect(s.last().tasks.find((t) => t.id === 'messaging-analysis')?.note).toBeNull()
     // Nothing failed or was blocked: the whole pipeline now has real skills.
@@ -351,32 +437,28 @@ describe('research service: playbook versions', () => {
     await s.service.start()
     await s.until(() => s.finished.length === 1, 'first run')
     expect(s.last().status).toBe('done')
-    const versions = join(ws, 'memory/positioning-playbook/versions')
+    const versions = join(drafts, 'memory/positioning-playbook/versions')
     const v1Name = readdirSync(versions)[0]
     expect(v1Name).toMatch(/^Acme Rockets-v1-\d{4}-\d{2}-\d{2}\.md$/)
     const v1 = readFileSync(join(versions, v1Name), 'utf8')
     const current = matter(
-      readFileSync(join(ws, 'memory/positioning-playbook/Acme Rockets.md'), 'utf8')
+      readFileSync(join(drafts, 'memory/positioning-playbook/Acme Rockets.md'), 'utf8')
     )
     expect(current.data.version).toBe(1)
     expect([...current.content.matchAll(/^## Section \d: /gm)]).toHaveLength(7)
     expect(current.content).toContain('## Table of Contents')
     expect(s.last().tasks.find((t) => t.id === 'playbook-assemble')?.note).toBe('Version 1')
     // The company research file holds every step.
-    const research = readFileSync(join(ws, 'memory/company-research/Acme Rockets.md'), 'utf8')
+    const research = readFileSync(join(drafts, 'memory/company-research/Acme Rockets.md'), 'utf8')
     expect(research).toContain('## Competitive Analysis')
     expect(research).not.toContain('did not run')
-    // The vault config is ticked, so the skill pack's other skills see a finished vault.
-    const vault = readFileSync(join(ws, 'vault.config.md'), 'utf8')
-    expect(vault).toContain('- [x] Company Research')
-    expect(vault).toContain('- [x] Positioning Playbook')
 
     await s.service.start()
     await s.until(() => s.finished.length === 2, 'second run')
     expect(readdirSync(versions)).toHaveLength(2)
     expect(readFileSync(join(versions, v1Name), 'utf8')).toBe(v1)
     expect(
-      matter(readFileSync(join(ws, 'memory/positioning-playbook/Acme Rockets.md'), 'utf8')).data
+      matter(readFileSync(join(drafts, 'memory/positioning-playbook/Acme Rockets.md'), 'utf8')).data
         .version
     ).toBe(2)
   })
@@ -389,7 +471,7 @@ describe('research service: re-running', () => {
     await s.service.start()
     await s.until(() => s.finished.length === 1, 'first run')
     const research = readFileSync(
-      join(ws, 'memory/company-research/steps/02-product-analysis.md'),
+      join(drafts, 'memory/company-research/steps/02-product-analysis.md'),
       'utf8'
     )
     const callsBefore = f1.calls.length
@@ -404,9 +486,9 @@ describe('research service: re-running', () => {
     expect(newCalls.filter((c) => c.startsWith('Write the messaging analysis'))).toHaveLength(1)
     expect(newCalls).toHaveLength(8)
     expect(
-      readFileSync(join(ws, 'memory/company-research/steps/02-product-analysis.md'), 'utf8')
+      readFileSync(join(drafts, 'memory/company-research/steps/02-product-analysis.md'), 'utf8')
     ).toBe(research)
-    expect(readdirSync(join(ws, 'memory/positioning-playbook/versions'))).toHaveLength(2)
+    expect(readdirSync(join(drafts, 'memory/positioning-playbook/versions'))).toHaveLength(2)
   })
 
   it('re-runs one task, and a competitor profile re-runs the profiles', async () => {
@@ -514,7 +596,7 @@ describe('research service: interruptions', () => {
     const { saveRun } = await import('../../src/main/research/run-store')
     await saveRun(ws, tweaked)
     const { rmSync } = await import('fs')
-    rmSync(join(ws, 'memory/company-research/steps/05-strengths.md'))
+    rmSync(join(drafts, 'memory/company-research/steps/05-strengths.md'))
 
     const f2 = fakeProvider()
     const s2 = makeService(f2.provider)
@@ -525,7 +607,7 @@ describe('research service: interruptions', () => {
     await s2.service.resume()
     await s2.until(() => s2.finished.length === 1, 'finish')
     expect(f2.calls).toHaveLength(1)
-    expect(existsSync(join(ws, 'memory/company-research/steps/05-strengths.md'))).toBe(true)
+    expect(existsSync(join(drafts, 'memory/company-research/steps/05-strengths.md'))).toBe(true)
   })
 
   it('cancel keeps finished outputs and stops the rest', async () => {
@@ -550,7 +632,9 @@ describe('research service: interruptions', () => {
       'cancelled'
     )
     expect(s.last().status).toBe('cancelled')
-    expect(existsSync(join(ws, 'memory/company-research/steps/02-product-analysis.md'))).toBe(true)
+    expect(existsSync(join(drafts, 'memory/company-research/steps/02-product-analysis.md'))).toBe(
+      true
+    )
     expect(s.last().tasks.filter((t) => t.status === 'running' || t.status === 'waiting')).toEqual(
       []
     )

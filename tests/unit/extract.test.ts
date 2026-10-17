@@ -1,11 +1,20 @@
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'fs'
+import { mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'fs'
+import { readFile } from 'fs/promises'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import JSZip from 'jszip'
-import matter from 'gray-matter'
 import { describe, expect, it } from 'vitest'
-import { extractInputs, MAX_TOKENS_PER_FILE } from '../../src/main/ingest/extract'
-import { createLayout } from '../../src/main/workspace/layout'
+import { MAX_TOKENS_PER_FILE } from '../../src/main/ingest/extract'
+import {
+  addInputs,
+  ingestInbox,
+  readRecords,
+  removeInput
+} from '../../src/main/ingest/files-to-raw'
+import { userFileDocuments } from '../../src/main/research/executor'
+import { confirmWorkspace } from '../../src/main/services/workspace'
+import { checkWiki } from '../../src/main/wiki/conformance'
+import { scanWiki } from '../../src/main/wiki/scan'
 
 const tmp = (): string => mkdtempSync(join(tmpdir(), 'phq-extract-'))
 
@@ -56,89 +65,145 @@ function pdf(text: string): Buffer {
   return Buffer.from(out)
 }
 
-async function setup(files: Record<string, Buffer | string>): Promise<string> {
+/** A new wiki, plus a folder of the person's own files to add from. */
+async function setup(
+  files: Record<string, Buffer | string>
+): Promise<{ root: string; src: string }> {
   const root = tmp()
-  await createLayout(root)
-  for (const [rel, data] of Object.entries(files)) {
-    mkdirSync(join(root, 'inputs', rel, '..'), { recursive: true })
-    writeFileSync(join(root, 'inputs', rel), data)
-  }
-  return root
+  await confirmWorkspace(root, '0.2.0')
+  const src = tmp()
+  for (const [name, data] of Object.entries(files)) writeFileSync(join(src, name), data)
+  return { root, src }
 }
 
-describe('extractInputs', () => {
-  it('extracts every supported type and writes front matter pointing at the original', async () => {
-    const root = await setup({
-      'sales collateral/deck.pptx': await pptx([
-        ['Welcome to Acme', 'Rockets &amp; more'],
-        ['Pricing slide']
-      ]),
-      'sales collateral/one-pager.docx': await docx('Docx says hello'),
-      'customer references/quote.pdf': pdf('Hello from PDF'),
-      'roadmap/plan.md': '# Plan\n\nShip it',
-      'help-docs/faq.txt': 'Q and A',
-      'competitive-intel/wins.csv': 'deal,reason\n1,price'
+const raw = async (root: string) => (await scanWiki(root)).filter((f) => f.kind === 'raw')
+
+describe('file ingest', () => {
+  it('extracts every supported type into raw/, tagged private and by category, original kept', async () => {
+    const { root, src } = await setup({
+      'deck.pptx': await pptx([['Welcome to Acme', 'Rockets &amp; more'], ['Pricing slide']]),
+      'one-pager.docx': await docx('Docx says hello'),
+      'quote.pdf': pdf('Hello from PDF'),
+      'plan.md': '# Plan\n\nShip it',
+      'faq.txt': 'Q and A',
+      'wins.csv': 'deal,reason\n1,price'
     })
-    const results = await extractInputs(root, 'run-1')
-    expect(results.map((r) => `${r.file}:${r.status}`).sort()).toEqual([
-      'deck.pptx:ok',
-      'faq.txt:ok',
-      'one-pager.docx:ok',
-      'plan.md:ok',
-      'quote.pdf:ok',
-      'wins.csv:ok'
+    await addInputs(
+      root,
+      'sales collateral',
+      [join(src, 'deck.pptx'), join(src, 'one-pager.docx')],
+      '2026-10-17'
+    )
+    await addInputs(root, 'customer references', [join(src, 'quote.pdf')], '2026-10-17')
+    await addInputs(root, 'roadmap', [join(src, 'plan.md')], '2026-10-17')
+    await addInputs(root, 'help-docs', [join(src, 'faq.txt')], '2026-10-17')
+    await addInputs(root, 'competitive-intel', [join(src, 'wins.csv')], '2026-10-17')
+    const files = await raw(root)
+    expect(files.map((f) => f.rel).sort()).toEqual([
+      'raw/data/2026-10-17-wins.md',
+      'raw/papers/2026-10-17-deck.md',
+      'raw/papers/2026-10-17-faq.md',
+      'raw/papers/2026-10-17-one-pager.md',
+      'raw/papers/2026-10-17-plan.md',
+      'raw/papers/2026-10-17-quote.md'
     ])
-    const read = (rel: string) => matter(readFileSync(join(root, rel), 'utf8'))
-    const pp = read('memory/research/inputs-extracted/sales collateral/deck.pptx.md')
-    expect(pp.content).toContain('## Slide 1')
-    expect(pp.content).toContain('Rockets & more')
-    expect(pp.content).toContain('Pricing slide')
-    expect(pp.data).toMatchObject({
-      task: 'extract-input-files',
-      run_id: 'run-1',
-      source_file: 'inputs/sales collateral/deck.pptx',
-      category: 'sales collateral',
-      truncated: false
+    const deck = files.find((f) => f.name === '2026-10-17-deck')!
+    expect(deck.body).toContain('## Slide 1')
+    expect(deck.body).toContain('Rockets & more')
+    expect(deck.data).toMatchObject({
+      title: 'deck',
+      source: 'inbox/.processed/deck.pptx',
+      type: 'papers',
+      ingested: '2026-10-17',
+      tags: ['private', 'sales-collateral']
     })
-    expect(
-      read('memory/research/inputs-extracted/sales collateral/one-pager.docx.md').content
-    ).toContain('Docx says hello')
-    expect(
-      read('memory/research/inputs-extracted/customer references/quote.pdf.md').content
-    ).toContain('Hello from PDF')
-    expect(read('memory/research/inputs-extracted/roadmap/plan.md.md').content).toContain('Ship it')
-    expect(
-      read('memory/research/inputs-extracted/competitive-intel/wins.csv.md').content
-    ).toContain('deal,reason')
+    // The summary names the file but quotes none of its content (indexes list summaries).
+    expect(String(deck.data?.summary)).not.toContain('Welcome')
+    expect(files.find((f) => f.name === '2026-10-17-wins')?.body).toContain('deal,reason')
+    expect(readdirSync(join(root, 'inbox')).filter((n) => !n.startsWith('.'))).toEqual([])
+    expect(readdirSync(join(root, 'inbox/.processed')).sort()).toEqual([
+      'deck.pptx',
+      'faq.txt',
+      'one-pager.docx',
+      'plan.md',
+      'quote.pdf',
+      'wins.csv'
+    ])
+    expect(readFileSync(join(src, 'plan.md'), 'utf8')).toBe('# Plan\n\nShip it')
+    expect(await readFile(join(root, 'log.md'), 'utf8')).toContain(
+      'ingest | deck.pptx (raw/papers/2026-10-17-deck.md)'
+    )
+    const report = await checkWiki(root, '2026-10-17')
+    expect(report.findings.filter((f) => f.severity !== 'suggestion')).toEqual([])
   })
 
-  it('truncates at the token budget and says so', async () => {
-    const root = await setup({ 'help-docs/big.txt': 'x'.repeat(MAX_TOKENS_PER_FILE * 4 + 5000) })
-    const [r] = await extractInputs(root)
-    expect(r).toMatchObject({ status: 'ok', truncated: true })
-    const doc = matter(readFileSync(join(root, r.output!), 'utf8'))
-    expect(doc.data.truncated).toBe(true)
+  it('keeps the whole text in raw/ and cuts it only when building a prompt', async () => {
+    const { root, src } = await setup({ 'big.txt': 'x'.repeat(MAX_TOKENS_PER_FILE * 4 + 5000) })
+    await addInputs(root, 'help-docs', [join(src, 'big.txt')])
+    const [f] = await raw(root)
+    expect(f.body.length).toBeGreaterThan(MAX_TOKENS_PER_FILE * 4)
+    const [doc] = await userFileDocuments(root, ['help-docs'])
+    expect(doc.path).toBe(f.rel)
     expect(doc.content).toContain('[Truncated:')
     expect(doc.content.length).toBeLessThan(MAX_TOKENS_PER_FILE * 4 + 500)
   })
 
-  it('marks unsupported types not-read, empty files empty, and corrupt files failed without leaking content', async () => {
-    const root = await setup({
-      'roadmap/notes.xyz': 'secret-content-123',
-      'roadmap/blank.txt': '   \n ',
-      'roadmap/broken.pdf': 'not really a pdf SECRET-PDF-BYTES',
-      'roadmap/broken.docx': 'not a zip SECRET-DOCX-BYTES'
+  it('gives a task only the categories it asks for, plus files added without one', async () => {
+    const { root, src } = await setup({
+      'a.txt': 'ROADMAP TEXT',
+      'b.txt': 'STRATEGY TEXT',
+      'c.txt': 'LOOSE TEXT'
     })
-    const byFile = Object.fromEntries((await extractInputs(root)).map((r) => [r.file, r]))
-    expect(byFile['notes.xyz'].status).toBe('not-read')
-    expect(byFile['blank.txt'].status).toBe('empty')
-    expect(byFile['broken.pdf'].status).toBe('failed')
-    expect(byFile['broken.docx'].status).toBe('failed')
-    expect(JSON.stringify(byFile)).not.toMatch(/SECRET/)
+    await addInputs(root, 'roadmap', [join(src, 'a.txt')])
+    await addInputs(root, 'company strategy', [join(src, 'b.txt')])
+    // Dropped straight into inbox/ in Finder: ingested by the research step, with no category.
+    writeFileSync(join(root, 'inbox', 'c.txt'), 'LOOSE TEXT')
+    await ingestInbox(root)
+    const text = (await userFileDocuments(root, ['roadmap'])).map((d) => d.content).join('\n')
+    expect(text).toContain('ROADMAP TEXT')
+    expect(text).toContain('LOOSE TEXT')
+    expect(text).not.toContain('STRATEGY TEXT')
   })
 
-  it('survives a workspace with no inputs', async () => {
-    const root = tmp()
-    expect(await extractInputs(root)).toEqual([])
+  it('leaves unreadable files in inbox/ with no raw file, and never leaks content', async () => {
+    const { root, src } = await setup({
+      'notes.xyz': 'secret-content-123',
+      'blank.txt': '   \n ',
+      'broken.pdf': 'not really a pdf SECRET-PDF-BYTES',
+      'broken.docx': 'not a zip SECRET-DOCX-BYTES'
+    })
+    const r = await addInputs(
+      root,
+      'roadmap',
+      ['notes.xyz', 'blank.txt', 'broken.pdf', 'broken.docx'].map((n) => join(src, n))
+    )
+    expect(r.added.map((f) => [f.name, f.readable])).toEqual([
+      ['notes.xyz', false],
+      ['blank.txt', false],
+      ['broken.pdf', false],
+      ['broken.docx', false]
+    ])
+    expect(await raw(root)).toEqual([])
+    expect(
+      readdirSync(join(root, 'inbox'))
+        .filter((n) => !n.startsWith('.'))
+        .sort()
+    ).toEqual(['blank.txt', 'broken.docx', 'broken.pdf', 'notes.xyz'])
+    const records = await readRecords(root)
+    expect(records.map((x) => x.status)).toEqual(['not-read', 'empty', 'failed', 'failed'])
+    expect(JSON.stringify(records)).not.toMatch(/SECRET/)
+    // The inbox may hold anything: still lint clean.
+    expect((await checkWiki(root)).ok).toBe(true)
+  })
+
+  it('refuses to remove a file an article cites', async () => {
+    const { root, src } = await setup({ 'a.txt': 'x' })
+    await addInputs(root, 'roadmap', [join(src, 'a.txt')], '2026-10-17')
+    const [f] = await raw(root)
+    writeFileSync(
+      join(root, 'wiki/topics/market-overview.md'),
+      `---\ntitle: "M"\ncategory: topic\nsources:\n  - ${f.rel}\ncreated: 2026-10-17\nupdated: 2026-10-17\ntags: [private]\nsummary: "M"\n---\n`
+    )
+    expect(await removeInput(root, 'roadmap', 'a.txt')).toBe(false)
   })
 })

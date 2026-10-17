@@ -37,7 +37,7 @@ export function registerInputs(handle: Handle, ctx: AppContext): void {
 
   handle('inputs:remove', async ({ category, name }) => {
     if (!(await removeInput(await writableRoot(ctx), category, name)))
-      throw new HandlerError('not_allowed')
+      throw new HandlerError('source_in_use')
     return null
   })
 }

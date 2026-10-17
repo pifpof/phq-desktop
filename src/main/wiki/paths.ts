@@ -1,4 +1,4 @@
-import { readdir } from 'fs/promises'
+import { access, readdir } from 'fs/promises'
 import { isAbsolute, join, normalize, relative, sep } from 'path'
 import { CATEGORY_DIR, type Category, type RawType } from '@shared/wiki-types'
 
@@ -109,3 +109,27 @@ export function relLink(fromRel: string, toRel: string): string {
 
 /** Markdown link destination: angle brackets when the path has spaces or a parenthesis. */
 export const linkDest = (p: string): string => (/[\s()]/.test(p) ? `<${p}>` : p)
+
+/** The first of rel, rel-2, rel-3... that is neither on disk nor in `taken`. */
+export async function freeRel(
+  root: string,
+  rel: string,
+  taken: Set<string> = new Set()
+): Promise<string> {
+  const onDisk = async (r: string): Promise<boolean> => {
+    try {
+      await access(safeJoin(root, r))
+      return true
+    } catch {
+      return false
+    }
+  }
+  const dot = rel.lastIndexOf('.')
+  const stem = dot > rel.lastIndexOf('/') ? rel.slice(0, dot) : rel
+  const ext = dot > rel.lastIndexOf('/') ? rel.slice(dot) : ''
+  for (let i = 1; i < 1000; i++) {
+    const candidate = i === 1 ? rel : `${stem}-${i}${ext}`
+    if (!taken.has(candidate) && !(await onDisk(candidate))) return candidate
+  }
+  throw new Error('No free file name.')
+}

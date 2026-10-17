@@ -85,6 +85,8 @@ The local `scripts/llm-wiki lint` implements fewer checks than `references/linti
 
 Not implemented by the script (described in `linting.md` only): unknown front matter keys (C13), bidirectional See Also (C4), tag hygiene beyond the three pairs (C5), master index statistics (C3). The app's own checker still enforces See Also reciprocity and the key whitelist, since the agentic `/wiki:lint` reads `linting.md`.
 
+Note: the text report's last line ("Result: PASS/FAIL") ignores `--fail-on` and says FAIL for any finding, suggestions included. The exit code honours `--fail-on`; CI and the tests use the exit code (or `--json`).
+
 ### 3.1 The front matter parser
 
 The script parses YAML line by line: `key: value`, inline lists `[a, b]`, and block lists whose items start with exactly two spaces and a dash (`  - item`). Folded or multi-line scalars (`>-`, `|`), which `js-yaml` emits for long strings, are not understood. **The app must write front matter with its own serializer: one line per scalar, quoted strings, `  - ` block lists.** gray-matter's `stringify` is not safe for this.

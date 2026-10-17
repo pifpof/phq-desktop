@@ -245,8 +245,16 @@ async function runTask({
     throw toProviderError(err)
   }
 
-  const { text, citations, consulted } = readBlocks(blocks)
-  return { text, citations, consulted, usage, stopReason, truncated: stopReason === 'max_tokens' }
+  const { text, citations, consulted, sources } = readBlocks(blocks)
+  return {
+    text,
+    citations,
+    consulted,
+    sources,
+    usage,
+    stopReason,
+    truncated: stopReason === 'max_tokens'
+  }
 }
 
 export const anthropicProvider: Provider = {

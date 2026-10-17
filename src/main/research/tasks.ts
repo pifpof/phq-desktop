@@ -1,6 +1,7 @@
 import { checkScorecard } from '@shared/scorecard'
 import { checkSocialTable } from '@shared/social'
 import { safeName } from '../workspace/safe-name'
+import { slugify } from '../wiki/paths'
 import type { TaskContext, TaskDef, WebTools } from './types'
 
 /** The research pipeline as data (REQUIREMENTS-v1 3.1). Add or re-run tasks by editing this list. */
@@ -138,6 +139,10 @@ async function competitorsFor(ctx: TaskContext): Promise<Competitor[]> {
 
 const competitorProfile = (c: Competitor): TaskDef => ({
   id: `competitor-profiles:${safeName(c.name).toLowerCase().replace(/\s+/g, '-')}`,
+  competitor: {
+    slug: slugify(c.name, 'competitor'),
+    website: c.website === 'n/a' ? '' : c.website
+  },
   title: `Profile: ${c.name}`,
   stage: 2,
   kind: 'web-profile',

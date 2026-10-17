@@ -297,25 +297,41 @@ describe('parsePage links', () => {
 })
 
 describe('crawled pages follow the copy rule', () => {
-  it('writes pages without em dashes', async () => {
-    const { mkdtempSync, readFileSync } = await import('fs')
+  it('writes raw pages without em dashes, tagged own-site and by page type', async () => {
+    const { mkdtempSync, mkdirSync, readFileSync } = await import('fs')
     const { tmpdir } = await import('os')
     const { join } = await import('path')
-    const { writeCrawl } = await import('../../src/main/ingest/write-crawl')
+    const { writeCrawlToRaw, pageType } = await import('../../src/main/ingest/website-to-raw')
     const root = mkdtempSync(join(tmpdir(), 'phq-wc-'))
+    mkdirSync(join(root, 'raw/articles'), { recursive: true })
     const p = parsePage(
       `<html><body><h1>Fast — cheap</h1><p>${lorem(150)} — more</p><table><tr><th>a</th></tr><tr><td>—</td></tr></table></body></html>`,
       'https://a.com/'
     )
-    await writeCrawl(root, {
+    const crawl = {
       startUrl: 'https://a.com/',
-      pages: [{ ...p, url: 'https://a.com/', slug: 'home', rendered: false }],
+      pages: [
+        { ...p, url: 'https://www.a.com/', slug: 'home', rendered: false },
+        { ...p, url: 'https://www.a.com/pricing/', slug: 'pricing', rendered: false }
+      ],
       social: [],
       skipped: [],
-      robots: 'none'
-    })
-    expect(readFileSync(join(root, 'memory/research/website/pages/home.md'), 'utf8')).not.toContain(
-      '—'
-    )
+      robots: 'none' as const
+    }
+    const pages = await writeCrawlToRaw(root, crawl, '2026-10-17')
+    expect(pages.map((x) => x.rel)).toEqual([
+      'raw/articles/2026-10-17-a-com-home.md',
+      'raw/articles/2026-10-17-a-com-pricing.md'
+    ])
+    const home = readFileSync(join(root, pages[0].rel), 'utf8')
+    expect(home).not.toContain('—')
+    expect(home).toContain('tags: [website, own-site, home]')
+    expect(home).toContain('source: "https://www.a.com/"')
+    // A second crawl the same day never overwrites the first.
+    const again = await writeCrawlToRaw(root, crawl, '2026-10-17')
+    expect(again[0].rel).toBe('raw/articles/2026-10-17-a-com-home-2.md')
+    expect(pageType('https://a.com/about-us')).toBe('about')
+    expect(pageType('https://a.com/customers/case-studies')).toBe('customers')
+    expect(pageType('https://a.com/x')).toBe('page')
   })
 })

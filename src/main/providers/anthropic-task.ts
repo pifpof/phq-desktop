@@ -1,5 +1,5 @@
 import type Anthropic from '@anthropic-ai/sdk'
-import type { Citation, TaskUsage } from './types'
+import type { Citation, TaskUsage, WebSource } from './types'
 
 type Block = Anthropic.Messages.ContentBlock
 type Usage = Anthropic.Messages.Usage
@@ -41,10 +41,20 @@ export function readBlocks(blocks: Block[]): {
   text: string
   citations: Citation[]
   consulted: Citation[]
+  sources: WebSource[]
 } {
   const consulted = new Map<string, Citation>()
   const citations = new Map<string, Citation>()
   const fetched: Citation[] = []
+  const sources = new Map<string, WebSource>()
+  const source = (url: string, title: string): WebSource => {
+    let s = sources.get(url)
+    if (!s) {
+      s = { url, title: title || url, excerpts: [], cited: false }
+      sources.set(url, s)
+    }
+    return s
+  }
 
   for (const b of blocks) {
     const block = b as unknown as Record<string, unknown>
@@ -55,11 +65,20 @@ export function readBlocks(blocks: Block[]): {
       }
     } else if (block.type === 'web_fetch_tool_result') {
       const c = block.content as
-        { type?: string; url?: string; content?: { title?: string } } | undefined
+        | {
+            type?: string
+            url?: string
+            content?: { title?: string; source?: { type?: string; data?: unknown } }
+          }
+        | undefined
       if (c?.type === 'web_fetch_result' && c.url) {
         const entry = { url: c.url, title: c.content?.title ?? c.url }
         fetched.push(entry)
         if (!consulted.has(c.url)) consulted.set(c.url, entry)
+        // Text pages are kept in full; PDFs (base64) become citation records instead.
+        const src = c.content?.source
+        if (src?.type === 'text' && typeof src.data === 'string' && src.data.trim())
+          source(c.url, entry.title).fullText = src.data
       }
     }
   }
@@ -75,6 +94,13 @@ export function readBlocks(blocks: Block[]): {
         if (doc) ({ url, title } = doc)
       }
       if (url && !citations.has(url)) citations.set(url, { url, title: title || url })
+      if (url) {
+        const s = source(url, title)
+        s.cited = true
+        const excerpt =
+          typeof c.cited_text === 'string' ? c.cited_text.replace(/\s+/g, ' ').trim() : ''
+        if (excerpt && !s.excerpts.includes(excerpt)) s.excerpts.push(excerpt)
+      }
     }
   }
 
@@ -91,5 +117,11 @@ export function readBlocks(blocks: Block[]): {
       .trim()
   const text = textOf(lastTool + 1) || textOf(0)
 
-  return { text, citations: [...citations.values()], consulted: [...consulted.values()] }
+  return {
+    text,
+    citations: [...citations.values()],
+    consulted: [...consulted.values()],
+    // Fetched pages count even when uncited: the model read them in full.
+    sources: [...sources.values()].filter((s) => s.cited || s.fullText)
+  }
 }

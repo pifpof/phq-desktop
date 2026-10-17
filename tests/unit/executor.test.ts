@@ -3,6 +3,7 @@ import { tmpdir } from 'os'
 import { join } from 'path'
 import { describe, expect, it } from 'vitest'
 import { createExecutor } from '../../src/main/research/executor'
+import { RunSources } from '../../src/main/ingest/citations-to-raw'
 import { parsePricing } from '../../src/main/research/pricing'
 import type { TaskDef } from '../../src/main/research/types'
 import type { Provider, RunTaskArgs, RunTaskResult } from '../../src/main/providers/types'
@@ -24,14 +25,16 @@ const usage = {
 
 function setup(answers: string[]) {
   const root = mkdtempSync(join(tmpdir(), 'phq-exec-'))
-  mkdirSync(join(root, 'memory/research/website/pages'), { recursive: true })
+  const wikiRoot = mkdtempSync(join(tmpdir(), 'phq-exec-wiki-'))
+  mkdirSync(join(root, 'memory/research/website'), { recursive: true })
   writeFileSync(
     join(root, 'memory/research/website/index.md'),
-    '---\nstatus: draft\n---\n# Website crawl\n\n- LinkedIn: https://linkedin.com/company/acme'
+    '---\nstatus: draft\nraw_pages:\n  - raw/articles/2026-10-17-acme-example-home.md\n---\n# Website crawl\n\n- LinkedIn: https://linkedin.com/company/acme'
   )
+  mkdirSync(join(wikiRoot, 'raw/articles'), { recursive: true })
   writeFileSync(
-    join(root, 'memory/research/website/pages/home.md'),
-    '---\nstatus: draft\n---\nHOME PAGE TEXT'
+    join(wikiRoot, 'raw/articles/2026-10-17-acme-example-home.md'),
+    '---\ntitle: "Home"\nsource: "https://acme.example/"\ntype: articles\ningested: 2026-10-17\ntags: [own-site]\nsummary: "Home."\n---\n\nHOME PAGE TEXT'
   )
   const calls: RunTaskArgs[] = []
   const provider = {
@@ -41,6 +44,7 @@ function setup(answers: string[]) {
         text: answers[Math.min(calls.length - 1, answers.length - 1)],
         citations: [],
         consulted: [],
+        sources: [],
         usage,
         stopReason: 'end_turn',
         truncated: false
@@ -67,6 +71,8 @@ function setup(answers: string[]) {
   }
   const exec = createExecutor({
     root,
+    wikiRoot,
+    sources: new RunSources(wikiRoot, join(root, 'sources.json'), '2026-10-17'),
     profile,
     runId: 'r1',
     company: 'Acme',
