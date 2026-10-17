@@ -161,8 +161,9 @@ export function MigrationWizard() {
             {result.legacy.length > 0 && (
               <>
                 <p className="mt-5 text-sm">
-                  Remove the old {result.legacy.filter((l) => !l.startsWith('.')).join(', ')}{' '}
-                  folders? Your backup stays in <span className="break-all">{result.backup}</span>.
+                  Remove the old v1 files (
+                  {result.legacy.filter((l) => !l.startsWith('.')).join(', ')})? Your backup stays
+                  in <span className="break-all">{result.backup}</span>.
                 </p>
                 <div className="mt-3 flex gap-3">
                   <Button disabled={busy} onClick={() => void finish('remove')}>
