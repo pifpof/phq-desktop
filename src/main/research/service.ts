@@ -15,6 +15,7 @@ import { stateDir, writeJsonAtomic } from '../state/app-state'
 import { readProvenance } from '../state/provenance'
 import { checkWiki } from '../wiki/conformance'
 import { writeIndexes } from '../wiki/index-gen'
+import { reciprocateSeeAlso } from './article-output'
 import { appendLog } from '../wiki/log'
 import { isoDay } from '../wiki/paths'
 import { readProfile } from '../workspace/profile'
@@ -217,6 +218,7 @@ export function createResearchService(d: ServiceDeps) {
           'compile',
           `research run ${run.id} (desktop app ${d.appVersion ?? 'dev'}, ${model}) -> ${articles} articles`
         )
+      await reciprocateSeeAlso(root)
       await writeIndexes(root)
       const report = await checkWiki(root)
       await writeJsonAtomic(join(await stateDir(root), 'conformance.json'), report)

@@ -61,6 +61,6 @@ jobs:
         env:
           # The fixtures' verified dates. Without this, hot articles go stale after 30 days.
           LLM_WIKI_TODAY: '2026-10-17'
-        run: npm run wiki:lint -- tests/fixtures/phq-wiki-min
+        run: npm run wiki:lint -- tests/fixtures/phq-wiki-min tests/fixtures/phq-wiki-generated
       - name: Compare the app's checker with llm-wiki
         run: npx vitest run tests/unit/conformance.test.ts tests/unit/wiki-format.test.ts

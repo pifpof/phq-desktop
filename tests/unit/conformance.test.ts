@@ -119,7 +119,13 @@ describe('conformance check', () => {
     expect(report.ok).toBe(true)
   })
 
-  it('reports aging apart from format defects', async () => {
+  it('passes the wiki the pipeline generates (fake provider), with only coverage suggestions', async () => {
+    const report = await checkWiki(resolve(__dirname, '../fixtures/phq-wiki-generated'), PHQ_DAY)
+    expect(report.findings.filter((f) => f.severity !== 'suggestion')).toEqual([])
+    expect(report.ok).toBe(true)
+  })
+
+    it('reports aging apart from format defects', async () => {
     const report = await checkWiki(PHQ_MIN, '2026-12-01')
     expect(report.stale).toBe(1)
     expect(report.counts.warning).toBe(1)

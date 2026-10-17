@@ -11,6 +11,7 @@ import {
 } from '../wiki/company-profile'
 import { parseDoc, setScalarInPlace, stringField } from '../wiki/frontmatter'
 import { writeIndexes } from '../wiki/index-gen'
+import { reciprocateSeeAlso } from '../research/article-output'
 import { isoDay } from '../wiki/paths'
 import { readmeMd, schemaMd, wikiDescription } from '../wiki/templates'
 
@@ -80,7 +81,9 @@ async function syncIdentity(root: string, company: string): Promise<void> {
 
 /** Same article apart from its dates. */
 const sameContent = (a: string, b: string): boolean => {
-  const strip = (t: string): string => t.replace(/^(created|updated|verified): .*$/gm, '')
+  // Dates and the See Also back-links (added by other articles) don't count as a change.
+  const strip = (t: string): string =>
+    t.replace(/^(created|updated|verified): .*$/gm, '').replace(/\n## See Also\n[\s\S]*$/, '\n')
   return strip(a) === strip(b)
 }
 
@@ -100,5 +103,7 @@ export async function writeProfile(root: string, profile: Profile): Promise<void
   const next = companyProfileArticle(profile, { created, updated: today })
   if (!existing || !sameContent(existing, next)) await writeFile(path, next)
   await syncIdentity(root, profile.company.name)
+  // Rewriting the article drops the back-links other articles' See Also put there.
+  await reciprocateSeeAlso(root)
   await writeIndexes(root)
 }

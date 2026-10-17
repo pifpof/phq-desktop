@@ -1,4 +1,13 @@
-import { mkdtempSync, readFileSync, readdirSync, existsSync, writeFileSync } from 'fs'
+import { spawnSync } from 'child_process'
+import {
+  cpSync,
+  rmSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  existsSync,
+  writeFileSync
+} from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import matter from 'gray-matter'
@@ -47,6 +56,12 @@ const readSkill = (skill: string, file: string): string =>
     : disk(skill, file)
 const pricing = parsePricing(JSON.parse(readFileSync(join(root, 'resources/pricing.json'), 'utf8')))
 const SECRET = 'CONFIDENTIAL-BOARD-NUMBERS-7731'
+const LINT = join(root, '.cache/llm-wiki-v0.25.1/scripts/llm-wiki')
+function officialLint(wiki: string): { status: number | null; out: string } | null {
+  if (!existsSync(LINT)) return null
+  const r = spawnSync('python3', [LINT, 'lint', '--fail-on', 'warning', wiki], { encoding: 'utf8' })
+  return r.error ? null : { status: r.status, out: r.stdout }
+}
 
 interface Call {
   id: string
@@ -386,6 +401,15 @@ describe('research service: the full pipeline', () => {
     expect(
       report.findings.filter((x) => x.severity === 'critical' || x.severity === 'warning')
     ).toEqual([])
+    // The official lint agrees (when it has been fetched: npm run wiki:lint fetches it).
+    const lint = officialLint(ws)
+    if (lint) expect(lint.status, lint.out).toBe(0)
+    // npm run fixtures:generated writes this wiki to tests/fixtures/phq-wiki-generated (CI lints it).
+    if (process.env.PHQ_WRITE_GENERATED_FIXTURE) {
+      const target = join(__dirname, '../fixtures/phq-wiki-generated')
+      rmSync(target, { recursive: true, force: true })
+      cpSync(ws, target, { recursive: true })
+    }
     expect(readFileSync(join(ws, 'log.md'), 'utf8')).toMatch(/ingest \| \d web sources cited by/)
   })
 

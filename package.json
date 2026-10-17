@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "description": "Build your positioning and competitive intelligence with an AI guide. Free and open source.",
   "main": "./out/main/index.js",
-  "author": "Parallel79°",
+  "author": "Parallel79\u00b0",
   "license": "MIT",
   "private": true,
   "scripts": {
@@ -17,7 +17,8 @@
     "test": "vitest run",
     "format": "prettier --write .",
     "skills:sync": "node scripts/skills-sync.mts",
-    "wiki:lint": "node scripts/wiki-lint.mjs"
+    "wiki:lint": "node scripts/wiki-lint.mjs",
+    "fixtures:generated": "PHQ_WRITE_GENERATED_FIXTURE=1 vitest run tests/unit/research-service.test.ts -t 'ingests into raw'"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.135.0",

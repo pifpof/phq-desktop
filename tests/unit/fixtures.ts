@@ -42,7 +42,8 @@ export function fakeArticleOutput(prompt: string, web: boolean): unknown {
         .filter((d) => d.startsWith('raw/') || d.startsWith('wiki/'))
         .slice(0, 3)
         .map((ref) => ({ ref, quote: 'Quoted.' }))
-  const existing = [...prompt.matchAll(/^- ([a-z0-9-]+): /gm)].map((m) => m[1])
+  const wikiList = /Articles in the wiki:\n((?:- .*\n?)*)/.exec(prompt)?.[1] ?? ''
+  const existing = [...wikiList.matchAll(/^- ([a-z0-9-]+): /gm)].map((m) => m[1])
   const slugs = specs.flatMap((s) =>
     s.slug.endsWith('<x>')
       ? (s.slug.startsWith('moat-') ? ['alpha', 'beta'] : ['one', 'two', 'three']).map((x) => ({

@@ -69,7 +69,7 @@ function setup(answers: string[]) {
     description: '',
     competitors: []
   }
-  const exec = createExecutor({
+  const deps = {
     root,
     wikiRoot,
     sources: new RunSources(wikiRoot, join(root, 'sources.json'), '2026-10-17'),
@@ -83,8 +83,9 @@ function setup(answers: string[]) {
     readSkill: () => 'You are a test skill.',
     local: {},
     tasks: [crawl]
-  })
-  return { root, calls, exec }
+  }
+  const exec = createExecutor(deps)
+  return { root, wikiRoot, calls, exec, deps }
 }
 
 const task = (over: Partial<TaskDef>): TaskDef => ({
@@ -147,6 +148,35 @@ describe('executor', () => {
   it('does not retry an answer that passes', async () => {
     const s = setup(['| Network | URL | Status |'])
     await s.exec(task({ validate: () => null }), new AbortController().signal)
+    expect(s.calls).toHaveLength(1)
+  })
+
+  it('refuses to show a web task anything whose sources reach a private file', async () => {
+    const s = setup(['# Done'])
+    mkdirSync(join(s.wikiRoot, 'raw/papers'), { recursive: true })
+    writeFileSync(
+      join(s.wikiRoot, 'raw/papers/2026-10-17-board.md'),
+      '---\ntitle: "Board"\nsource: "inbox/.processed/b.txt"\ntype: papers\ningested: 2026-10-17\ntags: [private]\nsummary: "B."\n---\n\nSECRET'
+    )
+    // A run draft built from that file (say, by a synthesis task that was shown it).
+    mkdirSync(join(s.root, 'memory/drafts'), { recursive: true })
+    writeFileSync(
+      join(s.root, 'memory/drafts/notes.md'),
+      '---\nstatus: draft\nraw_sources:\n  - raw/papers/2026-10-17-board.md\n---\nnotes'
+    )
+    const notes = task({ id: 'notes', output: () => 'memory/drafts/notes.md' })
+    const exec = createExecutor({ ...s.deps, tasks: [...s.deps.tasks, notes] })
+    const web = task({
+      id: 'w',
+      web: { search: { maxUses: 1 } },
+      inputs: { outputs: ['notes'], inputCategories: [] }
+    })
+    await expect(exec(web, new AbortController().signal)).rejects.toThrow(
+      'A web task must not be shown private material.'
+    )
+    expect(s.calls).toHaveLength(0)
+    // The same input is fine for a task without web tools.
+    await exec({ ...web, web: false }, new AbortController().signal)
     expect(s.calls).toHaveLength(1)
   })
 })

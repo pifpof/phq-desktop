@@ -240,28 +240,30 @@ export function normalizeLinks(
     missing.add(slug.trim())
     return title?.trim() || slug.trim()
   }
-  // Two-form, then plain wikilinks, then markdown links to .md files.
+  // Finished links are parked as placeholders so a later pass can't rewrite part of them.
+  const done: string[] = []
+  const park = (text: string): string => `\uE000${done.push(text) - 1}\uE000`
+  const make = (slug: string, title?: string): string => {
+    const t = resolveSlug(slug)
+    return t ? park(link(fromPath, { ...t, title: title?.trim() || t.title })) : plain(slug, title)
+  }
+  // Two-form, then markdown links to .md files, then plain wikilinks.
   let out = body.replace(
     /\[\[([^\]|]+)(?:\|([^\]]*))?\]\]\s*\(\[[^\]]*\]\((?:<[^>\n]+>|[^)\n]+)\)\)/g,
-    (_m, slug: string, title?: string) => {
-      const t = resolveSlug(slug)
-      return t ? link(fromPath, { ...t, title: title?.trim() || t.title }) : plain(slug, title)
-    }
+    (_m, slug: string, title?: string) => make(slug, title)
   )
-  out = out.replace(/\[\[([^\]|]+)(?:\|([^\]]*))?\]\]/g, (_m, slug: string, title?: string) => {
-    const t = resolveSlug(slug)
-    return t ? link(fromPath, { ...t, title: title?.trim() || t.title }) : plain(slug, title)
-  })
   out = out.replace(
     /(?<![!\]])\[([^\]\n]+)\]\((<[^>\n]+>|[^)\s]+)\)/g,
     (m, text: string, dest: string) => {
       const d = dest.replace(/^<|>$/g, '')
       if (/^[a-z][a-z0-9+.-]*:/i.test(d) || d.startsWith('#') || !d.endsWith('.md')) return m
-      const slug = d.split('/').pop()!.replace(/\.md$/, '')
-      const t = resolveSlug(slug)
-      return t ? link(fromPath, { ...t, title: text }) : plain(slug, text)
+      return make(d.split('/').pop()!.replace(/\.md$/, ''), text)
     }
   )
+  out = out.replace(/\[\[([^\]|]+)(?:\|([^\]]*))?\]\]/g, (_m, slug: string, title?: string) =>
+    make(slug, title)
+  )
+  out = out.replace(/\uE000(\d+)\uE000/g, (_m, i: string) => done[Number(i)])
   return out
 }
 
@@ -564,7 +566,7 @@ export async function writePrepared(wikiRoot: string, files: PreparedFile[]): Pr
  * Makes See Also reciprocal (llm-wiki C4): every article a changed article lists gets a link
  * back. Only the target's See Also section changes. Returns the paths edited.
  */
-export async function addBacklinks(wikiRoot: string, changed: string[]): Promise<string[]> {
+async function addBacklinksNow(wikiRoot: string, changed: string[]): Promise<string[]> {
   const articles = await loadArticles(wikiRoot)
   const bySlug = new Map([...articles.values()].map((a) => [a.slug, a]))
   const edited = new Set<string>()
@@ -602,6 +604,25 @@ export async function addBacklinks(wikiRoot: string, changed: string[]): Promise
     }
   }
   return [...edited]
+}
+
+/** One back-link pass at a time per wiki: parallel tasks edit the same See Also sections. */
+const backlinkQueues = new Map<string, Promise<unknown>>()
+
+export function addBacklinks(wikiRoot: string, changed: string[]): Promise<string[]> {
+  const prev = backlinkQueues.get(wikiRoot) ?? Promise.resolve()
+  const next = prev.then(() => addBacklinksNow(wikiRoot, changed))
+  backlinkQueues.set(
+    wikiRoot,
+    next.catch(() => undefined)
+  )
+  return next
+}
+
+/** A full pass: every See Also in the wiki made reciprocal. */
+export async function reciprocateSeeAlso(wikiRoot: string): Promise<string[]> {
+  const all = [...(await loadArticles(wikiRoot)).values()].map((a) => a.path)
+  return addBacklinks(wikiRoot, all)
 }
 
 /** Relative markdown link from one wiki path to another (outputs link to articles this way). */
