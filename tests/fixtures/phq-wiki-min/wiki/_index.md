@@ -1,6 +1,6 @@
 # Wiki Articles
 
-> Compiled knowledge about Acme.
+> Compiled knowledge. Every article cites its sources in raw/.
 
 Last updated: 2026-10-17
 
@@ -15,3 +15,6 @@ See [references/_index.md](references/_index.md)
 
 ## Theses
 See [theses/_index.md](theses/_index.md)
+
+## Stats
+- Total articles: 4

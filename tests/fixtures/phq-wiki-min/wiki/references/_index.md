@@ -13,4 +13,5 @@ Last updated: 2026-10-17
 
 ## Recent Changes
 
-- 2026-10-17: 2 file(s) added
+- 2026-10-17: [Company Profile](company-profile.md)
+- 2026-10-17: [Ledgerly](competitor-ledgerly.md)

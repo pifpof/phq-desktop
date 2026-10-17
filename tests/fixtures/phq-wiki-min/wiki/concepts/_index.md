@@ -12,4 +12,4 @@ Last updated: 2026-10-17
 
 ## Recent Changes
 
-- 2026-10-17: 1 file(s) added
+- 2026-10-17: [Positioning Statement](positioning-statement.md)

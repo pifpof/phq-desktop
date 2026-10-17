@@ -1,6 +1,6 @@
 # Articles
 
-> Web pages: own website, competitor pages and web citation records.
+> Web pages: your website, competitor pages and web citation records.
 
 Last updated: 2026-10-17
 
@@ -12,4 +12,4 @@ Last updated: 2026-10-17
 
 ## Recent Changes
 
-- 2026-10-17: 1 file(s) added
+- 2026-10-17: [Acme home page](2026-10-17-acme-com-home.md)

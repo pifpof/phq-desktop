@@ -16,7 +16,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "test": "vitest run",
     "format": "prettier --write .",
-    "skills:sync": "node scripts/skills-sync.mts"
+    "skills:sync": "node scripts/skills-sync.mts",
+    "wiki:lint": "node scripts/wiki-lint.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.135.0",

@@ -1,6 +1,6 @@
 # Output Artifacts
 
-> Deliverables assembled from the wiki.
+> Deliverables assembled from the wiki. The wiki articles are the source of truth.
 
 Last updated: 2026-10-17
 
