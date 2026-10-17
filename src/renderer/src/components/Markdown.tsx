@@ -18,9 +18,42 @@ function textOf(children: ReactNode): string {
     .join('')
 }
 
+/** Resolves a relative link against the wiki path of the document it is in. */
+export function resolveWikiPath(from: string, href: string): string | null {
+  if (/^[a-z][a-z0-9+.-]*:/i.test(href) || href.startsWith('#') || href.startsWith('/')) return null
+  let target = href.replace(/^<|>$/g, '').split('#')[0]
+  try {
+    target = decodeURI(target)
+  } catch {
+    /* as written */
+  }
+  if (!target.endsWith('.md')) return null
+  const parts = from.split('/').slice(0, -1)
+  for (const seg of target.split('/')) {
+    if (seg === '' || seg === '.') continue
+    if (seg === '..') {
+      if (!parts.length) return null
+      parts.pop()
+    } else parts.push(seg)
+  }
+  return parts.join('/')
+}
+
+/**
+ * Two-form links (`[[slug|Title]] ([Title](path.md))`, spec 6.6) are shown once, as their
+ * markdown half. A bare wikilink becomes its title.
+ */
+export const showWikiLinks = (md: string): string =>
+  md
+    .replace(/\[\[[^\]|]+(?:\|[^\]]*)?\]\]\s*\((\[[^\]]*\]\((?:<[^>\n]+>|[^)\n]+)\))\)/g, '$1')
+    .replace(/\[\[[^\]|]+\|([^\]]*)\]\]/g, '$1')
+    .replace(/\[\[([^\]]+)\]\]/g, '$1')
+
 function makeComponents(
   sources: string[] | undefined,
-  onSource: ((url: string) => void) | undefined
+  onSource: ((url: string) => void) | undefined,
+  docPath?: string,
+  onWikiLink?: (path: string) => void
 ): Components {
   return {
     h1: (p) => (
@@ -65,6 +98,22 @@ function makeComponents(
               document
                 .getElementById(decodeURIComponent(href.slice(1)))
                 ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+            }}
+            className="text-primary hover:text-primary-hover underline underline-offset-2"
+          >
+            {children}
+          </a>
+        )
+      }
+      // A link to another file in the wiki opens it in the app.
+      const wiki = href && docPath && onWikiLink ? resolveWikiPath(docPath, href) : null
+      if (wiki) {
+        return (
+          <a
+            href={href}
+            onClick={(e) => {
+              e.preventDefault()
+              onWikiLink!(wiki)
             }}
             className="text-primary hover:text-primary-hover underline underline-offset-2"
           >
@@ -137,14 +186,26 @@ interface MarkdownProps {
   /** URLs this document lists as its sources. They may open, through `onSource`. */
   sources?: string[]
   onSource?: (url: string) => void
+  /** Wiki path of this document, so its relative links can open other wiki files. */
+  docPath?: string
+  onWikiLink?: (path: string) => void
 }
 
-export const Markdown = memo(function Markdown({ children, sources, onSource }: MarkdownProps) {
-  const components = useMemo(() => makeComponents(sources, onSource), [sources, onSource])
+export const Markdown = memo(function Markdown({
+  children,
+  sources,
+  onSource,
+  docPath,
+  onWikiLink
+}: MarkdownProps) {
+  const components = useMemo(
+    () => makeComponents(sources, onSource, docPath, onWikiLink),
+    [sources, onSource, docPath, onWikiLink]
+  )
   // No rehype-raw: raw HTML in model output is shown as text, never rendered.
   return (
     <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
-      {children}
+      {showWikiLinks(children)}
     </ReactMarkdown>
   )
 })

@@ -21,7 +21,7 @@ export function useInputs() {
   useEffect(() => {
     void reload()
     return api.onWorkspaceChanged(({ paths }) => {
-      if (paths.some((p) => p.startsWith('inputs/'))) void reload()
+      if (paths.some((p) => p.startsWith('inbox/') || p.startsWith('raw/'))) void reload()
     })
   }, [reload])
 

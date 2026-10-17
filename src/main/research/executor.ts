@@ -287,7 +287,7 @@ async function writeAtomic(root: string, rel: string, text: string): Promise<voi
 export async function writeReceipt(
   root: string,
   rel: string,
-  r: { task: string; runId: string; written: string[]; note?: string }
+  r: { task: string; runId: string; written: string[]; note?: string; warnings?: string[] }
 ): Promise<void> {
   await writeAtomic(
     root,
@@ -298,7 +298,9 @@ export async function writeReceipt(
       status: 'draft',
       created: new Date().toISOString(),
       written: r.written,
-      ...(r.note ? { note: r.note } : {})
+      ...(r.note ? { note: r.note } : {}),
+      // What validation dropped or kept as text: for the person, and for debugging prompts.
+      ...(r.warnings?.length ? { warnings: r.warnings.slice(0, 50) } : {})
     })
   )
 }
@@ -618,6 +620,59 @@ export function createExecutor(
             }
           }
         }
+        // Models sometimes list no usable sources. An article still cites what its task really
+        // used: the pages this task cited or fetched (or, failing that, the pages its searches
+        // returned), or, without web tools, the documents it was given.
+        const fellBack: string[] = []
+        const withSources = ToolOutputSchema.safeParse(output ?? {})
+        if (withSources.success) {
+          const key = (ref: string): string =>
+            /^https?:\/\//i.test(ref.trim()) ? normalizeSourceUrl(ref.trim()) : ref.trim()
+          const resolves = (list: { ref: string }[]): boolean =>
+            list.some((x) => (refs.get(key(x.ref)) ?? []).length > 0)
+          let fallback: string[] | null = null
+          const fallbackRefs = async (): Promise<string[]> => {
+            if (fallback) return fallback
+            if (task.web) {
+              fallback = r.sources.map((x) => normalizeSourceUrl(x.url)).filter((u) => refs.has(u))
+              if (!fallback.length && r.consulted.length) {
+                const tagger = sourceTagger({
+                  ownSite: d.profile.company.website,
+                  competitor: task.competitor
+                })
+                const extra = await d.sources.ingest(
+                  r.consulted
+                    .slice(0, 5)
+                    .map((c) => ({ url: c.url, title: c.title, excerpts: [], cited: false })),
+                  tagger
+                )
+                for (const [u, p] of extra.paths) refs.set(u, [p])
+                for (const [k, v] of await loadRaw(d.wikiRoot)) rawNow.set(k, v)
+                fallback = [...extra.paths.keys()]
+              }
+            } else {
+              fallback = documents
+                .map((doc) => doc.path)
+                .filter((p) => (refs.get(p) ?? []).length > 0)
+            }
+            return fallback
+          }
+          const fix = async <
+            T extends { slug: string; sources: { ref: string; quote?: string }[] }
+          >(
+            x: T
+          ): Promise<T> => {
+            if (resolves(x.sources)) return x
+            const refsFor = await fallbackRefs()
+            if (!refsFor.length) return x
+            fellBack.push(x.slug)
+            return { ...x, sources: refsFor.map((ref) => ({ ref })) }
+          }
+          output = {
+            articles: await Promise.all(withSources.data.articles.map(fix)),
+            patches: await Promise.all(withSources.data.patches.map(fix))
+          }
+        }
         const v = validateOutput(output, {
           targets: writes.targets,
           refs,
@@ -633,6 +688,10 @@ export function createExecutor(
         const problem = task.validate && body !== undefined ? task.validate(body) : null
         if (problem) v.errors.push(problem)
         if (r.output === undefined) v.errors.push(`No ${ARTICLE_TOOL.name} call was made.`)
+        if (fellBack.length)
+          v.warnings.push(
+            `No usable sources listed for ${fellBack.join(', ')}: cited what the task used instead.`
+          )
         return v
       }
 
@@ -655,7 +714,13 @@ export function createExecutor(
       const written = await writePrepared(d.wikiRoot, v.files)
       await addBacklinks(d.wikiRoot, written)
       await provenance(written, task, inputPaths)
-      await writeReceipt(d.root, task.output(ctx), { task: task.id, runId: d.runId, written, note })
+      await writeReceipt(d.root, task.output(ctx), {
+        task: task.id,
+        runId: d.runId,
+        written,
+        note,
+        warnings: [...v.errors, ...v.warnings]
+      })
       await writeIndexes(d.wikiRoot)
       return { costUsd, usage: result.usage, output: task.output(ctx), note }
     }

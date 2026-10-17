@@ -75,7 +75,7 @@ export const ARTICLE_TOOL: OutputTool = {
               description:
                 'Competitor articles only: the generic term for them, e.g. "legacy forecasting suites".'
             },
-            sources: { type: 'array', items: SOURCE },
+            sources: { type: 'array', items: SOURCE, minItems: 1 },
             see_also: {
               type: 'array',
               items: {

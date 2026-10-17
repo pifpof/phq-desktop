@@ -1,9 +1,11 @@
-import { memo } from 'react'
-import { RotateCcw } from 'lucide-react'
+import { memo, useState } from 'react'
+import { RotateCcw, Scale } from 'lucide-react'
 import { isRetryable } from '@shared/errors'
 import { Button } from '@/components/ui/button'
 import { Markdown } from '@/components/Markdown'
 import type { Message as Msg } from '@/store/chat'
+import { useApp } from '@/store/app'
+import { RecordDecisionDialog } from '@/features/decisions/RecordDecisionDialog'
 
 const fmt = new Intl.NumberFormat('en-US')
 
@@ -14,6 +16,7 @@ interface Props {
 }
 
 export const Message = memo(function Message({ message: m, canRetry, onRetry }: Props) {
+  const [deciding, setDeciding] = useState(false)
   if (m.role === 'user') {
     return (
       <div className="flex justify-end">
@@ -46,10 +49,31 @@ export const Message = memo(function Message({ message: m, canRetry, onRetry }: 
       {m.status === 'stopped' && (
         <p className="text-muted-foreground mt-2 text-[13px] font-semibold">Stopped</p>
       )}
-      {m.status === 'done' && m.usage && (
-        <p className="text-muted-foreground mt-2 text-[13px]">
-          {fmt.format(m.usage.inputTokens)} in · {fmt.format(m.usage.outputTokens)} out
-        </p>
+      {m.status === 'done' && (
+        <div className="text-muted-foreground mt-2 flex items-center gap-3 text-[13px]">
+          {m.usage && (
+            <span>
+              {fmt.format(m.usage.inputTokens)} in · {fmt.format(m.usage.outputTokens)} out
+            </span>
+          )}
+          {/* REQUIREMENTS-v2 3.5: "make that our decision" from a reply. */}
+          <button
+            type="button"
+            className="hover:text-primary inline-flex items-center gap-1"
+            onClick={() => setDeciding(true)}
+          >
+            <Scale className="size-3.5" strokeWidth={1.8} />
+            Record as decision
+          </button>
+        </div>
+      )}
+      {deciding && (
+        <RecordDecisionDialog
+          open
+          onOpenChange={setDeciding}
+          decided={m.content}
+          onRecorded={(p) => useApp.getState().openWikiFile(p)}
+        />
       )}
       {m.status === 'error' && m.error && (
         <div

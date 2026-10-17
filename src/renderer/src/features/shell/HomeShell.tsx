@@ -6,6 +6,7 @@ import { ChatView } from '@/features/chat/ChatView'
 import { MessagingView } from '@/features/messaging/MessagingView'
 import { PlaybookView } from '@/features/playbook/PlaybookView'
 import { TrainingDataView } from '@/features/training-data/TrainingDataView'
+import { UseWikiView } from '@/features/use-wiki/UseWikiView'
 import { ResearchBanner } from './ResearchBanner'
 import { Sidebar } from './Sidebar'
 import { WorkspaceBanner } from './WorkspaceBanner'
@@ -18,13 +19,7 @@ export function HomeShell() {
   useEffect(() => {
     void useDocs.getState().refresh()
     return window.api.onWorkspaceChanged(({ paths }) => {
-      if (
-        paths.some(
-          (p) =>
-            p.startsWith('memory/positioning-playbook/') ||
-            p.startsWith('memory/messaging-analysis/')
-        )
-      ) {
+      if (paths.some((p) => p.startsWith('output/'))) {
         void useDocs.getState().refresh()
       }
     })
@@ -56,6 +51,7 @@ export function HomeShell() {
           {view === 'training' && <TrainingDataView />}
           {view === 'playbook' && <PlaybookView />}
           {view === 'messaging' && <MessagingView />}
+          {view === 'wiki' && <UseWikiView />}
         </div>
       </main>
     </div>

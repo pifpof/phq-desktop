@@ -58,3 +58,14 @@ export const DecisionInputSchema = z.object({
   affects: z.array(z.string().max(80)).max(12)
 })
 export type DecisionInput = z.infer<typeof DecisionInputSchema>
+
+/** Playbook section number to the article slugs it is built from (REQUIREMENTS-v2 3.4). */
+export const PLAYBOOK_SECTION_ARTICLES: Record<number, { slug?: string; prefix?: string }> = {
+  1: { slug: 'market-overview' },
+  2: { slug: 'ideal-customer-profile' },
+  3: { slug: 'value-drivers', prefix: 'value-driver-' },
+  4: { prefix: 'moat-' },
+  5: { slug: 'positioning-statement' },
+  6: { slug: 'competitive-landscape' },
+  7: { slug: 'proof-points' }
+}

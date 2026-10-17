@@ -4,6 +4,7 @@ import {
   Database,
   Folder,
   Gauge,
+  Share2,
   MessageSquare,
   PanelLeft,
   Settings,
@@ -20,7 +21,8 @@ const NAV: { view: HomeView; label: string; Icon: ComponentType<LucideProps> }[]
   { view: 'chat', label: 'Chat', Icon: MessageSquare },
   { view: 'training', label: 'Training Data', Icon: Database },
   { view: 'playbook', label: 'Positioning Playbook', Icon: BookOpen },
-  { view: 'messaging', label: 'Messaging Analysis', Icon: Gauge }
+  { view: 'messaging', label: 'Messaging Analysis', Icon: Gauge },
+  { view: 'wiki', label: 'Use your wiki', Icon: Share2 }
 ]
 
 export function Sidebar() {

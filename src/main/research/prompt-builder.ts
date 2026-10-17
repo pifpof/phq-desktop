@@ -91,8 +91,10 @@ export function articleRules(b: ArticleBrief, web: boolean): string {
     '- For each article: slug and category exactly as listed; a title; a one-sentence summary; 2 to 5 aliases (other names people use for it); 2 to 6 lowercase tags.',
     '- abstract: one paragraph. An agent that reads only this gets the point.',
     '- body: the sections from the template, as markdown with ## headings. No title, no abstract, no See Also or Sources section: the app adds those.',
-    '- sources: one entry per source you used. ref is the path attribute of a document you were given' +
-      (web ? ', or the URL of a web page you read in this task' : '') +
+    '- sources (required, at least one): one entry per source you used. ref is the path attribute of a document you were given' +
+      (web
+        ? ', or the URL of a web page you found in your searches in this task (list every page you used)'
+        : '') +
       '. Add a short exact quote. Cite only what you were given or read. Never invent a source.',
     '- confidence: high when three or more independent sources agree, medium for two (or one from the company itself), low otherwise.',
     '- see_also: related articles from the list below, or ones you write now, each with a short note.',

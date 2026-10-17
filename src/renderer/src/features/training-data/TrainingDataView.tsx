@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Circle, Loader2, RotateCcw } from 'lucide-react'
-import type { Res } from '@shared/ipc-contract'
-import type { DocMeta } from '@shared/workspace'
+import { Lock } from 'lucide-react'
+import type { ArticleSummary, SourceSummary } from '@shared/wiki-views'
 import { Button } from '@/components/ui/button'
 import { api, ApiError, unwrap } from '@/lib/api'
 import { isActive } from '@/lib/research'
@@ -9,138 +8,118 @@ import { cn } from '@/lib/utils'
 import { useApp } from '@/store/app'
 import { useResearch } from '@/store/research'
 import { DocView } from '@/features/documents/DocView'
+import { ArticleView } from './ArticleView'
 import { FilesPane } from './FilesPane'
 import { ProfilePane } from './ProfilePane'
 import { SocialPane } from './SocialPane'
 
-type Catalog = Res<'research:catalog'>
+/** Knowledge groups in the order of the spec's article map (REQUIREMENTS-v2 4.1). */
+const KNOWLEDGE_GROUPS = [
+  'Company',
+  'Market',
+  'Customers',
+  'Positioning',
+  'Competitors',
+  'Proof',
+  'Messaging',
+  'Decisions',
+  'Other'
+]
+const SOURCE_GROUPS = [
+  'Your website',
+  'Competitor sites',
+  'Web citations',
+  'Social',
+  'Your files',
+  'Other'
+]
 
-interface Item {
+type Tab = 'knowledge' | 'sources'
+/** "profile", "files", or a wiki path. */
+type Selection = string
+
+interface Entry {
   key: string
   label: string
-  kind: 'doc' | 'profile' | 'social' | 'files'
-  path?: string
-  taskId?: string
-  exists?: boolean
-}
-interface Group {
-  title: string
-  items: Item[]
+  private?: boolean
+  hint?: string
 }
 
-/** Fixed names in the list, so it reads the same whatever headings the model wrote. */
-const LABELS: Record<string, string> = {
-  'crawl-website': 'Pages crawled',
-  'website-positioning': 'Website positioning',
-  'find-social-profiles': 'Social profiles',
-  'research-09-synthesis': 'Market overview',
-  'competitor-discovery': 'Competitor list',
-  'proof-gathering': 'Public proof'
-}
-
-export function TrainingDataView() {
-  const [catalog, setCatalog] = useState<Catalog>([])
-  const [docs, setDocs] = useState<Map<string, DocMeta>>(new Map())
-  const [selected, setSelected] = useState('profile')
-  const [error, setError] = useState<string | null>(null)
-  const run = useResearch((s) => s.run)
-
+function useWikiLists(): { articles: ArticleSummary[]; sources: SourceSummary[] } {
+  const [articles, setArticles] = useState<ArticleSummary[]>([])
+  const [sources, setSources] = useState<SourceSummary[]>([])
   useEffect(() => {
     let cancelled = false
     const load = (): void => {
       void Promise.all([
-        unwrap(api.researchCatalog()).catch(() => []),
-        unwrap(api.listDocs('memory')).catch(() => [])
-      ]).then(([c, d]) => {
+        unwrap(api.listArticles()).catch(() => []),
+        unwrap(api.listSources()).catch(() => [])
+      ]).then(([a, s]) => {
         if (cancelled) return
-        setCatalog(c)
-        setDocs(new Map(d.map((x) => [x.path, x])))
+        setArticles(a)
+        setSources(s)
       })
     }
     load()
     const off = api.onWorkspaceChanged(({ paths }) => {
-      if (paths.some((p) => p.startsWith('memory/'))) load()
+      if (paths.some((p) => p.startsWith('wiki/') || p.startsWith('raw/'))) load()
     })
     return () => {
       cancelled = true
       off()
     }
   }, [])
+  return { articles, sources }
+}
 
-  const groups = useMemo<Group[]>(() => {
-    const entry = (taskId: string, fallback?: string): Item | null => {
-      const c = catalog.find((x) => x.taskId === taskId && (!fallback || x.title === fallback))
-      if (!c) return null
-      return {
-        key: c.path,
-        label: fallback ?? LABELS[c.taskId] ?? c.title,
-        kind: 'doc',
-        path: c.path,
-        taskId: c.taskId,
-        exists: docs.has(c.path)
-      }
+export function TrainingDataView() {
+  const target = useApp((s) => s.trainingTarget)
+  const [tab, setTab] = useState<Tab>(target?.tab ?? 'knowledge')
+  const [selected, setSelected] = useState<Selection>(target?.path ?? 'profile')
+  const [error, setError] = useState<string | null>(null)
+  const { articles, sources } = useWikiLists()
+  const run = useResearch((s) => s.run)
+
+  // Sent here from another view (a source link, Edit the source article): show that file.
+  useEffect(() => {
+    if (!target) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- following a navigation request
+    setTab(target.tab)
+    setSelected(target.path)
+    useApp.setState({ trainingTarget: null })
+  }, [target])
+
+  const knowledge = useMemo(() => {
+    const groups = new Map<string, Entry[]>()
+    for (const a of articles) {
+      if (a.slug === 'company-profile') continue
+      const list = groups.get(a.group) ?? []
+      list.push({ key: a.path, label: a.title, private: a.private })
+      groups.set(a.group, list)
     }
-    const steps = [
-      'research-01-overview',
-      'research-02-product',
-      'research-03-market-segment',
-      'research-04-customer-segment',
-      'research-05-strengths',
-      'research-06-weaknesses',
-      'research-07-recent-developments',
-      'research-08-competitive',
-      'research-09-synthesis'
-    ]
-    const competitorDir = catalog.find((c) => c.taskId === 'competitor-profiles')?.path
-    const profiles: Item[] = competitorDir
-      ? [...docs.values()]
-          .filter((d) => d.path.startsWith(`${competitorDir}/`))
-          .map((d) => ({
-            key: d.path,
-            label: d.title,
-            kind: 'doc' as const,
-            path: d.path,
-            taskId: 'competitor-profiles',
-            exists: true
-          }))
-      : []
-    const keep = (xs: (Item | null)[]): Item[] => xs.filter((x): x is Item => x !== null)
-    return [
-      {
-        title: 'Your company',
-        items: [{ key: 'profile', label: 'Company profile', kind: 'profile' }]
-      },
-      {
-        title: 'Your website',
-        items: keep([entry('crawl-website'), entry('website-positioning')])
-      },
-      {
-        title: 'Social',
-        items: keep([
-          { key: 'social', label: 'Social taglines', kind: 'social', taskId: 'social-taglines' },
-          entry('find-social-profiles')
-        ])
-      },
-      {
-        title: 'Market and company research',
-        items: keep([
-          ...steps.map((s) => entry(s)),
-          entry('research-09-synthesis', 'Full company research')
-        ])
-      },
-      { title: 'Competitors', items: keep([entry('competitor-discovery'), ...profiles]) },
-      { title: 'Public proof', items: keep([entry('proof-gathering')]) },
-      { title: 'Your files', items: [{ key: 'files', label: 'Files you added', kind: 'files' }] }
-    ]
-  }, [catalog, docs])
+    return KNOWLEDGE_GROUPS.filter((g) => groups.has(g)).map((g) => ({
+      title: g,
+      items: groups.get(g)!
+    }))
+  }, [articles])
 
-  const all = groups.flatMap((g) => g.items)
-  const current = all.find((i) => i.key === selected) ?? all[0]
-  const runningIds = new Set(
-    isActive(run)
-      ? (run?.tasks.filter((t) => t.status === 'running').map((t) => t.id.split(':')[0]) ?? [])
-      : []
-  )
+  const sourceGroups = useMemo(() => {
+    const groups = new Map<string, Entry[]>()
+    for (const s of sources) {
+      const list = groups.get(s.group) ?? []
+      list.push({
+        key: s.path,
+        label: s.title,
+        private: s.tags.includes('private'),
+        hint: s.ingested
+      })
+      groups.set(s.group, list)
+    }
+    return SOURCE_GROUPS.filter((g) => groups.has(g)).map((g) => ({
+      title: g,
+      items: groups.get(g)!
+    }))
+  }, [sources])
 
   const rerun = async (taskId: string): Promise<void> => {
     setError(null)
@@ -151,71 +130,88 @@ export function TrainingDataView() {
       setError(err instanceof ApiError ? err.message : 'Could not start. Please try again.')
     }
   }
-  const rerunButton = (taskId: string) => (
-    <Button
-      variant="ghost"
-      size="sm"
-      disabled={isActive(run)}
-      title={isActive(run) ? 'Research is running' : undefined}
-      onClick={() => void rerun(taskId)}
-    >
-      <RotateCcw strokeWidth={1.8} />
-      Re-run
-    </Button>
+
+  const item = (e: Entry) => (
+    <li key={e.key}>
+      <button
+        type="button"
+        aria-current={selected === e.key ? 'true' : undefined}
+        onClick={() => setSelected(e.key)}
+        className={cn(
+          'focus-visible:ring-ring/50 flex w-full items-center gap-2 px-4 py-1.5 text-left text-sm outline-none focus-visible:ring-[3px]',
+          selected === e.key ? 'bg-accent text-primary font-semibold' : 'hover:bg-secondary'
+        )}
+      >
+        <span className="min-w-0 flex-1 truncate">{e.label}</span>
+        {e.private && (
+          <Lock
+            className="text-muted-foreground size-3 shrink-0"
+            strokeWidth={2}
+            aria-label="Private"
+          />
+        )}
+      </button>
+    </li>
   )
-  const taskTitle = (id?: string): string | undefined =>
-    run?.tasks.find((t) => t.id === id)?.title ?? catalog.find((c) => c.taskId === id)?.title
+  const group = (title: string, items: Entry[]) => (
+    <div key={title} className="mb-4">
+      <p className="text-muted-foreground px-4 pb-1 text-[12px] font-semibold tracking-[0.12em] uppercase">
+        {title}
+      </p>
+      <ul>{items.map(item)}</ul>
+    </div>
+  )
+
+  const isArticle = selected.startsWith('wiki/')
+  const isRaw = selected.startsWith('raw/')
+  const socialArticle = selected === 'wiki/references/social-taglines.md'
 
   return (
     <div className="flex h-full">
-      <nav className="w-[260px] shrink-0 overflow-y-auto border-r py-4" aria-label="Training data">
-        <div className="mb-3 flex items-center justify-between px-4">
+      <nav className="w-[270px] shrink-0 overflow-y-auto border-r py-4" aria-label="Training data">
+        <div className="mb-3 px-4">
           <h2 className="text-[17px]">Training Data</h2>
-        </div>
-        {groups.map((g) => (
-          <div key={g.title} className="mb-4">
-            <p className="text-muted-foreground px-4 pb-1 text-[12px] font-semibold tracking-[0.12em] uppercase">
-              {g.title}
-            </p>
-            <ul>
-              {g.items.map((i) => {
-                const running = i.taskId ? runningIds.has(i.taskId) : false
-                const missing = i.kind === 'doc' && !i.exists
-                return (
-                  <li key={i.key}>
-                    <button
-                      type="button"
-                      aria-current={current?.key === i.key ? 'true' : undefined}
-                      onClick={() => setSelected(i.key)}
-                      className={cn(
-                        'focus-visible:ring-ring/50 flex w-full items-center gap-2 px-4 py-1.5 text-left text-sm outline-none focus-visible:ring-[3px]',
-                        current?.key === i.key
-                          ? 'bg-accent text-primary font-semibold'
-                          : 'hover:bg-secondary',
-                        missing && !running && 'text-muted-foreground'
-                      )}
-                    >
-                      {running ? (
-                        <Loader2
-                          className="text-primary size-3.5 shrink-0 animate-spin"
-                          strokeWidth={2}
-                          aria-label="Being written"
-                        />
-                      ) : missing ? (
-                        <Circle
-                          className="text-border size-3.5 shrink-0"
-                          strokeWidth={2}
-                          aria-label="Missing"
-                        />
-                      ) : null}
-                      <span className="truncate">{i.label}</span>
-                    </button>
-                  </li>
-                )
-              })}
-            </ul>
+          <div
+            role="tablist"
+            aria-label="Wiki"
+            className="bg-secondary mt-3 grid grid-cols-2 rounded-[10px] p-0.5 text-sm"
+          >
+            {(['knowledge', 'sources'] as const).map((t) => (
+              <button
+                key={t}
+                type="button"
+                role="tab"
+                aria-selected={tab === t}
+                onClick={() => {
+                  setTab(t)
+                  setSelected(t === 'knowledge' ? 'profile' : 'files')
+                }}
+                className={cn(
+                  'rounded-[8px] py-1.5 font-medium',
+                  tab === t ? 'text-primary bg-white shadow-sm' : 'text-muted-foreground'
+                )}
+              >
+                {t === 'knowledge' ? 'Knowledge' : 'Sources'}
+              </button>
+            ))}
           </div>
-        ))}
+        </div>
+        {tab === 'knowledge' ? (
+          <>
+            {group('Your company', [{ key: 'profile', label: 'Company profile' }])}
+            {knowledge.map((g) => group(g.title, g.items))}
+            {knowledge.length === 0 && (
+              <p className="text-muted-foreground px-4 text-sm">
+                No articles yet. Run research to write them.
+              </p>
+            )}
+          </>
+        ) : (
+          <>
+            {group('Add', [{ key: 'files', label: 'Your files' }])}
+            {sourceGroups.map((g) => group(g.title, g.items))}
+          </>
+        )}
         <div className="border-t px-4 pt-4">
           <Button
             variant="outline"
@@ -231,36 +227,13 @@ export function TrainingDataView() {
 
       <section className="min-w-0 flex-1">
         {error && <p className="text-destructive border-b px-6 py-2 text-sm">{error}</p>}
-        {current?.kind === 'profile' && <ProfilePane />}
-        {current?.kind === 'social' && <SocialPane onRerun={() => void rerun('social-taglines')} />}
-        {current?.kind === 'files' && <FilesPane />}
-        {current?.kind === 'doc' && current.path && current.exists && (
-          <DocView
-            key={current.path}
-            path={current.path}
-            status={taskTitle(current.taskId) ? `From "${taskTitle(current.taskId)}"` : undefined}
-            actions={current.taskId ? rerunButton(current.taskId) : undefined}
-          />
+        {selected === 'profile' && <ProfilePane />}
+        {selected === 'files' && <FilesPane />}
+        {socialArticle && <SocialPane onRerun={() => void rerun('social-taglines')} />}
+        {isArticle && !socialArticle && (
+          <ArticleView key={selected} path={selected} onRerun={(t) => void rerun(t)} />
         )}
-        {current?.kind === 'doc' && !current.exists && (
-          <div className="flex h-full flex-col items-center justify-center px-6 text-center">
-            {current.taskId && runningIds.has(current.taskId) ? (
-              <>
-                <Loader2 className="text-primary size-6 animate-spin" strokeWidth={1.8} />
-                <p className="mt-4 font-semibold">{current.label} is being written.</p>
-              </>
-            ) : (
-              <>
-                <p className="font-semibold">{current.label}</p>
-                <p className="text-muted-foreground mt-1 max-w-[380px] text-sm">
-                  Not written yet, or the file was moved or deleted. Run this step again to write
-                  it.
-                </p>
-                {current.taskId && <div className="mt-4">{rerunButton(current.taskId)}</div>}
-              </>
-            )}
-          </div>
-        )}
+        {isRaw && <DocView key={selected} path={selected} status="Source, read-only" />}
       </section>
     </div>
   )

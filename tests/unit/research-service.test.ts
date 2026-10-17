@@ -75,6 +75,8 @@ function fakeProvider(
     webSearch?: boolean
     onCall?: (c: Call, signal: AbortSignal) => Promise<void> | void
     failWeb?: boolean
+    /** The model lists no sources in its articles. */
+    noSources?: boolean
   } = {}
 ) {
   const calls: Call[] = []
@@ -103,7 +105,17 @@ function fakeProvider(
         if (opts.failWeb && call.web) throw new ProviderError('web_search_disabled')
         await opts.onCall?.(call, a.signal)
         if (a.signal.aborted) throw new Error('aborted')
-        const output = a.tools.output ? fakeArticleOutput(text, call.web) : undefined
+        let output = a.tools.output ? fakeArticleOutput(text, call.web) : undefined
+        if (opts.noSources && output) {
+          const o = output as {
+            articles: { sources: unknown[] }[]
+            patches: { sources: unknown[] }[]
+          }
+          output = {
+            articles: o.articles.map((x) => ({ ...x, sources: [] })),
+            patches: o.patches.map((x) => ({ ...x, sources: [] }))
+          }
+        }
         const body = /^Write the messaging analysis/.test(instruction)
           ? GOOD_ANALYSIS
           : /most relevant competitors now/.test(instruction)
@@ -466,6 +478,25 @@ describe('research service: the full pipeline', () => {
     expect(positioningCall.text).toContain(
       '<document path="raw/articles/2026-10-17-acme-example-home.md">'
     )
+  })
+})
+
+describe('research service: sources', () => {
+  it('cites what a task really used when the model lists no sources', async () => {
+    const f = fakeProvider({ noSources: true })
+    const s = makeService(f.provider)
+    await s.service.start()
+    await s.until(() => s.finished.length === 1, 'finish')
+    expect(s.last().status).toBe('done')
+    // A web task: the page its answer cited.
+    const product = parseDoc(readFileSync(join(ws, 'wiki/topics/product-overview.md'), 'utf8'))!
+    expect(product.data.sources).toEqual([
+      expect.stringMatching(/^raw\/articles\/\d{4}-\d{2}-\d{2}-source-example-a\.md$/)
+    ])
+    expect(product.data['compiled-from']).toBe('sources')
+    // A synthesis task: the raw files behind the documents it was given.
+    const messaging = parseDoc(readFileSync(join(ws, 'wiki/topics/current-messaging.md'), 'utf8'))!
+    expect(messaging.data.sources).toEqual(['raw/articles/2026-10-17-acme-example-home.md'])
   })
 })
 

@@ -7,7 +7,7 @@ import { api, unwrap } from '@/lib/api'
 import { DocHeader, FileActions } from '@/features/documents/DocParts'
 import { docDate, useDoc } from '@/features/documents/useDoc'
 
-const PATH = 'memory/research/social-taglines.md'
+const PATH = 'wiki/references/social-taglines.md'
 
 function Row({ row, onSaved }: { row: SocialRow; onSaved: () => void }) {
   const [editing, setEditing] = useState(false)
@@ -19,7 +19,7 @@ function Row({ row, onSaved }: { row: SocialRow; onSaved: () => void }) {
       setEditing(false)
       onSaved()
     } catch {
-      setError('Could not save. Is the file still there?')
+      setError('Could not save. Please try again.')
     }
   }
   return (
@@ -73,7 +73,7 @@ function Row({ row, onSaved }: { row: SocialRow; onSaved: () => void }) {
 
 /** The taglines table, with "Paste it" for profiles research could not read. */
 export function SocialPane({ onRerun }: { onRerun: () => void }) {
-  const { doc, reload } = useDoc(PATH)
+  const { doc } = useDoc(PATH)
   if (doc === undefined) return null
   const rows = doc ? parseSocialTable(doc.body) : []
   return (
@@ -93,12 +93,12 @@ export function SocialPane({ onRerun }: { onRerun: () => void }) {
           {rows.length ? (
             <>
               <p className="text-muted-foreground text-sm">
-                Social networks often block automated reading. Paste a missing tagline and it is
-                saved in your workspace.
+                Social networks often block automated reading. Paste a missing tagline: it is saved
+                as a new source in your wiki, and the taglines are collected again.
               </p>
               <ul className="mt-4 divide-y">
                 {rows.map((r) => (
-                  <Row key={r.network} row={r} onSaved={reload} />
+                  <Row key={r.network} row={r} onSaved={onRerun} />
                 ))}
               </ul>
             </>

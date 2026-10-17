@@ -22,6 +22,8 @@ interface Entry {
   kind: 'full' | 'record' | 'crawl'
   excerpts: string[]
   tags: string[]
+  /** False for a page a search returned that the answer did not cite. */
+  cited?: boolean
 }
 
 export const normalizeSourceUrl = (url: string): string => {
@@ -131,10 +133,15 @@ export class RunSources {
           title: replaceEmDashes(oneLine(s.title || key)),
           kind: s.fullText ? 'full' : 'record',
           excerpts: [],
-          tags: [...new Set(tagsFor(key))]
+          tags: [...new Set(tagsFor(key))],
+          cited: s.cited
         }
         this.entries.set(key, e)
         created.push(rel)
+        changed = true
+      }
+      if (s.cited && e.cited === false) {
+        e.cited = true
         changed = true
       }
       if (s.fullText && e.kind === 'record') {
@@ -173,7 +180,11 @@ export class RunSources {
         '',
         ...(e.excerpts.length
           ? e.excerpts.map((x) => `- "${x.replace(/"/g, "'")}" (cited ${this.date})`)
-          : [`- Cited ${this.date}; no excerpt was returned.`])
+          : [
+              e.cited === false
+                ? `- Returned by a search on ${this.date}; no excerpt was cited.`
+                : `- Cited ${this.date}; no excerpt was returned.`
+            ])
       ].join('\n')
     }
     const tags = e.kind === 'full' ? e.tags : [...new Set(['web-citation', ...e.tags])]
