@@ -41,6 +41,7 @@ export function RecordDecisionDialog({
   const [picked, setPicked] = useState<string[]>(affects)
   const [articles, setArticles] = useState<ArticleSummary[]>([])
   const [preview, setPreview] = useState<string | null>(null)
+  const [previewPath, setPreviewPath] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -75,6 +76,7 @@ export function RecordDecisionDialog({
     setError(null)
     try {
       const p = await unwrap(api.previewDecision(input))
+      setPreviewPath(p.path)
       setPreview(p.text.replace(/^---\n[\s\S]*?\n---\n\n?/, ''))
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not preview. Please try again.')
@@ -162,7 +164,10 @@ export function RecordDecisionDialog({
           </div>
         ) : (
           <article className="bg-muted mt-5 rounded-xl border p-5 text-sm">
-            <Markdown>{preview}</Markdown>
+            {/* Links show as links; they open once the decision is recorded. */}
+            <Markdown docPath={previewPath ?? undefined} onWikiLink={() => undefined}>
+              {preview}
+            </Markdown>
           </article>
         )}
         {error && (
