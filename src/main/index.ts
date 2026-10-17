@@ -48,6 +48,7 @@ if (!app.requestSingleInstanceLock()) {
 
     let pricing: ReturnType<typeof loadPricing> | null = null
     const research = createResearchService({
+      appVersion: app.getVersion(),
       getRoot: () => settings.get().workspacePath,
       getModel: () => settings.get().model,
       getKey: () => secrets.loadKey(),

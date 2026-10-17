@@ -372,7 +372,13 @@ export class ResearchEngine {
   }
 
   private pump(): void {
-    if (this.status !== 'running') return
+    if (this.status !== 'running') {
+      // A task that finishes after a pause or interrupt still completes its group.
+      const before = this.signature()
+      this.settleGroups()
+      if (this.signature() !== before) this.changed()
+      return
+    }
     // Settle groups and block dependents of failed tasks until nothing changes.
     // (A group failing can block tasks, and a blocked child can fail its group.)
     for (let moved = true; moved;) {

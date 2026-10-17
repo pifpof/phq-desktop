@@ -11,7 +11,9 @@ import { userAgent } from '../user-agent'
 import { writeIndexes } from '../wiki/index-gen'
 import { appendLog } from '../wiki/log'
 import { isoDay } from '../wiki/paths'
-import { assembleCompanyResearch, assemblePlaybook } from './assemble'
+import { assemblePlaybook } from './assemble-playbook'
+import { writeReceipt } from './executor'
+import { recordProvenance } from '../state/provenance'
 import type { LocalHandler } from './types'
 import type { LocalRunner } from './executor'
 
@@ -81,9 +83,16 @@ export function localHandlers(appVersion: string): Partial<Record<LocalHandler, 
       await writeIndexes(wikiRoot)
       return { output: CRAWL_INDEX, note: `${crawl.pages.length} pages` }
     },
-    'assemble-company-research': ({ root, profile, runId }) =>
-      assembleCompanyResearch({ root, profile, runId }),
-    'assemble-playbook': ({ root, profile, runId }) => assemblePlaybook({ root, profile, runId }),
+    // T20: deterministic, no model call (REQUIREMENTS-v2 3.4).
+    'assemble-playbook': async ({ root, wikiRoot, profile, runId, model, task }) => {
+      const r = await assemblePlaybook(wikiRoot, profile.company.name, isoDay())
+      await recordProvenance(wikiRoot, {
+        [r.output]: { task: task.id, runId, model, at: new Date().toISOString(), inputs: r.sources }
+      })
+      const rel = task.output({ profile, runId, company: '', readOutput: async () => null })
+      await writeReceipt(root, rel, { task: task.id, runId, written: [r.output] })
+      return { output: rel, note: r.note }
+    },
     extract: async ({ root, wikiRoot, runId }) => {
       // Files are ingested when they are added; this picks up anything dropped into inbox/ by hand.
       const records = await ingestInbox(wikiRoot)

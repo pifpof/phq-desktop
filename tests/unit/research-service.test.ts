@@ -9,7 +9,6 @@ import {
   type RunTaskArgs,
   type RunTaskResult
 } from '../../src/main/providers/types'
-import { assembleCompanyResearch, assemblePlaybook } from '../../src/main/research/assemble'
 import { writeCrawlToRaw } from '../../src/main/ingest/website-to-raw'
 import { writeCrawl } from '../../src/main/ingest/write-crawl'
 import { localHandlers } from '../../src/main/research/local-handlers'
@@ -17,6 +16,8 @@ import { confirmWorkspace } from '../../src/main/services/workspace'
 import { stateDir } from '../../src/main/state/app-state'
 import { checkWiki } from '../../src/main/wiki/conformance'
 import { scanWiki } from '../../src/main/wiki/scan'
+import { parseDoc } from '../../src/main/wiki/frontmatter'
+import { readProvenance } from '../../src/main/state/provenance'
 import type { CrawlResult } from '../../src/main/ingest/crawler'
 import { diskSkillReader } from '../../src/main/research/prompt-builder'
 import { parsePricing } from '../../src/main/research/pricing'
@@ -31,7 +32,7 @@ import { addInputs } from '../../src/main/workspace/inputs'
 import { writeProfile } from '../../src/main/workspace/profile'
 import { emptyProfile } from '../../src/shared/profile'
 import { parseScorecard } from '../../src/shared/scorecard'
-import { GOOD_ANALYSIS } from './fixtures'
+import { fakeArticleOutput, GOOD_ANALYSIS } from './fixtures'
 import type { RunView } from '../../src/shared/research'
 
 const root = join(__dirname, '../..')
@@ -87,13 +88,12 @@ function fakeProvider(
         if (opts.failWeb && call.web) throw new ProviderError('web_search_disabled')
         await opts.onCall?.(call, a.signal)
         if (a.signal.aborted) throw new Error('aborted')
+        const output = a.tools.output ? fakeArticleOutput(text, call.web) : undefined
         const body = /^Write the messaging analysis/.test(instruction)
           ? GOOD_ANALYSIS
-          : /^Collect the tagline/.test(instruction)
-            ? '# Social Taglines\n\n| Network | URL | Tagline or bio | Source | Status |\n|---|---|---|---|---|\n| LinkedIn | https://linkedin.com/company/acme | "Rockets for coyotes" | Search snippet | Found |\n| X | Not found | Not found | | Not found |'
-            : /most relevant competitors now/.test(instruction)
-              ? '# Competitors\n\n| Name | Website | One line | Type |\n|---|---|---|---|\n| Wile Co | wile.example | Rockets | Direct |\n| Road Runner Inc | roadrunner.example | Speed | Indirect |'
-              : `# Output\n\nWritten for: ${instruction.slice(0, 40)} — with a dash.\n\n\`\`\`\ncode — stays\n\`\`\``
+          : /most relevant competitors now/.test(instruction)
+            ? '# Competitors\n\n| Name | Website | One line | Type |\n|---|---|---|---|\n| Wile Co | wile.example | Rockets | Direct |\n| Road Runner Inc | roadrunner.example | Speed | Indirect |'
+            : `# Output\n\nWritten for: ${instruction.slice(0, 40)} — with a dash.\n\n\`\`\`\ncode — stays\n\`\`\``
         return {
           text: body,
           citations: a.tools.webSearch
@@ -102,6 +102,7 @@ function fakeProvider(
           consulted: a.tools.webSearch
             ? [{ url: 'https://source.example/b', title: 'Source B' }]
             : [],
+          output,
           sources: a.tools.webSearch
             ? [
                 {
@@ -195,11 +196,8 @@ const fakeLocal = (): ServiceDeps['local'] => ({
     return { output: 'memory/research/website/index.md' }
   },
   extract: localHandlers('test').extract,
-  // The real assembly steps, so the test covers the playbook and its versions.
-  'assemble-company-research': ({ root: r, profile, runId }) =>
-    assembleCompanyResearch({ root: r, profile, runId }),
-  'assemble-playbook': ({ root: r, profile, runId }) =>
-    assemblePlaybook({ root: r, profile, runId })
+  // The real assembly step, so the test covers the playbook and its versions.
+  'assemble-playbook': localHandlers('test')['assemble-playbook']
 })
 
 function makeService(provider: Provider, over: Partial<ServiceDeps> = {}) {
@@ -267,26 +265,68 @@ describe('research service: the full pipeline', () => {
       expect(matter(readFileSync(file, 'utf8')).data.status, t.output).toBe('draft')
     }
 
-    // AI output is cleaned: no em dashes in prose, code untouched, sources listed for web tasks.
-    const web = matter(
-      readFileSync(join(drafts, 'memory/company-research/steps/02-product-analysis.md'), 'utf8')
+    // Every article the pipeline owns is in the wiki (spec section 6).
+    const articles = (await scanWiki(ws))
+      .filter((x) => x.kind === 'article')
+      .map((x) => x.rel)
+      .sort()
+    expect(articles).toEqual(
+      [
+        'wiki/concepts/moat-alpha.md',
+        'wiki/concepts/moat-beta.md',
+        'wiki/concepts/positioning-statement.md',
+        'wiki/concepts/value-driver-one.md',
+        'wiki/concepts/value-driver-three.md',
+        'wiki/concepts/value-driver-two.md',
+        'wiki/concepts/value-drivers.md',
+        'wiki/references/company-profile.md',
+        'wiki/references/competitor-road-runner-inc.md',
+        'wiki/references/competitor-wile-co.md',
+        'wiki/references/proof-points.md',
+        'wiki/references/social-taglines.md',
+        'wiki/references/strengths.md',
+        'wiki/references/weaknesses.md',
+        'wiki/topics/company-overview.md',
+        'wiki/topics/competitive-landscape.md',
+        'wiki/topics/current-messaging.md',
+        'wiki/topics/customer-segment.md',
+        'wiki/topics/ideal-customer-profile.md',
+        'wiki/topics/market-overview.md',
+        'wiki/topics/market-position-summary.md',
+        'wiki/topics/market-segment.md',
+        'wiki/topics/product-overview.md',
+        'wiki/topics/recent-developments.md'
+      ].sort()
     )
-    const prose = web.content.replace(/```[\s\S]*?```/g, '')
+
+    // Model output is checked and rendered by the app: no em dashes in prose, code untouched,
+    // the app's own Sources section citing a raw citation record, links to missing articles as text.
+    const product = parseDoc(readFileSync(join(ws, 'wiki/topics/product-overview.md'), 'utf8'))!
+    const prose = product.body.replace(/```[\s\S]*?```/g, '')
     expect(prose).not.toContain('\u2014')
     expect(prose).toContain(', with a dash.')
-    expect(web.content).toContain('code — stays')
-    expect(web.content).toContain('## Sources')
-    expect(web.content).toContain('[Source A](https://source.example/a)')
-    expect(web.data).toMatchObject({
+    expect(product.body).toContain('code — stays')
+    expect(product.body).not.toContain('model-written')
+    expect(product.body).not.toContain('[[not-a-real-article')
+    expect(product.body).toMatch(
+      /## Sources\n\n- \[Source B\]\(\.\.\/\.\.\/raw\/articles\/2026-\d\d-\d\d-source-example-b\.md\)/
+    )
+    expect(product.data).toMatchObject({
+      title: 'Product Overview',
+      category: 'topic',
+      volatility: 'warm',
+      'compiled-from': 'sources',
+      // One third-party source: clamped from the model's "high".
+      confidence: 'low'
+    })
+    expect(Object.keys(product.data)).not.toContain('run_id')
+    // Generator details live in app state instead.
+    const prov = await readProvenance(ws)
+    expect(prov['wiki/topics/product-overview.md']).toMatchObject({
       task: 'research-02-product',
-      run_id: run.id,
+      runId: run.id,
       model: 'claude-sonnet-5-5'
     })
-    expect(web.data.sources).toEqual(['https://source.example/a'])
-    const syn = matter(
-      readFileSync(join(drafts, 'memory/company-research/steps/09-synthesis.md'), 'utf8')
-    )
-    expect(syn.content).not.toContain('## Sources')
 
     // The run file on disk is the final state.
     await s.service.flush()
@@ -313,11 +353,18 @@ describe('research service: the full pipeline', () => {
     expect(priv[0].data?.tags).toEqual(['private', 'company-strategy'])
     expect(priv[0].data?.source).toBe('inbox/.processed/board.txt')
     expect(priv[0].body).toContain(SECRET)
-    // Every web task cited the same URL: one shared record holding every task's excerpt.
-    const cites = byTag('web-citation')
-    expect(cites).toHaveLength(1)
-    expect(cites[0].data?.source).toBe('https://source.example/a')
+    // Every web task cited the same URLs: one shared record per URL holding every task's excerpt.
+    // Page A came from the answer's citations; page B is a source the model listed, which the
+    // search really returned, so it counts too (with the model's quote).
+    const cites = byTag('web-citation').sort((x, y) =>
+      String(x.data?.source).localeCompare(String(y.data?.source))
+    )
+    expect(cites.map((c) => c.data?.source)).toEqual([
+      'https://source.example/a',
+      'https://source.example/b'
+    ])
     expect(cites[0].body).toContain('Citation record.')
+    expect(cites[1].body).toContain('"A quote from page B."')
     // Duplicate excerpts are kept once.
     const distinct = new Set(f.calls.filter((c) => c.web).map((c) => c.id.slice(0, 20))).size
     expect((cites[0].body.match(/\(cited /g) ?? []).length).toBe(distinct)
@@ -339,7 +386,7 @@ describe('research service: the full pipeline', () => {
     expect(
       report.findings.filter((x) => x.severity === 'critical' || x.severity === 'warning')
     ).toEqual([])
-    expect(readFileSync(join(ws, 'log.md'), 'utf8')).toMatch(/ingest \| 1 web sources cited by/)
+    expect(readFileSync(join(ws, 'log.md'), 'utf8')).toMatch(/ingest \| \d web sources cited by/)
   })
 
   it('runs independent stage 1 tasks in parallel, within the concurrency limit', async () => {
@@ -362,11 +409,19 @@ describe('research service: the full pipeline', () => {
     expect(withSecret.length).toBeGreaterThan(0)
     // No call that could search the web ever saw the confidential file.
     for (const c of webCalls) expect(c.text, c.id).not.toContain(SECRET)
-    // And every call that saw it had no tools.
-    for (const c of withSecret) expect(c.tools, c.id).toEqual({})
-    // The confidential text did not leak into web-task outputs on disk either.
-    const social = readFileSync(join(drafts, 'memory/research/competitors/Wile Co.md'), 'utf8')
-    expect(social).not.toContain(SECRET)
+    // And every call that saw it had no web tools (only the schema-only output tool, if any).
+    for (const c of withSecret) {
+      expect(c.tools.webSearch, c.id).toBeUndefined()
+      expect(c.tools.webFetch, c.id).toBeUndefined()
+    }
+    // The confidential text did not leak into web-task articles on disk either.
+    const rival = readFileSync(join(ws, 'wiki/references/competitor-wile-co.md'), 'utf8')
+    expect(rival).not.toContain(SECRET)
+    // Articles built from the private file are tagged private (spec section 8).
+    const summary = parseDoc(
+      readFileSync(join(ws, 'wiki/topics/market-position-summary.md'), 'utf8')
+    )!
+    expect(summary.data.tags).toContain('private')
   })
 
   it('puts the right documents in front of the right task', async () => {
@@ -375,11 +430,13 @@ describe('research service: the full pipeline', () => {
     await s.service.start()
     await s.until(() => s.finished.length === 1, 'finish')
     const positioningCall = f.calls.find((c) =>
-      c.id.startsWith('Write the website positioning audit')
+      c.id.startsWith('Write the current-messaging article')
     )!
     expect(positioningCall.text).toContain('We sell rockets to coyotes.')
     expect(positioningCall.web).toBe(false)
-    const statement = f.calls.find((c) => /^Write Section \d of the playbook/.test(c.id))
+    const statement = f.calls.find((c) => /^Write the wiki articles for Section 5/.test(c.id))!
+    // Article inputs are shown by their wiki paths.
+    expect(statement.text).toContain('<document path="wiki/concepts/value-drivers.md">')
     expect(statement).toBeTruthy()
     // Documents are wrapped as data.
     expect(positioningCall.text).toContain(
@@ -399,9 +456,13 @@ describe('research service: social taglines', () => {
     expect(find.text).toContain('<document path="memory/research/website/index.md">')
     expect(find.text).not.toContain('We sell rockets to coyotes.')
     const { parseSocialTable } = await import('../../src/shared/social')
-    const rows = parseSocialTable(
-      readFileSync(join(drafts, 'memory/research/social-taglines.md'), 'utf8')
-    )
+    const article = readFileSync(join(ws, 'wiki/references/social-taglines.md'), 'utf8')
+    const rows = parseSocialTable(article)
+    // Each profile found is a raw note, and the article cites it.
+    const notes = (await scanWiki(ws)).filter((x) => x.dir === 'raw/notes')
+    expect(notes.map((x) => x.data?.source)).toEqual(['https://linkedin.com/company/acme'])
+    expect(notes[0].data?.tags).toEqual(['social', 'linkedin'])
+    expect(article).toContain(notes[0].rel)
     expect(rows.map((r) => [r.network, r.found])).toEqual([
       ['LinkedIn', true],
       ['X', false]
@@ -418,12 +479,23 @@ describe('research service: messaging analysis', () => {
     await s.until(() => s.finished.length === 1, 'finish')
     const call = f.calls.find((c) => c.id.startsWith('Write the messaging analysis'))!
     expect(call.tools).toEqual({})
-    expect(call.text).toContain('memory/positioning-playbook/Acme Rockets.md')
-    expect(call.text).toContain('memory/research/website-positioning.md')
-    expect(call.text).toContain('memory/research/social-taglines.md')
+    expect(call.text).toContain('<document path="wiki/concepts/positioning-statement.md">')
+    expect(call.text).toContain('<document path="wiki/topics/current-messaging.md">')
+    expect(call.text).toContain('<document path="wiki/references/social-taglines.md">')
     expect(call.text).toContain('Score each dimension from 1 to 5')
-    const doc = readFileSync(join(drafts, 'memory/messaging-analysis/Acme Rockets.md'), 'utf8')
+    const out = (await scanWiki(ws)).filter(
+      (x) => x.kind === 'output' && x.name.startsWith('messaging-analysis-')
+    )
+    expect(out.map((x) => x.name)).toEqual([
+      expect.stringMatching(/^messaging-analysis-v1-\d{4}-\d{2}-\d{2}$/)
+    ])
+    const doc = readFileSync(join(ws, out[0].rel), 'utf8')
     expect(parseScorecard(doc)).toHaveLength(5)
+    expect(out[0].data).toMatchObject({
+      type: 'report',
+      title: 'Messaging Analysis: Acme Rockets (v1)'
+    })
+    expect(out[0].data?.sources).toContain('wiki/topics/current-messaging.md')
     expect(s.last().tasks.find((t) => t.id === 'messaging-analysis')?.note).toBeNull()
     // Nothing failed or was blocked: the whole pipeline now has real skills.
     expect(s.last().status).toBe('done')
@@ -437,30 +509,27 @@ describe('research service: playbook versions', () => {
     await s.service.start()
     await s.until(() => s.finished.length === 1, 'first run')
     expect(s.last().status).toBe('done')
-    const versions = join(drafts, 'memory/positioning-playbook/versions')
-    const v1Name = readdirSync(versions)[0]
-    expect(v1Name).toMatch(/^Acme Rockets-v1-\d{4}-\d{2}-\d{2}\.md$/)
+    const versions = join(ws, 'output')
+    const playbooks = () =>
+      readdirSync(versions)
+        .filter((n) => n.startsWith('positioning-playbook-'))
+        .sort()
+    const v1Name = playbooks()[0]
+    expect(v1Name).toMatch(/^positioning-playbook-v1-\d{4}-\d{2}-\d{2}\.md$/)
     const v1 = readFileSync(join(versions, v1Name), 'utf8')
-    const current = matter(
-      readFileSync(join(drafts, 'memory/positioning-playbook/Acme Rockets.md'), 'utf8')
-    )
-    expect(current.data.version).toBe(1)
-    expect([...current.content.matchAll(/^## Section \d: /gm)]).toHaveLength(7)
-    expect(current.content).toContain('## Table of Contents')
+    const current = parseDoc(v1)!
+    expect(current.data.title).toBe('Positioning Playbook: Acme Rockets (v1)')
+    expect([...current.body.matchAll(/^## Section \d: /gm)]).toHaveLength(7)
+    expect(current.body).toContain('## Table of Contents')
+    expect(current.body).toContain('### Value Driver: Value Driver One')
+    expect(current.data.sources).toContain('wiki/concepts/positioning-statement.md')
     expect(s.last().tasks.find((t) => t.id === 'playbook-assemble')?.note).toBe('Version 1')
-    // The company research file holds every step.
-    const research = readFileSync(join(drafts, 'memory/company-research/Acme Rockets.md'), 'utf8')
-    expect(research).toContain('## Competitive Analysis')
-    expect(research).not.toContain('did not run')
 
     await s.service.start()
     await s.until(() => s.finished.length === 2, 'second run')
-    expect(readdirSync(versions)).toHaveLength(2)
+    expect(playbooks()).toHaveLength(2)
     expect(readFileSync(join(versions, v1Name), 'utf8')).toBe(v1)
-    expect(
-      matter(readFileSync(join(drafts, 'memory/positioning-playbook/Acme Rockets.md'), 'utf8')).data
-        .version
-    ).toBe(2)
+    expect(playbooks()[1]).toMatch(/^positioning-playbook-v2-/)
   })
 })
 
@@ -470,10 +539,7 @@ describe('research service: re-running', () => {
     const s = makeService(f1.provider)
     await s.service.start()
     await s.until(() => s.finished.length === 1, 'first run')
-    const research = readFileSync(
-      join(drafts, 'memory/company-research/steps/02-product-analysis.md'),
-      'utf8'
-    )
+    const research = readFileSync(join(ws, 'wiki/topics/product-overview.md'), 'utf8')
     const callsBefore = f1.calls.length
 
     const run = await s.service.rerun({ preset: 'playbook' })
@@ -482,13 +548,13 @@ describe('research service: re-running', () => {
     expect(s.last().status).toBe('done')
     const newCalls = f1.calls.slice(callsBefore).map((c) => c.id)
     // Seven sections and the messaging analysis, and nothing from the research stages.
-    expect(newCalls.filter((c) => /^Write Section \d/.test(c))).toHaveLength(7)
+    expect(newCalls.filter((c) => /^Write the wiki articles for Section/.test(c))).toHaveLength(7)
     expect(newCalls.filter((c) => c.startsWith('Write the messaging analysis'))).toHaveLength(1)
     expect(newCalls).toHaveLength(8)
+    expect(readFileSync(join(ws, 'wiki/topics/product-overview.md'), 'utf8')).toBe(research)
     expect(
-      readFileSync(join(drafts, 'memory/company-research/steps/02-product-analysis.md'), 'utf8')
-    ).toBe(research)
-    expect(readdirSync(join(drafts, 'memory/positioning-playbook/versions'))).toHaveLength(2)
+      readdirSync(join(ws, 'output')).filter((n) => n.startsWith('positioning-playbook-'))
+    ).toHaveLength(2)
   })
 
   it('re-runs one task, and a competitor profile re-runs the profiles', async () => {
@@ -515,11 +581,8 @@ describe('research service: re-running', () => {
     expect(cat.find((c) => c.taskId === 'proof-gathering')?.path).toBe(
       'memory/research/proof-public.md'
     )
-    expect(cat.find((c) => c.title === 'Full company research')?.path).toBe(
-      'memory/company-research/Acme Rockets.md'
-    )
     expect(cat.find((c) => c.taskId === 'competitor-profiles')?.path).toBe(
-      'memory/research/competitors'
+      'memory/receipts/competitor-profiles'
     )
   })
 })
@@ -529,7 +592,7 @@ describe('research service: interruptions', () => {
     let hold = true
     const f1 = fakeProvider({
       onCall: async (c, signal) => {
-        if (hold && /^Write Section \d of the playbook/.test(c.id))
+        if (hold && /^Write the wiki articles for Section/.test(c.id))
           await new Promise<void>((_r, rej) => {
             if (signal.aborted) return rej(new Error('aborted'))
             signal.addEventListener('abort', () => rej(new Error('aborted')))
@@ -596,7 +659,7 @@ describe('research service: interruptions', () => {
     const { saveRun } = await import('../../src/main/research/run-store')
     await saveRun(ws, tweaked)
     const { rmSync } = await import('fs')
-    rmSync(join(drafts, 'memory/company-research/steps/05-strengths.md'))
+    rmSync(join(ws, 'wiki/references/strengths.md'))
 
     const f2 = fakeProvider()
     const s2 = makeService(f2.provider)
@@ -607,13 +670,13 @@ describe('research service: interruptions', () => {
     await s2.service.resume()
     await s2.until(() => s2.finished.length === 1, 'finish')
     expect(f2.calls).toHaveLength(1)
-    expect(existsSync(join(drafts, 'memory/company-research/steps/05-strengths.md'))).toBe(true)
+    expect(existsSync(join(ws, 'wiki/references/strengths.md'))).toBe(true)
   })
 
   it('cancel keeps finished outputs and stops the rest', async () => {
     const f = fakeProvider({
       onCall: async (c, signal) => {
-        if (/^Write Section \d of the playbook/.test(c.id))
+        if (/^Write the wiki articles for Section/.test(c.id))
           await new Promise<void>((_r, rej) => {
             if (signal.aborted) return rej(new Error('aborted'))
             signal.addEventListener('abort', () => rej(new Error('aborted')))
@@ -632,9 +695,7 @@ describe('research service: interruptions', () => {
       'cancelled'
     )
     expect(s.last().status).toBe('cancelled')
-    expect(existsSync(join(drafts, 'memory/company-research/steps/02-product-analysis.md'))).toBe(
-      true
-    )
+    expect(existsSync(join(ws, 'wiki/topics/product-overview.md'))).toBe(true)
     expect(s.last().tasks.filter((t) => t.status === 'running' || t.status === 'waiting')).toEqual(
       []
     )

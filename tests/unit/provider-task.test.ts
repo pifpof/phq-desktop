@@ -218,7 +218,7 @@ describe('error mapping for research', () => {
 // A fake Anthropic streaming endpoint.
 let server: http.Server
 let bodies: Record<string, unknown>[] = []
-let mode: 'pause' | 'plain' | 'hang' = 'pause'
+let mode: 'pause' | 'plain' | 'hang' | 'tool' = 'pause'
 
 const sse = (res: http.ServerResponse, events: [string, Record<string, unknown>][]) => {
   res.writeHead(200, { 'content-type': 'text/event-stream' })
@@ -261,6 +261,36 @@ beforeEach(async () => {
       const body = JSON.parse(raw || '{}')
       bodies.push(body)
       if (mode === 'hang') return // never answers
+      // The model answers with the output tool only when the request forces it.
+      if (mode === 'tool' && body.tool_choice?.type === 'tool') {
+        sse(res, [
+          msgStart(700),
+          [
+            'content_block_start',
+            {
+              index: 0,
+              content_block: { type: 'tool_use', id: 'tu1', name: body.tool_choice.name, input: {} }
+            }
+          ],
+          [
+            'content_block_delta',
+            {
+              index: 0,
+              delta: { type: 'input_json_delta', partial_json: '{"articles":[{"slug":"x"}]}' }
+            }
+          ],
+          ['content_block_stop', { index: 0 }],
+          [
+            'message_delta',
+            {
+              delta: { stop_reason: 'tool_use', stop_sequence: null },
+              usage: { output_tokens: 30 }
+            }
+          ],
+          ['message_stop', {}]
+        ])
+        return
+      }
       const continuing = body.messages.length > 1
       if (mode === 'pause' && !continuing) {
         sse(res, [
@@ -416,6 +446,41 @@ describe('runTask', () => {
     await anthropicProvider.runTask(args({ tools: {} }))
     expect(bodies[0]).not.toHaveProperty('tools')
     expect(bodies).toHaveLength(1)
+  })
+
+  const output = {
+    name: 'write_articles',
+    description: 'Saves articles.',
+    schema: { type: 'object' }
+  }
+
+  it('forces the output tool at once for a task without web tools, and returns its arguments', async () => {
+    mode = 'tool'
+    const r = await anthropicProvider.runTask(args({ tools: { output } }))
+    expect(bodies).toHaveLength(1)
+    const body = bodies[0] as { tools: { name: string }[]; tool_choice: unknown }
+    expect(body.tools.map((t) => t.name)).toEqual(['write_articles'])
+    expect(body.tool_choice).toEqual({ type: 'tool', name: 'write_articles' })
+    expect(r.output).toEqual({ articles: [{ slug: 'x' }] })
+  })
+
+  it('lets a web task research first, then forces the output tool once if it was not called', async () => {
+    mode = 'tool'
+    const r = await anthropicProvider.runTask(
+      args({ tools: { webSearch: { maxUses: 5 }, output } })
+    )
+    expect(bodies).toHaveLength(2)
+    const first = bodies[0] as { tool_choice?: unknown; tools: { name: string }[] }
+    expect(first.tool_choice).toBeUndefined()
+    expect(first.tools.map((t) => t.name)).toEqual(['web_search', 'write_articles'])
+    const second = bodies[1] as {
+      tool_choice: unknown
+      messages: { role: string; content: unknown }[]
+    }
+    expect(second.tool_choice).toEqual({ type: 'tool', name: 'write_articles' })
+    expect(second.messages.map((m) => m.role)).toEqual(['user', 'assistant', 'user'])
+    expect(r.output).toEqual({ articles: [{ slug: 'x' }] })
+    expect(r.usage.requests).toBe(2)
   })
 
   it('throws TaskAbortedError when stopped', async () => {

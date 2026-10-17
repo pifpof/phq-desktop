@@ -74,6 +74,8 @@ export interface FinalizeArgs {
   citations: Citation[]
   consulted: Citation[]
   truncated?: boolean
+  /** Raw files (wiki paths) behind the cited pages: citing this draft stands for them. */
+  rawSources?: string[]
   now?: Date
 }
 
@@ -92,6 +94,7 @@ export function finalizeDocument(a: FinalizeArgs): string {
     status: 'draft',
     inputs: a.inputs,
     sources,
+    ...(a.rawSources?.length ? { raw_sources: a.rawSources } : {}),
     ...(a.truncated ? { truncated: true } : {})
   })
 }

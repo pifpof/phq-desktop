@@ -15,10 +15,21 @@ const search = (
 })
 const FETCH = { maxUses: 3, maxContentTokens: 20_000 }
 
-const STEPS = 'memory/company-research/steps'
-const SECTIONS = 'memory/positioning-playbook/sections'
+/** Where an article or output task leaves the list of what it wrote (in the run's drafts). */
+export const receipt = (id: string): string =>
+  `memory/receipts/${id.replace(/[^a-z0-9-]+/gi, '-')}.md`
 
-const companyResearchStep = (n: string, slug: string, title: string): TaskDef => ({
+/** An AI task that writes wiki articles (REQUIREMENTS-v2 3.3). */
+const articles = (
+  allowed: string[],
+  required = allowed,
+  patches?: string[]
+): TaskDef['writes'] => ({
+  kind: 'articles',
+  targets: { allowed, required, ...(patches ? { patches } : {}) }
+})
+
+const companyResearchStep = (n: string, slug: string, title: string, article: string): TaskDef => ({
   id: `research-${n}-${slug}`,
   title,
   stage: 1,
@@ -27,10 +38,11 @@ const companyResearchStep = (n: string, slug: string, title: string): TaskDef =>
   skill: 'company-research',
   rules: ['references/format-rules.md'],
   asset: `assets/${n}-${slug === 'product' ? 'product-analysis' : slug}.md`,
-  instruction: 'Research this step on the web and write the document now.',
+  instruction: `Research this step on the web, then write the ${article} article.`,
   inputs: { outputs: [], inputCategories: [] },
   web: search(5, FETCH),
-  output: () => `${STEPS}/${n}-${slug === 'product' ? 'product-analysis' : slug}.md`
+  writes: articles([article]),
+  output: () => receipt(`research-${n}-${slug}`)
 })
 
 const playbookSection = (
@@ -39,7 +51,9 @@ const playbookSection = (
   title: string,
   dependsOn: string[],
   outputs: string[],
-  inputCategories: NonNullable<TaskDef['inputs']>['inputCategories']
+  inputCategories: NonNullable<TaskDef['inputs']>['inputCategories'],
+  writes: TaskDef['writes'],
+  extra = ''
 ): TaskDef => ({
   id: `playbook-${n}-${slug}`,
   title,
@@ -49,11 +63,12 @@ const playbookSection = (
   skill: 'positioning-playbook',
   rules: ['references/tone-style.md'],
   asset: `assets/${n}-${slugFile[slug]}.md`,
-  instruction: `Write Section ${Number(n)} of the playbook now, using only the documents provided. Start with the heading "## Section ${Number(n)}: ${SECTION_TITLES[n]}". Use generic category terms, never competitor brand names.`,
+  instruction: `Write the wiki articles for Section ${Number(n)} of the playbook (${SECTION_TITLES[n]}), using only the documents provided.${extra}`,
   inputs: { outputs, inputCategories },
   web: false,
   cacheDocuments: true,
-  output: () => `${SECTIONS}/${n}-${slugFile[slug]}.md`
+  writes,
+  output: () => receipt(`playbook-${n}-${slug}`)
 })
 
 /** Section titles from the skill pack, used as fixed headings so the playbook assembles cleanly. */
@@ -143,6 +158,7 @@ const competitorProfile = (c: Competitor): TaskDef => ({
     slug: slugify(c.name, 'competitor'),
     website: c.website === 'n/a' ? '' : c.website
   },
+  writes: articles([`competitor-${slugify(c.name, 'competitor')}`]),
   title: `Profile: ${c.name}`,
   stage: 2,
   kind: 'web-profile',
@@ -150,10 +166,11 @@ const competitorProfile = (c: Competitor): TaskDef => ({
   skill: 'competitor-profile',
   rules: ['references/rules.md'],
   asset: 'assets/competitor-profile.md',
-  instruction: `Profile this competitor: ${c.name}${c.website ? ` (${c.website})` : ''}. Research it on the web and write the profile now.`,
+  instruction: `Profile this competitor: ${c.name}${c.website ? ` (${c.website})` : ''}. Research it on the web, then write its article, competitor-${slugify(c.name, 'competitor')}. Put its other names in aliases and give the generic term for this kind of competitor in category_term.`,
   inputs: { outputs: ['competitor-discovery'], inputCategories: [] },
   web: search(6, { maxUses: 4, maxContentTokens: 20_000 }),
-  output: () => `memory/research/competitors/${safeName(c.name)}.md`
+  output: () =>
+    receipt(`competitor-profiles:${safeName(c.name).toLowerCase().replace(/\s+/g, '-')}`)
 })
 
 export const TASKS: TaskDef[] = [
@@ -194,12 +211,12 @@ export const TASKS: TaskDef[] = [
     web: search(6),
     output: () => 'memory/research/social-profiles.md'
   },
-  companyResearchStep('02', 'product', 'Product and service analysis'),
-  companyResearchStep('03', 'market-segment', 'Market segment'),
-  companyResearchStep('04', 'customer-segment', 'Customer segment'),
-  companyResearchStep('05', 'strengths', 'Strengths'),
-  companyResearchStep('06', 'weaknesses', 'Weaknesses'),
-  companyResearchStep('07', 'recent-developments', 'Recent developments'),
+  companyResearchStep('02', 'product', 'Product and service analysis', 'product-overview'),
+  companyResearchStep('03', 'market-segment', 'Market segment', 'market-segment'),
+  companyResearchStep('04', 'customer-segment', 'Customer segment', 'customer-segment'),
+  companyResearchStep('05', 'strengths', 'Strengths', 'strengths'),
+  companyResearchStep('06', 'weaknesses', 'Weaknesses', 'weaknesses'),
+  companyResearchStep('07', 'recent-developments', 'Recent developments', 'recent-developments'),
   {
     id: 'competitor-discovery',
     title: 'Find competitors',
@@ -226,11 +243,13 @@ export const TASKS: TaskDef[] = [
     skill: 'website-positioning',
     rules: ['references/rules.md'],
     asset: 'assets/website-positioning.md',
-    instruction: 'Write the website positioning audit now, from the crawled pages provided.',
+    instruction:
+      'Write the current-messaging article: how the company positions itself today, from the crawled pages provided.',
     inputs: { outputs: ['crawl-website'], inputCategories: [] },
     web: false,
     cacheDocuments: true,
-    output: () => 'memory/research/website-positioning.md'
+    writes: articles(['current-messaging']),
+    output: () => receipt('website-positioning')
   },
   {
     id: 'research-01-overview',
@@ -242,11 +261,12 @@ export const TASKS: TaskDef[] = [
     rules: ['references/format-rules.md'],
     asset: 'assets/01-company-overview.md',
     instruction:
-      'Write the company overview from the documents provided. They include the crawl of the company website.',
+      'Write the company-overview article from the documents provided. They include the crawl of the company website.',
     inputs: { outputs: ['crawl-website', 'website-positioning'], inputCategories: [] },
     web: false,
     cacheDocuments: true,
-    output: () => `${STEPS}/01-company-overview.md`
+    writes: articles(['company-overview']),
+    output: () => receipt('research-01-overview')
   },
   {
     id: 'social-taglines',
@@ -258,11 +278,16 @@ export const TASKS: TaskDef[] = [
     rules: ['references/rules.md'],
     asset: 'assets/social-taglines.md',
     instruction:
-      'Collect the tagline or bio of every profile in the social profiles list now. Mark any profile you cannot read as Not found.',
+      'Collect the tagline or bio of every profile in the social profiles list, then write the social-taglines article with the table. Mark any profile you cannot read as Not found.',
     inputs: { outputs: ['find-social-profiles', 'crawl-website'], inputCategories: [] },
     web: search(6, { maxUses: 6, maxContentTokens: 10_000 }),
     validate: checkSocialTable,
-    output: () => 'memory/research/social-taglines.md'
+    writes: {
+      kind: 'articles',
+      targets: { allowed: ['social-taglines'], required: ['social-taglines'] },
+      socialNotes: true
+    },
+    output: () => receipt('social-taglines')
   },
   {
     id: 'competitor-profiles',
@@ -271,7 +296,7 @@ export const TASKS: TaskDef[] = [
     kind: 'local',
     dependsOn: ['competitor-discovery'],
     web: false,
-    output: () => 'memory/research/competitors',
+    output: () => 'memory/receipts/competitor-profiles',
     fanOut: async (ctx) => (await competitorsFor(ctx)).map(competitorProfile)
   },
   {
@@ -300,14 +325,15 @@ export const TASKS: TaskDef[] = [
     rules: ['references/format-rules.md'],
     asset: 'assets/08-competitive-analysis.md',
     instruction:
-      'Write the competitive analysis for the single most direct competitor, chosen from the profiles provided.',
+      "Write the competitive analysis for the single most direct competitor, chosen from the articles provided. Add it to that competitor's article as a patch: one ## section per part of the template, keeping the template's headings.",
     inputs: {
       outputs: ['competitor-profiles', 'competitor-discovery'],
       inputCategories: ['competitive-intel']
     },
     web: false,
     cacheDocuments: true,
-    output: () => `${STEPS}/08-competitive-analysis.md`
+    writes: articles([], [], ['competitor-*']),
+    output: () => receipt('research-08-competitive')
   },
   {
     id: 'research-09-synthesis',
@@ -328,7 +354,8 @@ export const TASKS: TaskDef[] = [
     skill: 'company-research',
     rules: ['references/format-rules.md'],
     asset: 'assets/09-synthesis.md',
-    instruction: 'Synthesise the research steps provided into the final Market Overview.',
+    instruction:
+      'Synthesise the articles provided into the market-position-summary article (the Market Overview of the company research).',
     inputs: {
       outputs: [
         'research-01-overview',
@@ -344,8 +371,8 @@ export const TASKS: TaskDef[] = [
     },
     web: false,
     cacheDocuments: true,
-    after: 'assemble-company-research',
-    output: () => `${STEPS}/09-synthesis.md`
+    writes: articles(['market-position-summary']),
+    output: () => receipt('research-09-synthesis')
   },
 
   // Stage 4: the playbook
@@ -355,7 +382,8 @@ export const TASKS: TaskDef[] = [
     'Playbook: market overview',
     ['research-09-synthesis'],
     ['research-09-synthesis', 'website-positioning'],
-    ['company strategy', 'sales collateral']
+    ['company strategy', 'sales collateral'],
+    articles(['market-overview'])
   ),
   playbookSection(
     '02',
@@ -363,7 +391,8 @@ export const TASKS: TaskDef[] = [
     'Playbook: target customers',
     ['research-09-synthesis'],
     ['research-09-synthesis', 'website-positioning'],
-    ['sales collateral', 'customer references', 'company strategy']
+    ['sales collateral', 'customer references', 'company strategy'],
+    articles(['ideal-customer-profile'])
   ),
   playbookSection(
     '06',
@@ -371,7 +400,9 @@ export const TASKS: TaskDef[] = [
     'Playbook: competitive intelligence',
     ['competitor-profiles', 'research-08-competitive'],
     ['competitor-profiles', 'research-08-competitive'],
-    ['competitive-intel', 'sales collateral']
+    ['competitive-intel', 'sales collateral'],
+    articles(['competitive-landscape'], ['competitive-landscape'], ['competitor-*']),
+    ' Write competitive-landscape. Then add two sections to each competitor\'s article as patches: "## SWOT Relative to Us" and "## When We Win and Lose" (with any win stories from the documents).'
   ),
   playbookSection(
     '07',
@@ -379,7 +410,8 @@ export const TASKS: TaskDef[] = [
     'Playbook: customer proof points',
     ['proof-gathering'],
     ['proof-gathering'],
-    ['customer references']
+    ['customer references'],
+    articles(['proof-points'])
   ),
   playbookSection(
     '03',
@@ -387,7 +419,9 @@ export const TASKS: TaskDef[] = [
     'Playbook: value drivers',
     ['playbook-02-icp'],
     ['playbook-02-icp', 'research-09-synthesis'],
-    ['sales collateral', 'help-docs', 'customer references']
+    ['sales collateral', 'help-docs', 'customer references'],
+    articles(['value-drivers', 'value-driver-*']),
+    ' Write value-drivers as a short index (the three drivers, one line each, linking to each) and one value-driver-<x> article per driver, three in all.'
   ),
   playbookSection(
     '04',
@@ -395,7 +429,9 @@ export const TASKS: TaskDef[] = [
     'Playbook: distinct advantages',
     ['playbook-03-value'],
     ['playbook-03-value', 'playbook-02-icp', 'research-09-synthesis'],
-    ['roadmap', 'company strategy', 'competitive-intel']
+    ['roadmap', 'company strategy', 'competitive-intel'],
+    articles(['moat-*']),
+    ' Write one moat-<x> article per distinct advantage, two or three in all.'
   ),
   playbookSection(
     '05',
@@ -415,7 +451,8 @@ export const TASKS: TaskDef[] = [
       'playbook-04-moat',
       'playbook-06-competitive'
     ],
-    ['company strategy']
+    ['company strategy'],
+    articles(['positioning-statement'])
   ),
   {
     id: 'playbook-assemble',
@@ -433,7 +470,7 @@ export const TASKS: TaskDef[] = [
     ],
     local: 'assemble-playbook',
     web: false,
-    output: (ctx) => `memory/positioning-playbook/${ctx.company}.md`
+    output: () => receipt('playbook-assemble')
   },
 
   // Stage 5
@@ -458,14 +495,18 @@ export const TASKS: TaskDef[] = [
       outputs: [
         'website-positioning',
         'social-taglines',
-        'playbook-assemble',
-        'competitor-profiles'
+        'playbook-05-statement',
+        'playbook-02-icp',
+        'playbook-03-value',
+        'playbook-04-moat',
+        'playbook-06-competitive'
       ],
       inputCategories: ['sales collateral']
     },
     web: false,
     cacheDocuments: true,
-    output: (ctx) => `memory/messaging-analysis/${ctx.company}.md`
+    writes: { kind: 'output', name: 'messaging-analysis', title: 'Messaging Analysis' },
+    output: () => receipt('messaging-analysis')
   }
 ]
 

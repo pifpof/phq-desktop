@@ -1,3 +1,4 @@
+import type { ArticleTargets } from './article-output'
 import type { Profile } from '@shared/profile'
 import type { InputCategory } from '@shared/workspace'
 import type { TaskKind } from './estimates'
@@ -12,7 +13,7 @@ export interface TaskContext {
   readOutput(taskId: string): Promise<string | null>
 }
 
-export type LocalHandler = 'crawl' | 'extract' | 'assemble-company-research' | 'assemble-playbook'
+export type LocalHandler = 'crawl' | 'extract' | 'assemble-playbook'
 
 export interface WebTools {
   search: { maxUses: number }
@@ -56,6 +57,15 @@ export interface TaskDef {
    * A failing answer is retried once with the problem explained; a second failure is saved with a note.
    */
   validate?: (text: string) => string | null
+
+  /**
+   * Where the answer goes (REQUIREMENTS-v2 3.3). Articles: wiki articles through the output tool.
+   * Output: an assembled deliverable in output/ (versioned). Absent: a run draft in app state.
+   * Article and output tasks also leave a receipt at `output()` listing what they wrote.
+   */
+  writes?:
+    | { kind: 'articles'; targets: ArticleTargets; socialNotes?: boolean }
+    | { kind: 'output'; name: string; title: string }
 
   /** For a competitor's profile: whose pages are "competitor-site" when cited (REQUIREMENTS-v2 3.1). */
   competitor?: { slug: string; website: string }

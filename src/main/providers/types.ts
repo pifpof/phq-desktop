@@ -42,9 +42,22 @@ export interface PromptBlock {
   cache?: boolean
 }
 
+/**
+ * A schema-only output tool (REQUIREMENTS-v2 3.2). It performs no action: the model's arguments
+ * come back in `RunTaskResult.output` and the main process validates them and writes files.
+ */
+export interface OutputTool {
+  name: string
+  description: string
+  /** JSON Schema of the arguments. */
+  schema: Record<string, unknown>
+}
+
 export interface TaskTools {
   webSearch?: { maxUses: number }
   webFetch?: { maxUses: number; maxContentTokens: number }
+  /** When set, the answer is this tool's arguments, not text. */
+  output?: OutputTool
 }
 
 export interface RunTaskArgs {
@@ -93,6 +106,8 @@ export interface RunTaskResult {
   citations: Citation[]
   /** Every page the search and fetch tools returned, cited or not. */
   consulted: Citation[]
+  /** The output tool's arguments, when the task had one and the model called it. */
+  output?: unknown
   /** Cited and fetched pages, for ingest into raw/. Empty for tasks without web tools. */
   sources: WebSource[]
   usage: TaskUsage

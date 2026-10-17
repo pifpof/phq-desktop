@@ -11,7 +11,11 @@ import type { Logger } from '../log'
 import { ProviderError, type Provider } from '../providers/types'
 import { join } from 'path'
 import { RunSources } from '../ingest/citations-to-raw'
-import { stateDir } from '../state/app-state'
+import { stateDir, writeJsonAtomic } from '../state/app-state'
+import { readProvenance } from '../state/provenance'
+import { checkWiki } from '../wiki/conformance'
+import { writeIndexes } from '../wiki/index-gen'
+import { appendLog } from '../wiki/log'
 import { isoDay } from '../wiki/paths'
 import { readProfile } from '../workspace/profile'
 import { safeName } from '../workspace/safe-name'
@@ -47,6 +51,8 @@ export interface ServiceDeps {
   /** Called once when a run reaches done, failed or cancelled. */
   onFinished?(run: RunView): void
   log: Pick<Logger, 'info' | 'warn' | 'error'>
+  /** For the compile line in log.md. */
+  appVersion?: string
   tasks?: TaskDef[]
   engine?: Pick<EngineDeps, 'now' | 'sleep' | 'random'>
 }
@@ -173,7 +179,7 @@ export function createResearchService(d: ServiceDeps) {
       tasks,
       context: () => ctx,
       execute,
-      verifyOutput: outputVerifier(drafts, ctx),
+      verifyOutput: outputVerifier(drafts, ctx, root),
       // Error messages from our own code and the file system only. Model output never becomes an error message.
       onTaskError: (task, err) =>
         d.log.warn(
@@ -188,11 +194,37 @@ export function createResearchService(d: ServiceDeps) {
         ) {
           notified = true
           d.log.info(`Research run ${run.id} ${run.status}: spent $${run.spentUsd.toFixed(2)}`)
-          d.onFinished?.(run)
+          void afterRun(root, run, model).finally(() => d.onFinished?.(run))
         }
       }
     }
     return { deps, root, model }
+  }
+
+  /**
+   * After a run (REQUIREMENTS-v2 3.6, Phase 6.6): indexes regenerated, one compile line in log.md,
+   * and the conformance check stored for the Use your wiki view.
+   */
+  async function afterRun(root: string, run: RunView, model: string): Promise<void> {
+    try {
+      const prov = await readProvenance(root)
+      const articles = Object.entries(prov).filter(
+        ([p, e]) => e.runId === run.id && p.startsWith('wiki/')
+      ).length
+      if (articles)
+        await appendLog(
+          root,
+          'compile',
+          `research run ${run.id} (desktop app ${d.appVersion ?? 'dev'}, ${model}) -> ${articles} articles`
+        )
+      await writeIndexes(root)
+      const report = await checkWiki(root)
+      await writeJsonAtomic(join(await stateDir(root), 'conformance.json'), report)
+    } catch (err) {
+      d.log.warn(
+        `After-run wiki upkeep failed: ${err instanceof Error ? err.message.slice(0, 200) : 'unknown'}`
+      )
+    }
   }
 
   /** The latest run from disk, if it was interrupted, comes back paused so the person chooses to resume. */
