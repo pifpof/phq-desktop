@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "company": {
+    "name": "Acme Advisory",
+    "website": "https://www.acme-advisory.example",
+    "productName": "",
+    "description": "",
+    "competitors": []
+  },
+  "user": {
+    "name": "Sam",
+    "role": "Founder or CEO",
+    "roleOther": "",
+    "companySize": "Just me"
+  },
+  "goals": [
+    "positioning",
+    "messaging",
+    "competitors"
+  ],
+  "updates": {
+    "prompted": true,
+    "clicked": true,
+    "secondPromptShown": true
+  },
+  "onboarding": {
+    "step": "start",
+    "complete": true
+  }
+}

@@ -5,6 +5,7 @@ import {
   EVENT_CHAT,
   EVENT_OPEN_SETTINGS,
   EVENT_RESEARCH,
+  EVENT_MIGRATE,
   EVENT_WORKSPACE_CHANGED,
   WorkspaceChangedSchema,
   type Api,
@@ -74,6 +75,18 @@ const api: Api = {
   previewDecision: (d) => invoke('decision:preview', d),
   recordDecision: (d) => invoke('decision:record', d),
   openObsidian: () => invoke('shell:openObsidian'),
+  selectForMigration: (path) => invoke('migrate:select', { path }),
+  startMigration: (mode) => invoke('migrate:start', { mode }),
+  finishMigration: (how) => invoke('migrate:finish', { how }),
+  revealPath: (path) => invoke('migrate:reveal', { path }),
+  copyMigrationDetails: (error) => invoke('migrate:copyDetails', { error }),
+  onMigrateStep: (cb) => {
+    const listener = (_e: unknown, raw: unknown): void => {
+      if (typeof raw === 'string') cb(raw)
+    }
+    ipcRenderer.on(EVENT_MIGRATE, listener)
+    return () => ipcRenderer.removeListener(EVENT_MIGRATE, listener)
+  },
   fixWiki: () => invoke('wiki:fix'),
   disconnect: () => invoke('secrets:disconnect'),
   openExternal: (url) => invoke('shell:openExternal', { url }),

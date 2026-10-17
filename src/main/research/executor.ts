@@ -369,7 +369,11 @@ function brief(
 }
 
 /** Social profile notes (REQUIREMENTS-v2 3.3, T8): one raw note per profile found. */
-async function writeSocialNotes(wikiRoot: string, table: string, date: string): Promise<string[]> {
+export async function writeSocialNotes(
+  wikiRoot: string,
+  table: string,
+  date: string
+): Promise<string[]> {
   const out: string[] = []
   for (const row of parseSocialTable(table)) {
     if (!row.found || !/^https?:\/\//i.test(row.url) || !row.tagline.trim()) continue

@@ -7,6 +7,7 @@ import { MessagingView } from '@/features/messaging/MessagingView'
 import { PlaybookView } from '@/features/playbook/PlaybookView'
 import { TrainingDataView } from '@/features/training-data/TrainingDataView'
 import { UseWikiView } from '@/features/use-wiki/UseWikiView'
+import { MigrationWizard } from '@/features/migrate/MigrationWizard'
 import { ResearchBanner } from './ResearchBanner'
 import { Sidebar } from './Sidebar'
 import { WorkspaceBanner } from './WorkspaceBanner'
@@ -14,6 +15,7 @@ import { WorkspaceBanner } from './WorkspaceBanner'
 export function HomeShell() {
   const view = useApp((s) => s.homeView)
   const runStatus = useResearch((s) => s.run?.status)
+  const needsMigration = useApp((s) => s.state?.workspaceStatus === 'needs-migration')
 
   // The playbook and analysis can appear from a run finishing or from a file change on disk.
   useEffect(() => {
@@ -47,11 +49,12 @@ export function HomeShell() {
         <WorkspaceBanner />
         <ResearchBanner />
         <div className="min-h-0 flex-1">
-          {view === 'chat' && <ChatView />}
-          {view === 'training' && <TrainingDataView />}
-          {view === 'playbook' && <PlaybookView />}
-          {view === 'messaging' && <MessagingView />}
-          {view === 'wiki' && <UseWikiView />}
+          {needsMigration && <MigrationWizard />}
+          {!needsMigration && view === 'chat' && <ChatView />}
+          {!needsMigration && view === 'training' && <TrainingDataView />}
+          {!needsMigration && view === 'playbook' && <PlaybookView />}
+          {!needsMigration && view === 'messaging' && <MessagingView />}
+          {!needsMigration && view === 'wiki' && <UseWikiView />}
         </div>
       </main>
     </div>

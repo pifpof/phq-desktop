@@ -288,6 +288,22 @@ export const channels = {
   },
   'decision:record': { req: DecisionInputSchema, res: z.object({ path: z.string() }) },
   'shell:openObsidian': { req: z.undefined(), res: z.null() },
+  'migrate:select': { req: z.object({ path: z.string().min(1).max(4096) }), res: z.null() },
+  'migrate:start': {
+    req: z.object({ mode: z.enum(['convert', 'rebuild']) }),
+    res: z.object({
+      backup: z.string(),
+      reportPath: z.string(),
+      carried: z.number(),
+      notCarried: z.number(),
+      articles: z.number(),
+      check: CheckReportSchema,
+      legacy: z.array(z.string())
+    })
+  },
+  'migrate:finish': { req: z.object({ how: z.enum(['remove', 'move']) }), res: CheckReportSchema },
+  'migrate:reveal': { req: z.object({ path: z.string().min(1).max(4096) }), res: z.null() },
+  'migrate:copyDetails': { req: z.object({ error: z.string().max(2000) }), res: z.null() },
   'wiki:fix': { req: z.undefined(), res: FixReportSchema },
   'secrets:disconnect': { req: z.undefined(), res: z.null() },
   'shell:openExternal': { req: z.object({ url: z.string().max(2048) }), res: z.null() }
@@ -302,6 +318,7 @@ export const EVENT_CHAT = 'chat:event'
 export const EVENT_OPEN_SETTINGS = 'menu:openSettings'
 export const EVENT_WORKSPACE_CHANGED = 'workspace:changed'
 export const EVENT_RESEARCH = 'research:event'
+export const EVENT_MIGRATE = 'migrate:event'
 
 export const WorkspaceChangedSchema = z.object({ paths: z.array(z.string()) })
 export type WorkspaceChanged = z.infer<typeof WorkspaceChangedSchema>
@@ -374,6 +391,12 @@ export interface Api {
   previewDecision(d: Req<'decision:preview'>): Promise<Result<Res<'decision:preview'>>>
   recordDecision(d: Req<'decision:record'>): Promise<Result<Res<'decision:record'>>>
   openObsidian(): Promise<Result<null>>
+  selectForMigration(path: string): Promise<Result<null>>
+  startMigration(mode: Req<'migrate:start'>['mode']): Promise<Result<Res<'migrate:start'>>>
+  finishMigration(how: Req<'migrate:finish'>['how']): Promise<Result<Res<'migrate:finish'>>>
+  revealPath(path: string): Promise<Result<null>>
+  copyMigrationDetails(error: string): Promise<Result<null>>
+  onMigrateStep(cb: (step: string) => void): () => void
   fixWiki(): Promise<Result<Res<'wiki:fix'>>>
   disconnect(): Promise<Result<null>>
   openExternal(url: string): Promise<Result<null>>

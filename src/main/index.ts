@@ -14,6 +14,7 @@ import { createChatService } from './services/chat'
 import { createSecretsStore } from './services/secrets'
 import { createSettingsStore } from './services/settings'
 import { initAppState } from './state/app-state'
+import { recoverInterrupted } from './migrate'
 import { createWindow, lockDownSession } from './window'
 
 app.setName('PositioningHQ')
@@ -95,6 +96,9 @@ if (!app.requestSingleInstanceLock()) {
       win.on('closed', () => (win = null))
     }
     open()
+    // A conversion interrupted by a crash or quit is undone before anything reads the folder.
+    const ws = settings.get().workspacePath
+    if (ws) void recoverInterrupted(ws).catch(() => undefined)
     watcher.watch(settings.get().workspacePath)
 
     app.on('activate', () => {

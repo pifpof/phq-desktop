@@ -10,6 +10,7 @@ import { registerProvider } from './provider'
 import { makeHandle } from './register'
 import { registerShell } from './shell'
 import { registerWiki } from './wiki'
+import { registerMigrate } from './migrate'
 import { registerWorkspace } from './workspace'
 
 export function registerIpc(ctx: AppContext): void {
@@ -24,5 +25,6 @@ export function registerIpc(ctx: AppContext): void {
   registerResearch(handle, ctx)
   registerDev(handle, ctx)
   registerWiki(handle, ctx)
+  registerMigrate(handle, ctx)
   registerShell(handle)
 }

@@ -160,11 +160,24 @@ export function Workspace() {
 
   const kind = choice?.detection.kind
   const needsAck = kind === 'non-empty' && !acknowledged
-  const blocked =
-    kind === 'v1-workspace' ||
-    kind === 'skillpack-vault' ||
-    kind === 'phq-older' ||
-    kind === 'other-wiki'
+  const convertible = kind === 'v1-workspace' || kind === 'skillpack-vault'
+  const blocked = convertible || kind === 'phq-older' || kind === 'other-wiki'
+
+  const convert = async (): Promise<void> => {
+    if (!choice || busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      await unwrap(api.selectForMigration(choice.path))
+      useApp.getState().setDetection(choice.detection)
+      // Home shows the conversion until it is done.
+      await useApp.getState().goHome()
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : null)
+    } finally {
+      setBusy(false)
+    }
+  }
 
   // The key is already saved by now, so Back from the wizard goes to Connect, not Verify.
   const back =
@@ -259,9 +272,8 @@ export function Workspace() {
       {(kind === 'v1-workspace' || kind === 'skillpack-vault' || kind === 'phq-older') && (
         <p className="bg-secondary mt-4 rounded-[10px] px-4 py-3 text-sm" role="alert">
           This workspace uses the old PositioningHQ format
-          {choice?.detection.company?.name ? ` (${choice.detection.company.name})` : ''}. It needs
-          converting to the new wiki format before you can use it here. Converting isn&apos;t
-          available in this build yet, so choose another folder for now.
+          {choice?.detection.company?.name ? ` (${choice.detection.company.name})` : ''}. Convert it
+          to the new wiki format to keep working with it. A full backup is made first.
         </p>
       )}
       {kind === 'other-wiki' && (
@@ -290,6 +302,10 @@ export function Workspace() {
             Choose another folder
           </Button>
         </div>
+      ) : convertible ? (
+        <Button className="mt-8 w-full" disabled={busy} onClick={() => void convert()}>
+          Convert this workspace
+        </Button>
       ) : (
         <Button
           className="mt-8 w-full"

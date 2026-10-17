@@ -1,0 +1,22 @@
+{
+  "id": "5dc42a4b-fa72-46d5-bfc8-b357f6d8c6cf",
+  "title": "What is our positioning statement?",
+  "modeId": "workspace",
+  "createdAt": 1792188372481,
+  "updatedAt": 1792188379505,
+  "messages": [
+    {
+      "role": "user",
+      "content": "What is our positioning statement?"
+    },
+    {
+      "role": "assistant",
+      "content": "Your positioning statement comes from Section 5 of the playbook (Version 1, draft). It rests on one assumption: that your primary buyer is regulated professional firms of about 3 to 25 people. The playbook says you still need to confirm this against real deals.\n\n**Internal positioning statement**\n\n- **For:** Owners and managing partners of regulated professional firms (law, accounting, mortgage) of about 3 to 25 people, who want their team to use AI on client work without client information leaving the office.\n- **Who are currently dissatisfied with:** Staff using public AI chatbots with no visibility and no rules anyone reads. The other options are a ban that staff ignore, or large-firm and fractional-executive advice priced and paced for bigger companies.\n- **Our product is a:** Private AI and AI policy service for small regulated firms. It covers a private AI setup, a one-page AI use policy and a company knowledge base the client owns.\n- **That provides:** Safe, daily AI use on real client work, plus a clear written answer when a client, insurer or regulator asks how the firm uses AI.\n- **Unlike:** Public chatbots, which send data outside the office. Also unlike large audit and strategy firms and fractional AI executives, which are built for bigger buyers and budgets.\n- **We:** Run AI inside your own office so client information stays there. We pair it with a policy your staff will follow and a knowledge base you own. A senior operator does the work personally.\n\n**Customer-facing version (website copy)**\n\n- **H1:** Use AI on client work. Keep client information in your office.\n- **H2:** Private AI, a one-page policy your team will follow, and a company knowledge base you own. Built for law, accounting and mortgage firms of 3 to 25 people.\n\n**Things to know before you use it**\n\n- **One idea leads.** The headline claim is that client data stays in the office. Policy and knowledge ownership support it and are not equal headline claims (Section 4, Moat 1 leads).\n- **It does not match your site today.** The homepage still says \"Human Intelligence in the age of AI\" and speaks to product and revenue leaders. The messaging analysis scores clarity at 2 out of 5 for this reason.\n- **Avoid \"only\".** The playbook says uniqueness is unconfirmed, so use \"built for\" or \"designed for\".\n- **Avoid certification wording.** Say you help firms prepare for a standard, never that you certify them.\n- **Proof is the biggest gap.** There are no case studies, logos or measured results, and the \"stays in the office\" claim has no security review behind it yet.\n\nMy view: the statement is well built, but it is only as good as the buyer assumption. If your recent revenue came from CEOs of growing companies rather than regulated firms, the \"For\" and \"We\" lines change and the 10x Employee knowledge base leads instead. Check your last 3 to 5 deals before you rewrite the homepage around it.",
+      "status": "done",
+      "usage": {
+        "inputTokens": 15,
+        "outputTokens": 1060
+      }
+    }
+  ]
+}
