@@ -14,6 +14,8 @@ export interface Message {
   content: string
   status: MessageStatus
   usage?: ChatUsage
+  /** Wiki articles the answer is grounded in ("Answered from"). */
+  sources?: { path: string; title: string }[]
   error?: { code: ErrorCode; message: string }
 }
 
@@ -97,7 +99,8 @@ export const useChat = create<ChatStore>((set, get) => {
         role: m.role,
         content: m.content,
         ...(m.role === 'assistant' ? { status: m.status as 'done' | 'stopped' } : {}),
-        ...(m.usage ? { usage: m.usage } : {})
+        ...(m.usage ? { usage: m.usage } : {}),
+        ...(m.sources?.length ? { sources: m.sources } : {})
       }))
     })
     void useChats.getState().refresh()
@@ -111,7 +114,8 @@ export const useChat = create<ChatStore>((set, get) => {
         patchLast({ status: 'error', error: res.error })
         return
       }
-      const { streamId } = res.data
+      const { streamId, sources } = res.data
+      if (sources.length) patchLast({ sources })
       const { early, starting } = get()
       // Stop pressed while starting: cancel the stream we just created.
       if (!starting) {
@@ -190,7 +194,8 @@ export const useChat = create<ChatStore>((set, get) => {
           role: m.role,
           content: m.content,
           status: m.role === 'assistant' ? (m.status ?? 'done') : 'done',
-          ...(m.usage ? { usage: m.usage } : {})
+          ...(m.usage ? { usage: m.usage } : {}),
+          ...(m.sources ? { sources: m.sources } : {})
         }))
       })
     },

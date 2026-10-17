@@ -16,7 +16,12 @@ export const ChatRecordSchema = z.object({
         role: z.enum(['user', 'assistant']),
         content: z.string().max(200_000),
         status: z.enum(['done', 'stopped']).optional(),
-        usage: z.object({ inputTokens: z.number(), outputTokens: z.number() }).optional()
+        usage: z.object({ inputTokens: z.number(), outputTokens: z.number() }).optional(),
+        /** Wiki articles the answer was grounded in. */
+        sources: z
+          .array(z.object({ path: z.string().max(500), title: z.string().max(300) }))
+          .max(20)
+          .optional()
       })
     )
     .max(500)

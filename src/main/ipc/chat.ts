@@ -12,7 +12,15 @@ export function registerChat(handle: Handle, ctx: AppContext): void {
     const { model, provider } = ctx.settings.get()
     if (!model) throw new HandlerError('internal')
 
-    const system = await modes[modeId].system({ root: ctx.settings.get().workspacePath })
+    const { system, sources, stats } = await modes[modeId].context({
+      root: ctx.settings.get().workspacePath,
+      messages
+    })
+    // Sizes only: never the question or the articles (rule 15).
+    if (stats)
+      ctx.log.info(
+        `Chat grounded in ${stats.articles} articles, about ${Math.round(stats.chars / 4)} tokens`
+      )
     const sender = event.sender
     const streamId = ctx.chat.start({
       provider: getProvider(provider),
@@ -25,7 +33,7 @@ export function registerChat(handle: Handle, ctx: AppContext): void {
       }
     })
     sender.once('destroyed', () => ctx.chat.cancel(streamId))
-    return { streamId }
+    return { streamId, sources }
   })
 
   const root = (): string => {

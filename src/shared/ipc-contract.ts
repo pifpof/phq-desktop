@@ -226,7 +226,11 @@ export const channels = {
       modeId: z.enum(['general', 'workspace']),
       messages: z.array(ChatMessageSchema).min(1).max(500)
     }),
-    res: z.object({ streamId: z.string() })
+    res: z.object({
+      streamId: z.string(),
+      /** Wiki articles the answer is grounded in (REQUIREMENTS-v2 4.4). */
+      sources: z.array(z.object({ path: z.string(), title: z.string() })).default([])
+    })
   },
   'chats:list': { req: z.undefined(), res: z.array(ChatSummarySchema) },
   'chats:get': { req: z.object({ id: ChatIdSchema }), res: ChatRecordSchema.nullable() },

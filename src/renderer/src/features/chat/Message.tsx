@@ -9,6 +9,15 @@ import { RecordDecisionDialog } from '@/features/decisions/RecordDecisionDialog'
 
 const fmt = new Intl.NumberFormat('en-US')
 
+const open = (path: string): void => useApp.getState().openWikiFile(path)
+
+/** Wiki paths the answer cites (`wiki/topics/x.md`) become links that open the article. */
+export const linkWikiPaths = (md: string): string =>
+  md.replace(
+    /(`?)(\b(?:wiki|raw|output)\/[a-z0-9/_.-]+\.md)\1(?!\))/g,
+    (_m, _tick: string, path: string) => `[${path}](${path})`
+  )
+
 interface Props {
   message: Msg
   canRetry: boolean
@@ -43,11 +52,30 @@ export const Message = memo(function Message({ message: m, canRetry, onRetry }: 
       )}
       {m.content && (
         <div aria-live={m.status === 'streaming' ? 'polite' : 'off'}>
-          <Markdown>{m.content}</Markdown>
+          <Markdown docPath="answer.md" onWikiLink={open}>
+            {linkWikiPaths(m.content)}
+          </Markdown>
         </div>
       )}
       {m.status === 'stopped' && (
         <p className="text-muted-foreground mt-2 text-[13px] font-semibold">Stopped</p>
+      )}
+      {m.status !== 'streaming' && m.sources && m.sources.length > 0 && (
+        <p className="text-muted-foreground mt-3 text-[13px]">
+          Answered from:{' '}
+          {m.sources.map((src, i) => (
+            <span key={src.path}>
+              {i > 0 && ', '}
+              <button
+                type="button"
+                className="hover:text-primary underline underline-offset-2"
+                onClick={() => open(src.path)}
+              >
+                {src.title}
+              </button>
+            </span>
+          ))}
+        </p>
       )}
       {m.status === 'done' && (
         <div className="text-muted-foreground mt-2 flex items-center gap-3 text-[13px]">

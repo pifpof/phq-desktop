@@ -21,7 +21,9 @@ export const receipt = (id: string): string => {
   // A fan-out child ("competitor-profiles:acme") goes inside its group's folder, which is the
   // group's output: tasks shown the group read every child's articles.
   const [group, child] = id.split(':')
-  return child ? `memory/receipts/${safe(group)}/${safe(child)}.md` : `memory/receipts/${safe(id)}.md`
+  return child
+    ? `memory/receipts/${safe(group)}/${safe(child)}.md`
+    : `memory/receipts/${safe(id)}.md`
 }
 
 /** An AI task that writes wiki articles (REQUIREMENTS-v2 3.3). */
