@@ -121,4 +121,4 @@ The script parses YAML line by line: `key: value`, inline lists `[a, b]`, and bl
 ## 7. Other notes
 
 - `PLUGIN-WIKI-MIGRATION.md` and the updated `CLAUDE.md` mentioned by the v2 docs were not in `docs/v2/`. `CLAUDE.md` is updated as part of v2 here; the plugin migration is out of scope for this repo.
-- The temporary QA workspaces from the v1 acceptance run were in a session folder that has since been cleared. For the Phase 9 fixture, a copy of `~/Documents/positioning-qa` (a real v1 workspace) is the best source; it will be copied, never modified, and its company data replaced with fake data before committing.
+- The two real v1 QA workspaces from the v1 acceptance run (Parallel79, Plausible) are still in the session scratch folder. Phase 9 builds its v1 fixture from a copy of one of them, with the company data replaced by fake data. `~/Documents/positioning-qa` is never modified.

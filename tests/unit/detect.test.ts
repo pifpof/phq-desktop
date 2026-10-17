@@ -29,14 +29,54 @@ describe('detectWorkspace', () => {
     expect((await detectWorkspace(dir)).kind).toBe('non-empty')
   })
 
-  it('detects a PositioningHQ workspace, complete only once a playbook exists', async () => {
+  const config = (version: string): string =>
+    `---\ntitle: "Acme"\ndescription: "x"\ncreated: 2026-10-17\nformat_version: ${version}\n---\n`
+
+  it('detects a PositioningHQ wiki, complete once research has written something', async () => {
+    const dir = tmp()
+    write(dir, 'config.md', config('1'))
+    expect(await detectWorkspace(dir)).toEqual({
+      kind: 'phq-incomplete',
+      company: { name: 'Acme', website: '' },
+      formatVersion: 1
+    })
+    write(dir, 'wiki/references/company-profile.md', '---\ntitle: "P"\n---\n')
+    expect((await detectWorkspace(dir)).kind).toBe('phq-incomplete')
+    write(dir, 'output/positioning-playbook-v1-2026-10-17.md')
+    expect((await detectWorkspace(dir)).kind).toBe('phq-complete')
+  })
+
+  it('opens a newer format read-only and sends an older one to migration', async () => {
+    const dir = tmp()
+    write(dir, 'config.md', config('2'))
+    expect((await detectWorkspace(dir)).kind).toBe('phq-newer')
+    write(dir, 'config.md', config('0'))
+    expect((await detectWorkspace(dir)).kind).toBe('phq-older')
+  })
+
+  it('detects a v1 app workspace and reads the company from its profile', async () => {
     const dir = tmp()
     write(dir, '.positioninghq/workspace.json', '{}')
-    expect((await detectWorkspace(dir)).kind).toBe('phq-incomplete')
-    write(dir, 'memory/positioning-playbook/versions/Acme-v1.md')
-    expect((await detectWorkspace(dir)).kind).toBe('phq-incomplete')
-    write(dir, 'memory/positioning-playbook/Acme.md')
-    expect((await detectWorkspace(dir)).kind).toBe('phq-complete')
+    write(
+      dir,
+      '.positioninghq/profile.json',
+      JSON.stringify({ company: { name: 'Acme', website: 'acme.com' } })
+    )
+    write(dir, 'memory/company-profile.md')
+    expect(await detectWorkspace(dir)).toEqual({
+      kind: 'v1-workspace',
+      company: { name: 'Acme', website: 'acme.com' },
+      formatVersion: null
+    })
+  })
+
+  it('warns about an llm-wiki on another subject', async () => {
+    const dir = tmp()
+    write(dir, '_index.md')
+    write(dir, 'config.md', '---\ntitle: "Bitcoin"\n---\n')
+    mkdirSync(join(dir, 'raw'))
+    mkdirSync(join(dir, 'wiki'))
+    expect((await detectWorkspace(dir)).kind).toBe('other-wiki')
   })
 
   it('detects a skill-pack vault and reads the company from vault.config.md', async () => {
@@ -49,7 +89,8 @@ describe('detectWorkspace', () => {
     write(dir, 'memory/company-research/Acme.md')
     expect(await detectWorkspace(dir)).toEqual({
       kind: 'skillpack-vault',
-      company: { name: 'Acme', website: 'acme.com' }
+      company: { name: 'Acme', website: 'acme.com' },
+      formatVersion: null
     })
   })
 
@@ -59,11 +100,12 @@ describe('detectWorkspace', () => {
     expect((await detectWorkspace(dir)).company).toEqual({ name: '', website: '' })
   })
 
-  it('a workspace marker wins over a vault config', async () => {
+  it('a v1 workspace marker wins over a vault config', async () => {
     const dir = tmp()
     write(dir, 'vault.config.md', createVaultConfig({ root: dir, createdAt: new Date() }))
     write(dir, '.positioninghq/workspace.json', '{}')
-    expect((await detectWorkspace(dir)).kind).toBe('phq-incomplete')
+    mkdirSync(join(dir, 'memory'))
+    expect((await detectWorkspace(dir)).kind).toBe('v1-workspace')
   })
 })
 
@@ -81,8 +123,7 @@ describe('createLayout', () => {
       'inputs/sales collateral',
       'inputs/help-docs',
       'memory/positioning-playbook/versions',
-      'outputs/launch',
-      '.positioninghq/runs'
+      'outputs/launch'
     ]) {
       expect(existsSync(join(dir, d))).toBe(true)
     }

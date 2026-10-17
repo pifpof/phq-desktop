@@ -20,6 +20,10 @@ export const APP_ERROR_CODES = [
   'not_writable',
   'no_workspace',
   'research_running',
+  'read_only',
+  'needs_migration',
+  'other_wiki',
+  'no_hub',
   'no_key',
   'not_allowed',
   'internal'
@@ -45,6 +49,12 @@ export const ERROR_COPY: Record<ErrorCode, string> = {
   not_writable: "PositioningHQ can't write to that folder. Choose another.",
   no_workspace: 'Choose a workspace folder first.',
   research_running: 'Research is running in this workspace. Stop it before changing folders.',
+  read_only: 'This wiki was made by a newer version of PositioningHQ. Update the app to edit it.',
+  needs_migration:
+    'This workspace uses the old PositioningHQ format. Convert it to the new wiki format first.',
+  other_wiki:
+    'This is an llm-wiki about something else. Choose an empty folder or a PositioningHQ wiki.',
+  no_hub: "Your llm-wiki hub couldn't be read.",
   no_key: 'Reconnect your AI to continue.',
   not_allowed: "That link can't be opened from PositioningHQ.",
   internal: 'Something went wrong. Please try again.'

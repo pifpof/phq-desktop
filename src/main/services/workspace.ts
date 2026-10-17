@@ -1,11 +1,13 @@
+import { randomUUID } from 'crypto'
 import { constants } from 'fs'
-import { access, mkdir, readFile, stat, writeFile } from 'fs/promises'
+import { access, mkdir, readFile, stat } from 'fs/promises'
 import { join } from 'path'
-
-const MARKER_DIR = '.positioninghq'
-const MARKER_FILE = 'workspace.json'
-
-export const markerPath = (workspace: string): string => join(workspace, MARKER_DIR, MARKER_FILE)
+import { forgetWorkspace, touchWorkspace } from '../state/app-state'
+import { parseDoc } from '../wiki/frontmatter'
+import { isoDay } from '../wiki/paths'
+import { createSkeleton } from '../wiki/skeleton'
+import { detectWorkspace, statusOf } from '../workspace/detect'
+import { PLACEHOLDER_COMPANY } from '../workspace/profile'
 
 export async function isWritableDir(path: string): Promise<boolean> {
   try {
@@ -17,10 +19,11 @@ export async function isWritableDir(path: string): Promise<boolean> {
   }
 }
 
-export async function hasMarker(workspace: string): Promise<boolean> {
+/** The folder is a PositioningHQ wiki (config.md declares a format_version). */
+export async function isPhqWiki(path: string): Promise<boolean> {
   try {
-    JSON.parse(await readFile(markerPath(workspace), 'utf8'))
-    return true
+    const doc = parseDoc(await readFile(join(path, 'config.md'), 'utf8'))
+    return !!doc && 'format_version' in doc.data
   } catch {
     return false
   }
@@ -40,24 +43,38 @@ export async function ensureWorkspaceDir(path: string): Promise<boolean> {
   return isWritableDir(path)
 }
 
+export type ConfirmResult =
+  | { ok: true; existing: boolean }
+  | { ok: false; reason: 'not_writable' | 'needs_migration' | 'other_wiki' }
+
 /**
- * Validates the folder and writes the marker. An existing marker is kept as is.
- * Returns null when the folder is not writable.
+ * Sets a folder up as the workspace (REQUIREMENTS-v2 2.2). An empty or unrelated folder gets the
+ * wiki skeleton; an existing PositioningHQ wiki is used as it is (read-only if it is newer than
+ * this app); old layouts and other llm-wikis are refused until converted or swapped.
  */
 export async function confirmWorkspace(
   path: string,
-  appVersion: string
-): Promise<{ existing: boolean } | null> {
-  if (!(await ensureWorkspaceDir(path))) return null
-  if (await hasMarker(path)) return { existing: true }
+  appVersion: string,
+  company: string | null = null
+): Promise<ConfirmResult> {
+  if (!(await ensureWorkspaceDir(path))) return { ok: false, reason: 'not_writable' }
+  const detection = await detectWorkspace(path)
+  const status = statusOf(detection.kind)
+  if (status === 'needs-migration') return { ok: false, reason: 'needs_migration' }
+  if (status === 'other-wiki') return { ok: false, reason: 'other_wiki' }
+  forgetWorkspace(path)
+  const existing = await isPhqWiki(path)
   try {
-    await mkdir(join(path, MARKER_DIR), { recursive: true })
-    await writeFile(
-      markerPath(path),
-      JSON.stringify({ schemaVersion: 1, createdAt: new Date().toISOString(), appVersion }, null, 2)
-    )
+    if (!existing) {
+      await createSkeleton(path, {
+        company: company || detection.company?.name || PLACEHOLDER_COMPANY,
+        workspaceId: randomUUID(),
+        created: isoDay()
+      })
+    }
+    await touchWorkspace(path, appVersion)
   } catch {
-    return null
+    return { ok: false, reason: 'not_writable' }
   }
-  return { existing: false }
+  return { ok: true, existing }
 }

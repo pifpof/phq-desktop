@@ -1,18 +1,32 @@
 import { z } from 'zod'
 
+/** REQUIREMENTS-v2 2.2. */
 export const WORKSPACE_KINDS = [
   'empty',
+  /** A PositioningHQ wiki at the supported format version, with research in it. */
   'phq-complete',
+  /** A PositioningHQ wiki at the supported format version, nothing researched yet. */
   'phq-incomplete',
+  /** Made by a newer app: opened read-only. */
+  'phq-newer',
+  /** An older format version: needs its format migration. */
+  'phq-older',
+  /** A v1 app workspace (.positioninghq/ and memory/): needs the v1 migration. */
+  'v1-workspace',
+  /** An old skill-pack vault (vault.config.md, memory/, inputs/): needs the v1 migration. */
   'skillpack-vault',
+  /** An llm-wiki topic wiki about something else. */
+  'other-wiki',
   'non-empty'
 ] as const
 export type WorkspaceKind = (typeof WORKSPACE_KINDS)[number]
 
 export const DetectionSchema = z.object({
   kind: z.enum(WORKSPACE_KINDS),
-  /** Read from vault.config.md for a skill-pack vault. */
-  company: z.object({ name: z.string(), website: z.string() }).nullable()
+  /** From config.md, vault.config.md or the v1 profile, when known. */
+  company: z.object({ name: z.string(), website: z.string() }).nullable(),
+  /** format_version found in config.md, for PositioningHQ wikis. */
+  formatVersion: z.number().nullable().default(null)
 })
 export type Detection = z.infer<typeof DetectionSchema>
 

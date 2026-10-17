@@ -2,6 +2,7 @@ import { dialog } from 'electron'
 import { READABLE_EXTENSIONS } from '@shared/workspace'
 import type { AppContext } from '../context'
 import { addInputs, listInputs, removeInput } from '../workspace/inputs'
+import { writableRoot } from './guard'
 import { HandlerError, type Handle } from './register'
 
 export function registerInputs(handle: Handle, ctx: AppContext): void {
@@ -13,9 +14,12 @@ export function registerInputs(handle: Handle, ctx: AppContext): void {
 
   handle('inputs:list', () => listInputs(root()))
 
-  handle('inputs:add', ({ category, paths }) => addInputs(root(), category, paths))
+  handle('inputs:add', async ({ category, paths }) =>
+    addInputs(await writableRoot(ctx), category, paths)
+  )
 
   handle('inputs:browse', async ({ category }) => {
+    const target = await writableRoot(ctx)
     const win = ctx.getWindow()
     const options = {
       properties: ['openFile', 'multiSelections'] as Array<'openFile' | 'multiSelections'>,
@@ -28,11 +32,12 @@ export function registerInputs(handle: Handle, ctx: AppContext): void {
       ? await dialog.showOpenDialog(win, options)
       : await dialog.showOpenDialog(options)
     if (result.canceled || result.filePaths.length === 0) return { added: [], refused: [] }
-    return addInputs(root(), category, result.filePaths)
+    return addInputs(target, category, result.filePaths)
   })
 
   handle('inputs:remove', async ({ category, name }) => {
-    if (!(await removeInput(root(), category, name))) throw new HandlerError('not_allowed')
+    if (!(await removeInput(await writableRoot(ctx), category, name)))
+      throw new HandlerError('not_allowed')
     return null
   })
 }

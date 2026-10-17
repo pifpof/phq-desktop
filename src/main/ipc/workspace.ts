@@ -1,12 +1,12 @@
 import { dialog, shell } from 'electron'
-import { createLayout } from '../workspace/layout'
 import { detectWorkspace } from '../workspace/detect'
+import { findHub, hubWorkspacePath } from '../wiki/hub'
 import type { AppContext } from '../context'
 import {
   confirmWorkspace,
   defaultWorkspacePath,
   ensureWorkspaceDir,
-  hasMarker
+  isPhqWiki
 } from '../services/workspace'
 import { HandlerError, type Handle } from './register'
 
@@ -21,13 +21,13 @@ export function registerWorkspace(handle: Handle, ctx: AppContext): void {
       : await dialog.showOpenDialog(options)
     const path = result.filePaths[0]
     if (result.canceled || !path) return null
-    return { path, existing: await hasMarker(path) }
+    return { path, existing: await isPhqWiki(path) }
   })
 
   handle('workspace:useDefault', async () => {
     const path = defaultWorkspacePath(ctx.documentsDir)
     if (!(await ensureWorkspaceDir(path))) throw new HandlerError('not_writable')
-    return { path, existing: await hasMarker(path) }
+    return { path, existing: await isPhqWiki(path) }
   })
 
   handle('workspace:confirm', async ({ path }) => {
@@ -35,16 +35,22 @@ export function registerWorkspace(handle: Handle, ctx: AppContext): void {
     if (ctx.research.isActive() && path !== ctx.settings.get().workspacePath)
       throw new HandlerError('research_running')
     const result = await confirmWorkspace(path, ctx.appVersion)
-    if (!result) throw new HandlerError('not_writable')
+    if (!result.ok) throw new HandlerError(result.reason)
     ctx.settings.update({
       workspacePath: path,
       onboardingComplete: ctx.secrets.loadKey() !== null || ctx.settings.get().onboardingComplete
     })
-    // v1: the full folder tree, alongside anything already in the folder. Never overwrites.
-    await createLayout(path)
     ctx.research.reset()
     ctx.watcher.watch(path)
     return { path, existing: result.existing }
+  })
+
+  handle('workspace:useHub', async ({ name }) => {
+    const hub = await findHub()
+    if (!hub) throw new HandlerError('no_hub')
+    const path = hubWorkspacePath(hub, name)
+    if (!(await ensureWorkspaceDir(path))) throw new HandlerError('not_writable')
+    return { path, existing: await isPhqWiki(path) }
   })
 
   handle('workspace:detect', ({ path }) => detectWorkspace(path))

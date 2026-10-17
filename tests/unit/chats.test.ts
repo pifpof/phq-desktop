@@ -1,4 +1,5 @@
-import { mkdtempSync, readdirSync, writeFileSync, mkdirSync } from 'fs'
+import { existsSync, mkdtempSync, readdirSync, writeFileSync, mkdirSync } from 'fs'
+import { stateDir } from '../../src/main/state/app-state'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { describe, expect, it } from 'vitest'
@@ -38,7 +39,8 @@ describe('saved chats', () => {
     expect((await getChat(root, A))?.title).toBe('Renamed')
     await deleteChat(root, A)
     expect((await listChats(root)).map((c) => c.id)).toEqual([B])
-    expect(readdirSync(join(root, '.positioninghq/chats'))).toEqual([`${B}.json`])
+    expect(readdirSync(join(await stateDir(root), 'chats'))).toEqual([`${B}.json`])
+    expect(existsSync(join(root, '.positioninghq'))).toBe(false)
   })
 
   it('refuses IDs that are not chat IDs, so nothing outside the chats folder is touched', async () => {
@@ -50,8 +52,9 @@ describe('saved chats', () => {
 
   it('ignores corrupt chat files', async () => {
     const root = mkdtempSync(join(tmpdir(), 'phq-chats-'))
-    mkdirSync(join(root, '.positioninghq/chats'), { recursive: true })
-    writeFileSync(join(root, '.positioninghq/chats', `${A}.json`), '{nope')
+    const dir = join(await stateDir(root), 'chats')
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(join(dir, `${A}.json`), '{nope')
     expect(await listChats(root)).toEqual([])
   })
 

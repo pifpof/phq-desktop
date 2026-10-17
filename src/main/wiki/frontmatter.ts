@@ -192,3 +192,17 @@ export function addTagInPlace(text: string, tag: string): string | null {
   }
   return lines.join(nl)
 }
+
+/** Sets one scalar key by editing its line only (added before the closing --- if absent). */
+export function setScalarInPlace(text: string, key: string, value: string): string | null {
+  const nl = text.includes('\r\n') ? '\r\n' : '\n'
+  const lines = text.split(/\r?\n/)
+  if (lines[0] !== '---') return null
+  const end = lines.indexOf('---', 1)
+  if (end === -1) return null
+  const next = `${key}: "${cleanScalar(value)}"`
+  const at = lines.findIndex((l, i) => i > 0 && i < end && new RegExp(`^${key}\\s*:`).test(l))
+  if (at === -1) lines.splice(end, 0, next)
+  else lines[at] = next
+  return lines.join(nl)
+}

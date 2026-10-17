@@ -44,5 +44,7 @@ export interface AppState {
   /** Label for the reveal action: "Show in Finder", "Show in Explorer" or "Show in file manager". */
   revealLabel: string
   openResearchLinks: boolean
+  /** What the app may do with the workspace (REQUIREMENTS-v2 2.2). Null without a workspace. */
+  workspaceStatus: 'ok' | 'read-only' | 'needs-migration' | 'other-wiki' | null
   platform: 'mac' | 'other'
 }

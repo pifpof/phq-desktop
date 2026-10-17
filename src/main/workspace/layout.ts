@@ -6,8 +6,6 @@ import { exists } from './fs-util'
 
 /** Folders from REQUIREMENTS-v1 section 5. Compatible with the skill pack's vault. */
 export const LAYOUT_DIRS = [
-  '.positioninghq/runs',
-  '.positioninghq/chats',
   ...INPUT_CATEGORIES.map((c) => `inputs/${c}`),
   'memory/research/website/pages',
   'memory/research/competitors',

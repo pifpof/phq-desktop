@@ -1,6 +1,7 @@
 import { computeRoute } from '../launch'
 import { revealLabel, isMac } from '../platform'
 import { defaultWorkspacePath, isWritableDir } from '../services/workspace'
+import { workspaceStatus } from '../workspace/detect'
 import type { AppState } from '@shared/types'
 import type { AppContext } from '../context'
 import type { Handle } from './register'
@@ -23,6 +24,8 @@ export async function buildState(ctx: AppContext): Promise<AppState> {
     secureStorage: ctx.secrets.isSecureStorageAvailable(),
     revealLabel: revealLabel(),
     openResearchLinks: s.openResearchLinks,
+    workspaceStatus:
+      s.workspacePath && workspaceWritable ? await workspaceStatus(s.workspacePath) : null,
     platform: isMac ? 'mac' : 'other'
   }
 }

@@ -8,6 +8,7 @@ import { PlaybookView } from '@/features/playbook/PlaybookView'
 import { TrainingDataView } from '@/features/training-data/TrainingDataView'
 import { ResearchBanner } from './ResearchBanner'
 import { Sidebar } from './Sidebar'
+import { WorkspaceBanner } from './WorkspaceBanner'
 
 export function HomeShell() {
   const view = useApp((s) => s.homeView)
@@ -48,6 +49,7 @@ export function HomeShell() {
     <div className="flex h-full">
       <Sidebar />
       <main className="flex min-w-0 flex-1 flex-col">
+        <WorkspaceBanner />
         <ResearchBanner />
         <div className="min-h-0 flex-1">
           {view === 'chat' && <ChatView />}

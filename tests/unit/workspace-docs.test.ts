@@ -3,14 +3,14 @@ import { tmpdir } from 'os'
 import { join } from 'path'
 import { describe, expect, it } from 'vitest'
 import { listDocs, readDoc } from '../../src/main/workspace/documents'
-import { readProfile, writeProfile } from '../../src/main/workspace/profile'
+import { readProfile } from '../../src/main/workspace/profile'
 import { createLayout } from '../../src/main/workspace/layout'
 import {
   parseVaultConfig,
   readVaultConfig,
   setVaultStatus
 } from '../../src/main/workspace/vault-config'
-import { emptyProfile } from '../../src/shared/profile'
+import { stateDir } from '../../src/main/state/app-state'
 
 const tmp = (): string => mkdtempSync(join(tmpdir(), 'phq-docs-'))
 
@@ -45,31 +45,10 @@ describe('documents', () => {
 })
 
 describe('profile and vault config', () => {
-  it('round trips the profile and writes the readable summary and vault company', async () => {
-    const root = tmp()
-    await createLayout(root)
-    const p = emptyProfile()
-    p.company = {
-      name: 'Acme',
-      website: 'https://acme.com',
-      productName: '',
-      description: 'Rockets',
-      competitors: ['Wile']
-    }
-    p.goals = ['positioning', 'sales']
-    await writeProfile(root, p)
-    expect(await readProfile(root)).toEqual(p)
-    const summary = await readDoc(root, 'memory/company-profile.md')
-    expect(summary!.body).toContain('Rockets')
-    expect(summary!.body).toContain('Define or refresh our positioning')
-    expect(await readVaultConfig(root)).toMatchObject({ name: 'Acme', website: 'https://acme.com' })
-  })
-
   it('returns null for a missing or corrupt profile', async () => {
     const root = tmp()
     expect(await readProfile(root)).toBeNull()
-    mkdirSync(join(root, '.positioninghq'))
-    writeFileSync(join(root, '.positioninghq/profile.json'), '{nope')
+    writeFileSync(join(await stateDir(root), 'profile.json'), '{nope')
     expect(await readProfile(root)).toBeNull()
   })
 

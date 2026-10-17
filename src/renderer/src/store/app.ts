@@ -151,7 +151,8 @@ export const useApp = create<AppStore>((set, get) => ({
   },
 
   async beginOnboarding(detection) {
-    if (detection.kind === 'phq-complete') return get().endFlow()
+    // A researched wiki, or one from a newer app (read-only), opens straight to Home.
+    if (detection.kind === 'phq-complete' || detection.kind === 'phq-newer') return get().endFlow()
     const existing = await unwrap(api.getProfile())
     if (existing?.onboarding.complete) return get().endFlow()
     const profile = existing ?? emptyProfile()

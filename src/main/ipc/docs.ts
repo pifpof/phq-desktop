@@ -8,6 +8,8 @@ import type { AppContext } from '../context'
 import { listDocs, readDoc } from '../workspace/documents'
 import { exists } from '../workspace/fs-util'
 import { resolveInside } from '../workspace/paths'
+import { stateDir } from '../state/app-state'
+import { writableRoot } from './guard'
 import { HandlerError, type Handle } from './register'
 import { readProfile, writeProfile } from '../workspace/profile'
 
@@ -20,7 +22,7 @@ export function registerDocs(handle: Handle, ctx: AppContext): void {
 
   handle('profile:get', () => readProfile(root()))
   handle('profile:save', async (profile) => {
-    await writeProfile(root(), profile)
+    await writeProfile(await writableRoot(ctx), profile)
     return null
   })
 
@@ -58,12 +60,12 @@ export function registerDocs(handle: Handle, ctx: AppContext): void {
     } catch {
       // no inputs folder
     }
-    return { profile: await newer(join(r, '.positioninghq', 'profile.json')), inputs }
+    return { profile: await newer(join(await stateDir(r), 'profile.json')), inputs }
   })
 
   /** "Paste it": the person's own text for a profile the research could not read. */
   handle('social:setTagline', async ({ network, text }) => {
-    const full = join(root(), 'memory', 'research', 'social-taglines.md')
+    const full = join(await writableRoot(ctx), 'memory', 'research', 'social-taglines.md')
     let raw: string
     try {
       raw = await readFile(full, 'utf8')

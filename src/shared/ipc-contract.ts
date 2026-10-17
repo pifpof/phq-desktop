@@ -47,6 +47,7 @@ export const AppStateSchema = z.object({
   secureStorage: z.boolean(),
   revealLabel: z.string(),
   openResearchLinks: z.boolean(),
+  workspaceStatus: z.enum(['ok', 'read-only', 'needs-migration', 'other-wiki']).nullable(),
   platform: z.enum(['mac', 'other'])
 })
 
@@ -230,6 +231,23 @@ export const channels = {
   'chats:delete': { req: z.object({ id: ChatIdSchema }), res: z.null() },
   'chat:cancel': { req: z.object({ streamId: z.string() }), res: z.null() },
   'wiki:check': { req: z.undefined(), res: CheckReportSchema },
+  'hub:get': {
+    req: z.undefined(),
+    res: z
+      .object({
+        hubPath: z.string(),
+        topicsPath: z.string(),
+        /** The current workspace sits directly inside <hub>/topics/. */
+        insideHub: z.boolean(),
+        registered: z.boolean()
+      })
+      .nullable()
+  },
+  'workspace:useHub': {
+    req: z.object({ name: z.string().trim().min(1).max(80) }),
+    res: WorkspaceInfoSchema
+  },
+  'hub:register': { req: z.undefined(), res: z.null() },
   'wiki:fix': { req: z.undefined(), res: FixReportSchema },
   'secrets:disconnect': { req: z.undefined(), res: z.null() },
   'shell:openExternal': { req: z.object({ url: z.string().max(2048) }), res: z.null() }
@@ -302,6 +320,9 @@ export interface Api {
   renameChat(id: string, title: string): Promise<Result<null>>
   deleteChat(id: string): Promise<Result<null>>
   checkWiki(): Promise<Result<Res<'wiki:check'>>>
+  getHub(): Promise<Result<Res<'hub:get'>>>
+  useHubFolder(name: string): Promise<Result<Res<'workspace:useHub'>>>
+  registerInHub(): Promise<Result<null>>
   fixWiki(): Promise<Result<Res<'wiki:fix'>>>
   disconnect(): Promise<Result<null>>
   openExternal(url: string): Promise<Result<null>>

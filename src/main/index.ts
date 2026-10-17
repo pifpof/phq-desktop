@@ -13,6 +13,7 @@ import { createResearchService } from './research/service'
 import { createChatService } from './services/chat'
 import { createSecretsStore } from './services/secrets'
 import { createSettingsStore } from './services/settings'
+import { initAppState } from './state/app-state'
 import { createWindow, lockDownSession } from './window'
 
 app.setName('PositioningHQ')
@@ -32,6 +33,7 @@ if (!app.requestSingleInstanceLock()) {
     const userData = app.getPath('userData')
     const log = createLogger(app.getPath('logs'))
     const settings = createSettingsStore(userData)
+    initAppState(userData)
     // safeStorage is only touched after ready.
     const secrets = createSecretsStore({
       dir: userData,

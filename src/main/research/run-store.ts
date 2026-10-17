@@ -1,13 +1,16 @@
 import { mkdir, readdir, readFile, rename, writeFile } from 'fs/promises'
 import { join } from 'path'
 import { RunViewSchema, type RunView } from '@shared/research'
+import { stateDir } from '../state/app-state'
 
-const dir = (root: string): string => join(root, '.positioninghq', 'runs')
+/** Run files live in app state, outside the wiki (REQUIREMENTS-v2 2.1). */
+const dir = async (root: string): Promise<string> => join(await stateDir(root), 'runs')
 
-/** Writes .positioninghq/runs/<run_id>.json atomically (temp file, then rename). */
+/** Writes <state>/runs/<run_id>.json atomically (temp file, then rename). */
 export async function saveRun(root: string, run: RunView): Promise<void> {
-  await mkdir(dir(root), { recursive: true })
-  const file = join(dir(root), `${run.id}.json`)
+  const d = await dir(root)
+  await mkdir(d, { recursive: true })
+  const file = join(d, `${run.id}.json`)
   const tmp = `${file}.tmp`
   await writeFile(tmp, JSON.stringify(run, null, 2))
   await rename(tmp, file)
@@ -16,7 +19,7 @@ export async function saveRun(root: string, run: RunView): Promise<void> {
 export async function loadRun(root: string, id: string): Promise<RunView | null> {
   try {
     const parsed = RunViewSchema.safeParse(
-      JSON.parse(await readFile(join(dir(root), `${id}.json`), 'utf8'))
+      JSON.parse(await readFile(join(await dir(root), `${id}.json`), 'utf8'))
     )
     return parsed.success ? parsed.data : null
   } catch {
@@ -28,7 +31,7 @@ export async function loadRun(root: string, id: string): Promise<RunView | null>
 export async function latestRun(root: string): Promise<RunView | null> {
   let names: string[]
   try {
-    names = (await readdir(dir(root))).filter((n) => n.endsWith('.json'))
+    names = (await readdir(await dir(root))).filter((n) => n.endsWith('.json'))
   } catch {
     return null
   }
