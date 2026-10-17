@@ -1,0 +1,2 @@
+# Wiki fixtures are checked byte for byte by llm-wiki lint and golden tests.
+tests/fixtures/

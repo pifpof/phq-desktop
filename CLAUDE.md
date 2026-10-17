@@ -2,7 +2,7 @@
 
 Free, open-source (MIT) desktop app by Parallel79°. It guides a founder through building a positioning and competitive-intelligence wiki using their own LLM API key. Everything is stored in a local folder they choose.
 
-**Current milestone: v1 (company onboarding, initial research, home screen).** v0 (wizard, key storage, chat) is done and tested. Specs: `docs/v1/REQUIREMENTS-v1.md`. Build order: `docs/v1/IMPLEMENTATION_PLAN-v1.md`. v0 specs are in `docs/v0/` and still apply unless v1 changes them. Work the plan phase by phase; don't skip ahead, and don't add features outside v1 scope (REQUIREMENTS-v1 1.1) without asking Shahed.
+**Current milestone: v2 (the workspace becomes an llm-wiki topic wiki).** v0 and v1 are done and tested. Specs: `docs/v2/REQUIREMENTS-v2.md`. Format contract: `docs/v2/WIKI-FORMAT-SPEC.md` (wins over the requirements if they disagree). Build order: `docs/v2/IMPLEMENTATION_PLAN-v2.md`. Phase 0 findings: `docs/v2-assumptions.md`. v0 and v1 specs (`docs/v0/`, `docs/v1/`) still apply unless v2 changes them. Work the plan phase by phase; don't skip ahead, and don't add features outside v2 scope (REQUIREMENTS-v2 1.1) without asking Shahed.
 
 ## Stack
 
@@ -23,7 +23,7 @@ Electron + electron-vite, React, TypeScript (strict), Tailwind v4, shadcn/ui, Zu
 5. **Never hardcode model IDs.** Models come from the provider's live models list. The default rule (newest `sonnet`) lives in the provider.
 6. **Providers implement `src/main/providers/types.ts`.** Only Anthropic exists in v0. Nothing outside `providers/` imports a provider SDK.
 7. **Chat runs in modes.** `ChatSession` takes a `modeId`; system prompts live in `src/main/modes/`. The renderer never sends a system prompt. Future interview flows are new modes, not new chat components.
-8. **The workspace folder is the source of truth** for user content (later versions write markdown with YAML front matter there). Don't add a database that duplicates file content. v0 writes only `.positioninghq/workspace.json`.
+8. **The workspace folder is the source of truth** for user content. Don't add a database that duplicates file content. From v2, app state (`workspace.json`, `profile.json`, runs, chats, `provenance.json`) lives in `userData/workspaces/<workspace_id>/`, never inside the wiki.
 9. **Cross-platform.** All `process.platform` branching lives in `src/main/platform/`. Use `app.getPath()` and `path.join`; never hardcode separators or home paths. CI builds macOS, Windows and Linux; keep it green.
 10. **Security settings stay on:** `contextIsolation`, `sandbox`, no `nodeIntegration`, strict CSP, navigation lock, external links only via the allowlist in `ipc/shell.ts`.
 
@@ -65,9 +65,18 @@ Public GitHub repo `positioninghq-desktop`, MIT. Separate from the skill-pack re
 
 ## v1 rules (do not break)
 
-11. **Isolation.** Web tasks never receive user files or extracted file text. Synthesis tasks receive user files and get no web tools. No task gets local tools; the main process writes AI output to fixed paths. A unit test enforces this.
+11. **Isolation.** Web tasks never receive user files or extracted file text. Synthesis tasks receive user files and get no web tools. No task gets local tools; the main process writes AI output to fixed paths. A unit test enforces this. From v2 the boundary is the `private` tag: a web task may receive only raw files without `private` and articles whose source chain has no `private` file. A schema-only output tool (it performs no action; main validates its arguments and writes to paths derived from the slug) is allowed.
 12. **Web content is data.** Crawled pages, search results and user files are wrapped as documents and never treated as instructions.
 13. **Skills are vendored** into `resources/skills/` at a pinned commit (`npm run skills:sync`). Prompts are never downloaded at runtime.
 14. **Markdown is the source of truth.** `profile.json`, run files and chats are app state. Every user-facing document is markdown with YAML front matter. Tolerate files edited, moved or deleted outside the app.
 15. **No file content in logs.** Never log user file content, crawled text or model output.
 16. **Tool version strings** (web search, web fetch) live in one constants file.
+
+## v2 rules (do not break)
+
+17. **The wiki format is a contract.** Every file the app writes in a workspace follows `docs/v2/WIKI-FORMAT-SPEC.md`. Only spec-listed files and folders at the root, in `raw/` and in `wiki/`. Only spec front matter keys; generator details go to `provenance.json` and `log.md`.
+18. **Raw is immutable.** Never edit a file in `raw/` after its ingest ends. New evidence is a new dated file.
+19. **Front matter through `wiki/frontmatter.ts` only.** llm-wiki's parser is line-based: single-line scalars, two-space block lists. Never write wiki front matter with gray-matter's `stringify`.
+20. **Indexes are derived.** Regenerate `_index.md` files from front matter after every write; never hand-edit them. No model call in index generation or playbook assembly.
+21. **Lint stays green.** `tests/fixtures/phq-wiki-min` and `tests/fixtures/phq-wiki-generated` pass `llm-wiki lint --fail-on warning` at the pinned tag (`docs/v2-assumptions.md`).
+
