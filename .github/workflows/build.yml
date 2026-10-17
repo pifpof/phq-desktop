@@ -41,3 +41,26 @@ jobs:
             dist/*.AppImage
             dist/*.deb
           if-no-files-found: error
+
+  # The official llm-wiki lint, at the pinned tag (scripts/wiki-lint.mjs), on the wiki fixtures.
+  # Also runs the conformance tests with llm-wiki present, so the TypeScript port is compared
+  # with the real tool on every defect fixture.
+  llm-wiki-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: npm ci
+      - name: Lint wiki fixtures
+        env:
+          # The fixtures' verified dates. Without this, hot articles go stale after 30 days.
+          LLM_WIKI_TODAY: '2026-10-17'
+        run: npm run wiki:lint -- tests/fixtures/phq-wiki-min
+      - name: Compare the app's checker with llm-wiki
+        run: npx vitest run tests/unit/conformance.test.ts tests/unit/wiki-format.test.ts

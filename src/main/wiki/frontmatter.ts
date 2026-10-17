@@ -160,3 +160,35 @@ export function stringList(value: unknown): string[] {
 
 export const stringField = (value: unknown): string =>
   typeof value === 'string' ? value : typeof value === 'number' ? String(value) : ''
+
+/**
+ * Adds a tag by editing only the `tags` line(s) of the front matter, so the rest of a file the
+ * founder may have edited stays byte for byte as it was. Returns null if there is no front matter.
+ */
+export function addTagInPlace(text: string, tag: string): string | null {
+  const nl = text.includes('\r\n') ? '\r\n' : '\n'
+  const lines = text.split(/\r?\n/)
+  if (lines[0] !== '---') return null
+  const end = lines.indexOf('---', 1)
+  if (end === -1) return null
+  const at = lines.findIndex((l, i) => i > 0 && i < end && /^tags\s*:/.test(l))
+  if (at === -1) {
+    lines.splice(end, 0, `tags: [${tag}]`)
+    return lines.join(nl)
+  }
+  const value = lines[at].replace(/^tags\s*:/, '').trim()
+  const current = stringList(parseFrontMatter(lines.slice(at, end).join('\n')).tags)
+  if (current.includes(tag)) return text
+  if (value.startsWith('[') && value.endsWith(']')) {
+    const inner = value.slice(1, -1).trim()
+    lines[at] = `tags: [${inner ? `${inner}, ` : ''}${tag}]`
+  } else if (value === '') {
+    let last = at
+    while (last + 1 < end && /^\s+- /.test(lines[last + 1])) last++
+    const indent = /^(\s+)- /.exec(lines[last])?.[1] ?? '  '
+    lines.splice(last + 1, 0, `${indent}- ${tag}`)
+  } else {
+    lines[at] = `tags: [${value}, ${tag}]`
+  }
+  return lines.join(nl)
+}

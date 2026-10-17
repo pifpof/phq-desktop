@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { ErrorCodeSchema, type ErrorCode } from './errors'
 import { ChatIdSchema, ChatRecordSchema, ChatSummarySchema } from './chat'
+import { CheckReportSchema, FixReportSchema } from './conformance'
 import { ProfileSchema } from './profile'
 import { RunViewSchema, type RunView } from './research'
 import {
@@ -228,6 +229,8 @@ export const channels = {
   },
   'chats:delete': { req: z.object({ id: ChatIdSchema }), res: z.null() },
   'chat:cancel': { req: z.object({ streamId: z.string() }), res: z.null() },
+  'wiki:check': { req: z.undefined(), res: CheckReportSchema },
+  'wiki:fix': { req: z.undefined(), res: FixReportSchema },
   'secrets:disconnect': { req: z.undefined(), res: z.null() },
   'shell:openExternal': { req: z.object({ url: z.string().max(2048) }), res: z.null() }
 } as const
@@ -298,6 +301,8 @@ export interface Api {
   saveChat(chat: Req<'chats:save'>): Promise<Result<null>>
   renameChat(id: string, title: string): Promise<Result<null>>
   deleteChat(id: string): Promise<Result<null>>
+  checkWiki(): Promise<Result<Res<'wiki:check'>>>
+  fixWiki(): Promise<Result<Res<'wiki:fix'>>>
   disconnect(): Promise<Result<null>>
   openExternal(url: string): Promise<Result<null>>
   onChatEvent(cb: (e: ChatEnvelope) => void): () => void
