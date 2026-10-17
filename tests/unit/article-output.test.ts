@@ -129,6 +129,18 @@ describe('article validation', () => {
       '[[market-position-summary|the summary]] ([the summary](market-position-summary.md))'
     )
     expect(body).toContain('and future-article and market.')
+    // A bare slug naming an existing article is a link too.
+    const bare = validateOutput(
+      {
+        articles: [
+          icp({ body: '## X\n\nSee the [summary](market-position-summary) and [x](no-such).' })
+        ]
+      },
+      ctx()
+    )
+    expect(parseDoc(text(bare))!.body).toContain(
+      '[[market-position-summary|summary]] ([summary](market-position-summary.md)) and [x](no-such).'
+    )
     expect(body).toContain(
       '## See Also\n\n- [[company-profile|Company Profile]] ([Company Profile](../references/company-profile.md)) - the facts'
     )

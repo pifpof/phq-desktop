@@ -24,7 +24,9 @@ const CURRENT = 'current'
 const versionOf = (d: { path: string }): number => Number(/-v(\d+)-/.exec(d.path)?.[1] ?? 0)
 
 const generated = (fm: Record<string, unknown>): string => {
-  const t = typeof fm.created === 'string' ? Date.parse(fm.created) : NaN
+  // A bare date is a calendar day in the founder's time zone, not midnight UTC.
+  const raw = typeof fm.created === 'string' ? fm.created : ''
+  const t = Date.parse(/^\d{4}-\d{2}-\d{2}$/.test(raw) ? `${raw}T00:00:00` : raw)
   return Number.isNaN(t)
     ? ''
     : new Date(t).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })

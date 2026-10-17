@@ -471,6 +471,17 @@ describe('research service: the full pipeline', () => {
     expect(positioningCall.text).toContain('We sell rockets to coyotes.')
     expect(positioningCall.web).toBe(false)
     const statement = f.calls.find((c) => /^Write the wiki articles for Section 5/.test(c.id))!
+    // Tasks shown the competitor profiles see every competitor's article.
+    for (const prefix of [
+      'Write the competitive analysis',
+      'Write the wiki articles for Section 6'
+    ]) {
+      const c = f.calls.find((x) => x.id.startsWith(prefix))!
+      expect(c.text, prefix).toContain('<document path="wiki/references/competitor-wile-co.md">')
+      expect(c.text, prefix).toContain(
+        '<document path="wiki/references/competitor-road-runner-inc.md">'
+      )
+    }
     // Article inputs are shown by their wiki paths.
     expect(statement.text).toContain('<document path="wiki/concepts/value-drivers.md">')
     expect(statement).toBeTruthy()

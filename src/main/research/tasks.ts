@@ -16,8 +16,13 @@ const search = (
 const FETCH = { maxUses: 3, maxContentTokens: 20_000 }
 
 /** Where an article or output task leaves the list of what it wrote (in the run's drafts). */
-export const receipt = (id: string): string =>
-  `memory/receipts/${id.replace(/[^a-z0-9-]+/gi, '-')}.md`
+export const receipt = (id: string): string => {
+  const safe = (x: string): string => x.replace(/[^a-z0-9-]+/gi, '-')
+  // A fan-out child ("competitor-profiles:acme") goes inside its group's folder, which is the
+  // group's output: tasks shown the group read every child's articles.
+  const [group, child] = id.split(':')
+  return child ? `memory/receipts/${safe(group)}/${safe(child)}.md` : `memory/receipts/${safe(id)}.md`
+}
 
 /** An AI task that writes wiki articles (REQUIREMENTS-v2 3.3). */
 const articles = (

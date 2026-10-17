@@ -256,8 +256,12 @@ export function normalizeLinks(
     /(?<![!\]])\[([^\]\n]+)\]\((<[^>\n]+>|[^)\s]+)\)/g,
     (m, text: string, dest: string) => {
       const d = dest.replace(/^<|>$/g, '')
-      if (/^[a-z][a-z0-9+.-]*:/i.test(d) || d.startsWith('#') || !d.endsWith('.md')) return m
-      return make(d.split('/').pop()!.replace(/\.md$/, ''), text)
+      if (/^[a-z][a-z0-9+.-]*:/i.test(d) || d.startsWith('#')) return m
+      const last = d.split('/').pop()!
+      // "x.md", or a bare slug ("competitor-acme") that names an article in the wiki.
+      if (last.endsWith('.md')) return make(last.replace(/\.md$/, ''), text)
+      if (!last.includes('.') && articles.has(last)) return make(last, text)
+      return m
     }
   )
   out = out.replace(/\[\[([^\]|]+)(?:\|([^\]]*))?\]\]/g, (_m, slug: string, title?: string) =>
