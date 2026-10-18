@@ -254,6 +254,38 @@ summary: "Founder chose forecast accuracy as the lead value driver; time saved b
 
 Body: **What was decided**, **Why** (in the founder's words where possible), **What it affects** (dual links to the articles it changes). Generators must read all decision articles before regenerating anything they affect, and must not contradict them.
 
+**Changes (addition, PositioningHQ Desktop v3.1; format version unchanged).** A decision article can record a change the founder asked for, with a status. New ones are titled `Change: <short name>` and use this body:
+
+```markdown
+# Change: <short name>
+
+> <one-line summary>
+
+**Status:** Pending | Applied 2026-10-18 to [[positioning-statement|Positioning Statement]] (...) | Withdrawn 2026-10-18 | Replaced 2026-10-18 by [[decision-...|Change: ...]] (...)
+
+## What to change
+Page: [[slug|Title]] (...)
+Section: <an H2 of the page, or The whole page>
+> <quoted text, if given>
+
+## Why
+<founder's words>
+
+## Change it to
+<founder's words>
+
+## Based on
+- [Source title](../../raw/notes/2026-10-18-pricing-call-notes.md)
+
+## Affects
+- [[value-drivers|Value Drivers]] ([Value Drivers](../concepts/value-drivers.md))
+```
+
+- `sources` lists the Based on raw files (`compiled-from: mixed`); a change with no evidence uses `compiled-from: conversation`. A change citing a `private` file is tagged `private`.
+- Existing `Decision:` articles (no Status line) stay valid and count as applied.
+- Generators must respect `Applied` changes and legacy decisions; apply `Pending` ones only when a regeneration includes them; ignore `Withdrawn` and `Replaced` ones.
+- `log.md` gains two operations: `change` (requested, edited, withdrawn, applied, replaced) and `regenerate` (a page regenerated, and how many changes it applied).
+
 ### 6.5 Multiple products
 
 v1 of the format assumes one product. When a company has several, product-specific articles take a product suffix (`product-overview-<product>`, `value-driver-<product>-<x>`) and `schema.md` lists the products. Company-wide articles (company overview, competitors) stay unsuffixed.
@@ -338,6 +370,8 @@ Append-only, llm-wiki format:
 ## [2026-10-17] compile | research run r-01 (desktop app 0.2.0, claude-sonnet-...) -> 21 articles
 ## [2026-10-17] output | positioning playbook v1 -> output/positioning-playbook-v1-2026-10-17.md
 ## [2026-10-20] decision | lead with forecast accuracy (wiki/references/decision-2026-10-20-forecast-accuracy.md)
+## [2026-10-21] change | requested: Lead with heads of sales (Ideal Customer Profile)
+## [2026-10-21] regenerate | Ideal Customer Profile applying 1 change
 ```
 
 ## 12. Conformance

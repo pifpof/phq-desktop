@@ -86,3 +86,9 @@ Public GitHub repo `phq-desktop`, MIT. Separate from the skill-pack repo `github
 
 22. **The Wiki pane's trees are built in main** (`wiki/tree.ts`, `wiki/sources-tree.ts`) from front matter, file times and provenance, with no model call. The renderer never reads wiki files to draw the tree. Placement, labels, help text and "out of date" inputs live in the article map, not in components.
 23. **Expand state is app state** (`wiki-nav.json` in the workspace's app-state folder), never the wiki. Section headings start collapsed; searching never changes the saved state.
+
+## v3.1 rules (do not break)
+
+24. **Changes are decision articles with a Status line** (`wiki/changes.ts`, spec 6.4 addition). The UI always says "change". Normal runs and chat respect only Applied changes and v2 decisions; Pending ones apply only when a regeneration includes them.
+25. **Nothing regenerates without the preview.** A page's Regenerate opens the preview, which only reads (no model call, no cost) until Start.
+26. **A regeneration writes to staging, never the wiki,** until the founder keeps it. Its run is never resumed after a restart. Private evidence never goes to a web call (no web refresh with it).

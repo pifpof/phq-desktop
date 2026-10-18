@@ -75,7 +75,7 @@ export function regenWarnings(plan: RegenPlan, included: Change[]): RegenWarning
     if (list.length > 1 && new Set(list.map((c) => c.changeTo.trim())).size > 1)
       out.push({
         kind: 'sameSection',
-        text: `These ${list.length === 2 ? 'two' : list.length} changes all rewrite ${section}: ${list.map((c) => `"${c.name}"`).join(' and ')}. The newer one wins unless you edit them.`
+        text: `These ${list.length === 2 ? 'two changes both' : `${list.length} changes all`} rewrite ${section}: ${list.map((c) => `"${c.name}"`).join(' and ')}. The newer one wins unless you edit them.`
       })
   for (const c of included) {
     if (!c.section) continue
@@ -129,7 +129,12 @@ export type RegenJob = z.infer<typeof RegenJobSchema>
 export const RegenReviewSchema = z.object({
   job: RegenJobSchema,
   files: z.array(
-    z.object({ rel: z.string(), title: z.string(), before: z.string().nullable(), after: z.string() })
+    z.object({
+      rel: z.string(),
+      title: z.string(),
+      before: z.string().nullable(),
+      after: z.string()
+    })
   )
 })
 export type RegenReview = z.infer<typeof RegenReviewSchema>
