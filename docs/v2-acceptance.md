@@ -35,7 +35,7 @@ A fresh research run for Parallel79 (https://www.parallel79.com) with one privat
 | 12 | A forced failure mid-conversion restores the workspace from backup | **Pass (test)** | `migrate.test.ts`: failure injected while splitting the playbook; the folder's contents hash identical afterwards and it is detected as v1 again. Interrupted conversions are restored at the next start. |
 | 13 | A wiki made by the updated skill pack opens without conversion and passes the check | **Pending (skill pack)** | The skill-pack change is not done yet. With the hand-written spec fixture: opens without conversion, passes the check, profile rebuilt from its company profile article (`workspace.test.ts`). |
 | 14 | Single-file export excludes private articles by default | **Pass** | 17 articles exported, all 10 private ones left out. |
-| 15 | No em dashes in UI strings or generated files; CI green on all three platforms including the lint job | **Partly verified** | No em dashes in `src/` UI strings or in any generated file. CI has not run: the repo is not on GitHub yet. Locally: typecheck, lint, 313 unit tests and the official lint on both fixtures pass. |
+| 15 | No em dashes in UI strings or generated files; CI green on all three platforms including the lint job | **Pass** | No em dashes in `src/` UI strings or in any generated file. CI green on macOS, Windows and Linux plus the llm-wiki lint job (github.com/pifpof/phq-desktop, run 39132798888, commit 84dccd0). The first runs found a too-small app icon, implicit publishing in electron-builder, and CRLF checkouts on Windows; all fixed. |
 
 ## Problems the live runs found and fixed
 
@@ -55,5 +55,4 @@ About $4.70 in all: $2.69 on the first Sonnet run (stopped by the forced-tool pr
 1. Real Claude Code plugin check for criterion 9 (Shahed).
 2. A non-Anthropic model for criterion 10 (open item 4).
 3. The skill-pack change (`PLUGIN-WIKI-MIGRATION.md`) for criterion 13.
-4. CI on GitHub for criterion 15.
-5. From v1, still open: real sign-up and community URLs (`src/shared/links.ts`).
+4. From v1, still open: real sign-up and community URLs (`src/shared/links.ts`).
