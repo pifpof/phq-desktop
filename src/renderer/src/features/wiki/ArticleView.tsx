@@ -5,9 +5,11 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Markdown } from '@/components/Markdown'
 import { api, unwrap } from '@/lib/api'
+import { cn } from '@/lib/utils'
 import { isActive } from '@/lib/research'
 import { useApp } from '@/store/app'
 import { useResearch } from '@/store/research'
+import { regenerating, useRegen } from '@/store/regen'
 import { DocHeader, FileActions } from '@/features/documents/DocParts'
 import { MakeChangeDialog } from '@/features/changes/MakeChangeDialog'
 import { PendingBanner } from '@/features/changes/PendingBanner'
@@ -47,6 +49,7 @@ export function useArticle(path: string): {
 export function ArticleView({ path }: { path: string }) {
   const { detail } = useArticle(path)
   const run = useResearch((s) => s.run)
+  const job = useRegen((s) => s.job)
   // The section the change dialog opens on: '' for the whole page, null when closed.
   const [changing, setChanging] = useState<string | null>(null)
   const sectionAction = useMemo(
@@ -63,6 +66,7 @@ export function ArticleView({ path }: { path: string }) {
       </div>
     )
   const a = detail.article
+  const busy = regenerating(job, isActive(run), a.slug, detail.taskId)
   const confidence = a.confidence
     ? `${a.confidence[0].toUpperCase()}${a.confidence.slice(1)} confidence`
     : null
@@ -99,11 +103,19 @@ export function ArticleView({ path }: { path: string }) {
             variant="ghost"
             size="sm"
             disabled={isActive(run)}
-            title={isActive(run) ? 'Research is running' : 'See what would change, then regenerate'}
+            aria-busy={busy}
+            className={cn(busy && 'disabled:opacity-100')}
+            title={
+              busy
+                ? 'Regenerating this page. You can keep working.'
+                : isActive(run)
+                  ? 'Research is running'
+                  : 'See what would change, then regenerate'
+            }
             onClick={() => useApp.getState().openRegenerate(a.slug)}
           >
-            <RefreshCw strokeWidth={1.8} />
-            Regenerate
+            <RefreshCw className={cn(busy && 'animate-spin')} strokeWidth={1.8} />
+            {busy ? 'Regenerating...' : 'Regenerate'}
           </Button>
         )}
         {!a.slug.startsWith('decision-') && (

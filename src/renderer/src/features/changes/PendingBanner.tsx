@@ -1,16 +1,22 @@
 import { useMemo, useState } from 'react'
-import { ChevronDown, PencilLine } from 'lucide-react'
+import { ChevronDown, PencilLine, RefreshCw } from 'lucide-react'
 import type { Change } from '@shared/changes'
 import { Button } from '@/components/ui/button'
 import { api, ApiError, unwrap } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { useApp } from '@/store/app'
 import { useChanges, waitingFor } from '@/store/changes'
+import { isActive } from '@/lib/research'
+import { regenerating, useRegen } from '@/store/regen'
+import { useResearch } from '@/store/research'
 import { MakeChangeDialog } from './MakeChangeDialog'
 
 /** "2 changes waiting" under a page's header (REQUIREMENTS-v3.1 3.5). */
 export function PendingBanner({ page }: { page: string }) {
   const all = useChanges((s) => s.changes)
+  const runActive = useResearch((s) => isActive(s.run))
+  const job = useRegen((s) => s.job)
+  const busy = regenerating(job, runActive, page)
   const changes = useMemo(() => waitingFor(all, page), [all, page])
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<Change | null>(null)
@@ -46,8 +52,15 @@ export function PendingBanner({ page }: { page: string }) {
             strokeWidth={1.8}
           />
         </Button>
-        <Button size="sm" onClick={() => useApp.getState().openRegenerate(page)}>
-          Review and regenerate
+        <Button
+          size="sm"
+          disabled={runActive}
+          aria-busy={busy}
+          className={cn(busy && 'disabled:opacity-100')}
+          onClick={() => useApp.getState().openRegenerate(page)}
+        >
+          {busy && <RefreshCw className="animate-spin" strokeWidth={1.8} />}
+          {busy ? 'Regenerating...' : 'Review and regenerate'}
         </Button>
       </div>
       {open && (

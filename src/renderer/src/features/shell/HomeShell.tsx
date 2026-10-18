@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { useApp } from '@/store/app'
 import { useChanges } from '@/store/changes'
 import { useDocs } from '@/store/docs'
+import { useRegen } from '@/store/regen'
 import { useResearch } from '@/store/research'
 import { ChatView } from '@/features/chat/ChatView'
 import { MessagingView } from '@/features/messaging/MessagingView'
@@ -31,6 +32,8 @@ export function HomeShell() {
   }, [])
   useEffect(() => {
     void useDocs.getState().refresh()
+    // Which page is regenerating, if any (its Regenerate button spins).
+    void useRegen.getState().load()
   }, [runStatus])
 
   // Changes (REQUIREMENTS-v3.1 3.5): the waiting count shows everywhere, so keep them loaded.
