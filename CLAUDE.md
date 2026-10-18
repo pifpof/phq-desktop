@@ -31,10 +31,10 @@ Electron + electron-vite, React, TypeScript (strict), Tailwind v4, shadcn/ui, Zu
 
 Match parallel79.com exactly. Source of truth, read these rather than guessing:
 
-- Tokens and base type: `/Users/shahedkhalili/src/parallel79.com/p79/src/styles/globals.css`
-- Button variants: `/Users/shahedkhalili/src/parallel79.com/p79/src/components/ui/button.tsx`
-- Fonts: `/Users/shahedkhalili/src/parallel79.com/p79/src/fonts/` (copied into `src/renderer/src/assets/fonts/`)
-- Spec and rationale: `/Users/shahedkhalili/src/parallel79.com/change-order-006-theme-and-typography.md`
+- Tokens and base type: `../parallel79.com/p79/src/styles/globals.css`
+- Button variants: `../parallel79.com/p79/src/components/ui/button.tsx`
+- Fonts: `../parallel79.com/p79/src/fonts/` (copied into `src/renderer/src/assets/fonts/`)
+- Spec and rationale: `../parallel79.com/change-order-006-theme-and-typography.md`
 
 Rules:
 
@@ -61,7 +61,7 @@ Rules:
 
 ## Repo
 
-Public GitHub repo `positioninghq-desktop`, MIT. Separate from the skill-pack repo `github.com/pifpof/positioningHQ`, which later supplies the positioning framework and templates.
+Public GitHub repo `phq-desktop`, MIT. Separate from the skill-pack repo `github.com/pifpof/positioningHQ`, which later supplies the positioning framework and templates.
 
 ## v1 rules (do not break)
 

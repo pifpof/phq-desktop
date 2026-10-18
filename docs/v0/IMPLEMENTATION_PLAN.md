@@ -34,7 +34,7 @@ Use the latest stable versions at install time. Don't pin to versions from memor
 ## Repo structure
 
 ```
-positioninghq-desktop/
+phq-desktop/
 ├── CLAUDE.md
 ├── README.md
 ├── LICENSE                        MIT, copyright Parallel79°
@@ -107,7 +107,7 @@ positioninghq-desktop/
 
 ## Phase 0: Repo and scaffold (Sat morning, about 1 hour)
 
-1. Create the GitHub repo `positioninghq-desktop` (public, MIT). Clone it.
+1. Create the GitHub repo `phq-desktop` (public, MIT). Clone it.
 2. Scaffold with the electron-vite React + TypeScript template (`npm create @quick-start/electron@latest`, choose React and TypeScript), into the repo root.
 3. Rearrange to match the structure above. Add `src/shared/`.
 4. Add `.nvmrc` (current Node LTS), `LICENSE`, a short `README.md` (what it is, `npm install`, `npm run dev`).
@@ -139,10 +139,10 @@ positioninghq-desktop/
 
 1. Install Tailwind v4 (`tailwindcss`, `@tailwindcss/vite`), `tw-animate-css`, `@fontsource-variable/inter`, `class-variance-authority`, `clsx`, `tailwind-merge`, `lucide-react`.
 2. Run `npx shadcn@latest init` for the renderer (new-york style, neutral base, CSS variables, lucide). Point it at `src/renderer/src/styles/globals.css`.
-3. Replace the generated tokens with the `:root` and `@theme inline` blocks from `/Users/shahedkhalili/src/parallel79.com/p79/src/styles/globals.css`. Delete `.dark`. Copy the `@layer base` heading rules and the `eyebrow`, `lede`, `numeral`, `h3-list` utilities. Do not copy the `container` utility or the smooth-scroll rules.
-4. Copy `dejavu-serif-400.woff2`, `dejavu-serif-700.woff2` and `LICENSE-DejaVu.txt` from `/Users/shahedkhalili/src/parallel79.com/p79/src/fonts/` into `src/renderer/src/assets/fonts/`. Add `@font-face` rules for `"DejaVu Serif"` (400 and 700, `font-display: swap`) and set `--font-dejavu-serif: "DejaVu Serif";` in `:root`. Import `@fontsource-variable/inter` in `main.tsx`.
+3. Replace the generated tokens with the `:root` and `@theme inline` blocks from `../parallel79.com/p79/src/styles/globals.css`. Delete `.dark`. Copy the `@layer base` heading rules and the `eyebrow`, `lede`, `numeral`, `h3-list` utilities. Do not copy the `container` utility or the smooth-scroll rules.
+4. Copy `dejavu-serif-400.woff2`, `dejavu-serif-700.woff2` and `LICENSE-DejaVu.txt` from `../parallel79.com/p79/src/fonts/` into `src/renderer/src/assets/fonts/`. Add `@font-face` rules for `"DejaVu Serif"` (400 and 700, `font-display: swap`) and set `--font-dejavu-serif: "DejaVu Serif";` in `:root`. Import `@fontsource-variable/inter` in `main.tsx`.
 5. Override heading sizes for the app (REQUIREMENTS 6.2): replace the `clamp()` values with fixed app sizes.
-6. Copy `/Users/shahedkhalili/src/parallel79.com/p79/src/components/ui/button.tsx` into `components/ui/`. Add shadcn Input, Textarea, Label, Select, Dialog, Sheet, Badge, Tooltip, Separator, ScrollArea and restyle to REQUIREMENTS 6.3 (10px input radius, 16px dialog radius with `--shadow-menu`, pill badges).
+6. Copy `../parallel79.com/p79/src/components/ui/button.tsx` into `components/ui/`. Add shadcn Input, Textarea, Label, Select, Dialog, Sheet, Badge, Tooltip, Separator, ScrollArea and restyle to REQUIREMENTS 6.3 (10px input radius, 16px dialog radius with `--shadow-menu`, pill badges).
 7. Build small shared components: `Wordmark`, `DragRegion` (macOS only, 28px, `-webkit-app-region: drag`; interactive children set `no-drag`), `NumberedStep`.
 8. Temporary `DesignCheck` screen rendering headings, lede, eyebrow, every button variant, input, badge, card and numbered steps. Remove it at the end of the phase.
 

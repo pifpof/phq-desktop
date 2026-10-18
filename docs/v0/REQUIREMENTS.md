@@ -275,7 +275,7 @@ Only one instance runs at a time. Opening the app again focuses the existing win
 
 ## 6. Design system: Parallel79° theme
 
-**Source of truth:** `/Users/shahedkhalili/src/parallel79.com/p79/src/styles/globals.css` (tokens, base type, utilities) and `.../p79/src/components/ui/button.tsx` (button variants). Design spec: `/Users/shahedkhalili/src/parallel79.com/change-order-006-theme-and-typography.md`. Copy tokens from these files rather than retyping them. If anything in this section disagrees with `globals.css`, `globals.css` wins.
+**Source of truth:** `../parallel79.com/p79/src/styles/globals.css` (tokens, base type, utilities) and `.../p79/src/components/ui/button.tsx` (button variants). Design spec: `../parallel79.com/change-order-006-theme-and-typography.md`. Copy tokens from these files rather than retyping them. If anything in this section disagrees with `globals.css`, `globals.css` wins.
 
 The site is a Next.js marketing site; the app is a desktop tool. Keep the tokens, type and component shapes identical. Adapt layout to an app (no marketing hero, no floating nav bar, denser chat surfaces).
 
@@ -307,7 +307,7 @@ Light only. Delete any `.dark` block the shadcn installer adds.
 
 | Role                         | Font                         | Notes                                                                                                                                                                                                                                                                       |
 | ---------------------------- | ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Headings, wordmark, numerals | **DejaVu Serif** 400 and 700 | Copy `dejavu-serif-400.woff2`, `dejavu-serif-700.woff2` and `LICENSE-DejaVu.txt` from `/Users/shahedkhalili/src/parallel79.com/p79/src/fonts/`. Load with `@font-face` (no `next/font` in Electron). Set `--font-dejavu-serif` so the copied `--font-serif` token resolves. |
+| Headings, wordmark, numerals | **DejaVu Serif** 400 and 700 | Copy `dejavu-serif-400.woff2`, `dejavu-serif-700.woff2` and `LICENSE-DejaVu.txt` from `../parallel79.com/p79/src/fonts/`. Load with `@font-face` (no `next/font` in Electron). Set `--font-dejavu-serif` so the copied `--font-serif` token resolves. |
 | Body, UI, buttons, labels    | **Inter Variable**           | `@fontsource-variable/inter`, bundled. No Google Fonts requests.                                                                                                                                                                                                            |
 | Code blocks in chat          | System mono stack            | `ui-monospace, SFMono-Regular, Menlo, monospace`                                                                                                                                                                                                                            |
 
@@ -396,7 +396,7 @@ v0 is tested on macOS only, but must not block Windows and Linux.
 | Streaming | First token renders as soon as it arrives; no batching delay over 50ms                                                                                                |
 | Memory    | Idle under 300 MB                                                                                                                                                     |
 | Offline   | App opens and shows the chat with a clear "can't reach Anthropic" error on send; no crash                                                                             |
-| Repo      | Public GitHub repo `positioninghq-desktop` (separate from the existing skill-pack repo `pifpof/positioningHQ`), MIT licence, README with install and dev instructions |
+| Repo      | Public GitHub repo `phq-desktop` (separate from the existing skill-pack repo `pifpof/positioningHQ`), MIT licence, README with install and dev instructions |
 | App ID    | `com.parallel79.positioninghq`; product name "PositioningHQ"                                                                                                          |
 
 ---
@@ -440,7 +440,7 @@ v0 is done when every item passes on Shahed's Mac:
 
 | #   | Item                                                                                             | Needed before          |
 | --- | ------------------------------------------------------------------------------------------------ | ---------------------- |
-| 1   | Create the public GitHub repo `positioninghq-desktop` (or confirm the name and org)              | Day 1                  |
+| 1   | Create the public GitHub repo `phq-desktop` (or confirm the name and org)              | Day 1                  |
 | 2   | App icon (1024 x 1024 PNG). v0 can ship with a placeholder: the "P" in DejaVu Serif 700 on teal. | Optional for v0        |
 | 3   | Apple Developer account ($99/year) for signing and notarization                                  | First outside download |
 | 4   | Windows code signing (Azure Trusted Signing or a certificate)                                    | First Windows download |

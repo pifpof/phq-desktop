@@ -119,6 +119,22 @@ describe('conformance check', () => {
     expect(report.ok).toBe(true)
   })
 
+  it('reads files saved with Windows line endings as llm-wiki does', async () => {
+    const root = await copyOf(PHQ_MIN)
+    const walk = async (dir: string): Promise<void> => {
+      for (const e of await readdir(dir, { withFileTypes: true })) {
+        const p = join(dir, e.name)
+        if (e.isDirectory()) await walk(p)
+        else if (e.name.endsWith('.md'))
+          await writeFile(p, (await readFile(p, 'utf8')).replace(/\n/g, '\r\n'))
+      }
+    }
+    await walk(root)
+    expect((await checkWiki(root, PHQ_DAY)).findings).toEqual([])
+    const o = official(root, PHQ_DAY)
+    if (o) expect(o).toEqual([])
+  })
+
   it('passes the wiki the pipeline generates (fake provider), with only coverage suggestions', async () => {
     const report = await checkWiki(resolve(__dirname, '../fixtures/phq-wiki-generated'), PHQ_DAY)
     expect(report.findings.filter((f) => f.severity !== 'suggestion')).toEqual([])

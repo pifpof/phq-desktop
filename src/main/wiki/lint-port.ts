@@ -277,7 +277,8 @@ async function readDocument(ctx: Ctx, path: string): Promise<LintDoc | null> {
   let text: string
   try {
     const buf = await readFile(path)
-    text = new TextDecoder('utf-8', { fatal: true }).decode(buf)
+    // Python's read_text uses universal newlines, so CRLF and CR files read as LF.
+    text = new TextDecoder('utf-8', { fatal: true }).decode(buf).replace(/\r\n?/g, '\n')
   } catch (err) {
     ctx.issue(
       'critical',
@@ -672,7 +673,7 @@ async function checkIndexConsistency(ctx: Ctx): Promise<void> {
     const index = join(dir, '_index.md')
     let text: string
     try {
-      text = await readFile(index, 'utf8')
+      text = (await readFile(index, 'utf8')).replace(/\r\n?/g, '\n')
     } catch {
       continue
     }

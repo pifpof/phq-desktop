@@ -17,7 +17,7 @@ import { useChat } from '@/store/chat'
 import { useResearch } from '@/store/research'
 import { isActive } from '@/lib/research'
 
-const REPO_URL = 'https://github.com/parallel79/positioninghq-desktop'
+const REPO_URL = 'https://github.com/pifpof/phq-desktop'
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
