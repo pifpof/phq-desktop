@@ -39,6 +39,28 @@ const SLACK_MS = 5_000
 
 const day = (v: unknown): string => stringField(v).slice(0, 10)
 
+/**
+ * A change's status from its Status line (REQUIREMENTS-v3.1 6). v2 decisions have none and count
+ * as applied on the day they were made.
+ */
+export function changeState(f: WikiFile): {
+  status: 'pending' | 'applied' | 'withdrawn' | 'replaced'
+  day: string
+  page: string | null
+} {
+  const m =
+    /^\*\*Status:\*\*\s*(Pending|Applied|Withdrawn|Replaced)\b\s*(\d{4}-\d{2}-\d{2})?/m.exec(f.body)
+  const created = day(f.data?.created) || f.name.slice(9, 19)
+  const pageLine = /^Page:.*$/m.exec(f.body)?.[0] ?? ''
+  const page = pageLine ? (linkedSlugs(f.rel, pageLine)[0] ?? null) : null
+  if (!m) return { status: 'applied', day: created, page }
+  return {
+    status: m[1].toLowerCase() as 'pending' | 'applied' | 'withdrawn' | 'replaced',
+    day: m[2] ?? created,
+    page
+  }
+}
+
 /** Competitor profiles run as one task per competitor; the group re-runs together. */
 export const taskForSlug = (spec: ArticleSpec | null, slug: string): string | null => {
   if (!spec || spec.task === 'app') return null
@@ -79,8 +101,10 @@ interface Ctx {
   generated: Record<string, Generated>
   /** The last write of each run: files changed before it were part of that run. */
   runEnd: Map<string, number>
-  /** Decision files linking to each slug. */
-  decisionsFor: Map<string, WikiFile[]>
+  /** Applied changes (and v2 decisions) linking to each slug, with the day they took effect. */
+  decisionsFor: Map<string, { file: WikiFile; day: string }[]>
+  /** Waiting changes made on each page. */
+  pendingFor: Map<string, number>
 }
 
 /** An article's sources, first-party first, newest first; missing files flagged. */
@@ -168,8 +192,7 @@ function outOfDateReason(ctx: Ctx, f: WikiFile, spec: ArticleSpec | null): strin
     if (r && newerFile(r, day(r.data?.ingested))) return 'Out of date: a source is newer'
   }
   for (const d of ctx.decisionsFor.get(f.name) ?? []) {
-    if (newerFile(d, day(d.data?.created) || day(d.data?.updated)))
-      return 'Out of date: a decision was recorded since'
+    if (newerFile(d.file, d.day)) return 'Out of date: a change was applied since'
   }
   for (const dep of spec?.dependsOn ?? []) {
     const deps = dep.endsWith('*')
@@ -198,8 +221,14 @@ function articleNode(ctx: Ctx, f: WikiFile): TreeNode {
   if (stale) markers.push({ kind: 'outOfDate', text: stale })
   if (stringField(f.data?.confidence) === 'low')
     markers.push({ kind: 'lowConfidence', text: lowConfidenceText(info) })
+  const waiting = ctx.pendingFor.get(f.name) ?? 0
+  if (waiting)
+    markers.push({
+      kind: 'pendingChange',
+      text: `${waiting} ${waiting === 1 ? 'change' : 'changes'} waiting`
+    })
   if ((ctx.decisionsFor.get(f.name) ?? []).length)
-    markers.push({ kind: 'decision', text: 'A decision applies to this article' })
+    markers.push({ kind: 'decision', text: 'An earlier change applies to this article' })
   if (stringList(f.data?.tags).includes('private'))
     markers.push({ kind: 'private', text: 'Private: built from your own files' })
   return {
@@ -281,12 +310,19 @@ export function buildArticleTree(input: TreeInput): WikiTree {
   const articles = input.files.filter((f) => f.kind === 'article' && f.dir !== 'wiki/theses')
   const bySlug = new Map<string, WikiFile>()
   for (const a of articles) if (!bySlug.has(a.name)) bySlug.set(a.name, a)
-  const decisionsFor = new Map<string, WikiFile[]>()
+  const decisionsFor = new Map<string, { file: WikiFile; day: string }[]>()
+  const pendingFor = new Map<string, number>()
   for (const a of bySlug.values()) {
     if (specFor(a.name)?.slug !== 'decision-') continue
+    const state = changeState(a)
+    if (state.status === 'pending') {
+      if (state.page) pendingFor.set(state.page, (pendingFor.get(state.page) ?? 0) + 1)
+      continue
+    }
+    if (state.status !== 'applied') continue
     for (const s of linkedSlugs(a.rel, a.body)) {
-      if (s === a.name) continue
-      decisionsFor.set(s, [...(decisionsFor.get(s) ?? []), a])
+      if (s === a.name || s.startsWith('decision-')) continue
+      decisionsFor.set(s, [...(decisionsFor.get(s) ?? []), { file: a, day: state.day }])
     }
   }
   const runEnd = new Map<string, number>()
@@ -297,7 +333,8 @@ export function buildArticleTree(input: TreeInput): WikiTree {
     bySlug,
     generated: input.generated,
     runEnd,
-    decisionsFor
+    decisionsFor,
+    pendingFor
   }
 
   // Children of patterns, by their spec.
@@ -305,6 +342,8 @@ export function buildArticleTree(input: TreeInput): WikiTree {
   const other: WikiFile[] = []
   for (const a of bySlug.values()) {
     const spec = specFor(a.name)
+    // Changes live in the Changes tab, not the article tree (REQUIREMENTS-v3.1 3.6).
+    if (spec?.slug === 'decision-') continue
     if (!spec) other.push(a)
     else if (spec.pattern) byPattern.set(spec.slug, [...(byPattern.get(spec.slug) ?? []), a])
   }
@@ -328,14 +367,6 @@ export function buildArticleTree(input: TreeInput): WikiTree {
   // A missing value-drivers article is already a placeholder; no second one beneath it.
   const vdChildren = vd ? withPlaceholder('value-driver-', vdNodes) : vdNodes
   const moats = withPlaceholder('moat-', childNodes('moat-', orderBy(moatOrder)))
-  const decisions = [...kids('decision-')]
-    .sort(
-      (a, b) =>
-        (day(b.data?.created) || b.name.slice(9, 19)).localeCompare(
-          day(a.data?.created) || a.name.slice(9, 19)
-        ) || b.name.localeCompare(a.name)
-    )
-    .map((f) => articleNode(ctx, f))
   const competitors = withPlaceholder(
     'competitor-',
     childNodes('competitor-', () => 0).sort((a, b) =>
@@ -360,14 +391,10 @@ export function buildArticleTree(input: TreeInput): WikiTree {
   }
   const parents: [VirtualParent, TreeNode[]][] = [
     ['moats', moats],
-    ['decisions', decisions],
     ['competitor-profiles', competitors]
   ]
-  for (const [id, children] of parents) {
-    // Decisions are optional: no placeholder, and no heading until there is one.
-    if (!children.length) continue
+  for (const [id, children] of parents)
     put(VIRTUAL_PARENTS[id].section, VIRTUAL_PARENTS[id].order, group(id, children))
-  }
   for (const f of other.sort((a, b) =>
     (stringField(a.data?.title) || a.name).localeCompare(stringField(b.data?.title) || b.name)
   ))

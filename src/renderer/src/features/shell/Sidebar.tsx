@@ -13,6 +13,7 @@ import {
 import icon from '@/assets/images/icon.png'
 import logo from '@/assets/images/phq-logo.png'
 import { api } from '@/lib/api'
+import { useChanges, waitingCount } from '@/store/changes'
 import { cn } from '@/lib/utils'
 import { useApp, type HomeView } from '@/store/app'
 import { RecentChats } from './RecentChats'
@@ -31,6 +32,7 @@ export function Sidebar() {
   const collapsed = useApp((s) => s.sidebarCollapsed)
   const isMac = useApp((s) => s.state?.platform === 'mac')
   const company = useApp((s) => s.profile?.company.name)
+  const waiting = useChanges((s) => waitingCount(s.changes))
   const workspace = useApp((s) => s.state?.workspacePath ?? '')
   const revealLabel = useApp((s) => s.state?.revealLabel ?? 'Show in Finder')
   const folder = workspace.split(/[\\/]/).filter(Boolean).pop() ?? workspace
@@ -59,9 +61,7 @@ export function Sidebar() {
         <div className="min-w-0 px-6">
           <img src={logo} alt="PositioningHQ" className="block h-[22px] w-auto max-w-full" />
           {company && (
-            <span className="text-muted-foreground mt-1 block truncate text-[13px]">
-              {company}
-            </span>
+            <span className="text-muted-foreground mt-1 block truncate text-[13px]">{company}</span>
           )}
         </div>
       )}
@@ -77,8 +77,22 @@ export function Sidebar() {
               onClick={() => useApp.getState().setHomeView(v)}
               className={cn(item, view === v ? 'bg-accent text-primary' : 'hover:bg-secondary')}
             >
-              <Icon className="size-[18px] shrink-0" strokeWidth={1.8} />
+              <span className="relative">
+                <Icon className="size-[18px] shrink-0" strokeWidth={1.8} />
+                {v === 'wiki' && waiting > 0 && collapsed && (
+                  <span className="bg-primary absolute -top-1 -right-1.5 size-2 rounded-full" />
+                )}
+              </span>
               {!collapsed && label}
+              {!collapsed && v === 'wiki' && waiting > 0 && (
+                <span
+                  className="bg-primary text-primary-foreground ml-auto rounded-full px-1.5 text-[11px] leading-[18px] font-semibold tabular-nums"
+                  title={`${waiting} ${waiting === 1 ? 'change' : 'changes'} waiting`}
+                >
+                  {waiting}
+                  <span className="sr-only"> {waiting === 1 ? 'change' : 'changes'} waiting</span>
+                </span>
+              )}
             </button>
             {v === 'chat' && !collapsed && <RecentChats />}
           </div>

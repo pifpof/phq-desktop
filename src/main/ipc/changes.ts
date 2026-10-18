@@ -1,4 +1,6 @@
 import { dialog } from 'electron'
+import { readFile } from 'fs/promises'
+import { join } from 'path'
 import { READABLE_EXTENSIONS } from '@shared/workspace'
 import type { AppContext } from '../context'
 import { addEvidenceFiles } from '../ingest/files-to-raw'
@@ -28,6 +30,12 @@ export function registerChanges(handle: Handle, ctx: AppContext): void {
   }
 
   handle('changes:list', () => listChanges(root()))
+  handle('changes:regenerations', async () => {
+    const log = await readFile(join(root(), 'log.md'), 'utf8').catch(() => '')
+    return [...log.matchAll(/^## \[(\d{4}-\d{2}-\d{2})\] regenerate \| (.+)$/gm)]
+      .map((m) => ({ date: m[1], text: m[2].trim() }))
+      .reverse()
+  })
   handle('changes:page', async ({ page }) => {
     const f = (await scanWiki(root())).find(
       (x) => x.kind === 'article' && x.name === page && x.dir !== 'wiki/theses'

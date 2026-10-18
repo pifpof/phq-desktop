@@ -10,6 +10,7 @@ import { useApp } from '@/store/app'
 import { useResearch } from '@/store/research'
 import { DocHeader, FileActions } from '@/features/documents/DocParts'
 import { MakeChangeDialog } from '@/features/changes/MakeChangeDialog'
+import { PendingBanner } from '@/features/changes/PendingBanner'
 import { formatDay } from './format'
 import { SOURCE_KIND_LABEL, SourceIcon } from './tree-parts'
 
@@ -119,6 +120,7 @@ export function ArticleView({
         )}
         <FileActions path={path} />
       </DocHeader>
+      {!a.slug.startsWith('decision-') && <PendingBanner page={a.slug} />}
       <div className="min-h-0 flex-1 overflow-y-auto">
         <article className="mx-auto max-w-[760px] px-6 py-8">
           <Markdown

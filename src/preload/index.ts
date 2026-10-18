@@ -72,6 +72,7 @@ const api: Api = {
   sourcesTree: () => invoke('wiki:sourcesTree'),
   getNavState: () => invoke('wiki:getNavState'),
   listChanges: () => invoke('changes:list'),
+  listRegenerations: () => invoke('changes:regenerations'),
   createChange: (input) => invoke('changes:create', input),
   updateChange: (id, input) => invoke('changes:update', { id, input }),
   withdrawChange: (id) => invoke('changes:withdraw', { id }),

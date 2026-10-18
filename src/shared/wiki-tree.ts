@@ -41,12 +41,6 @@ export const VIRTUAL_PARENTS = {
     order: 3,
     help: 'Advantages competitors would find hard to copy.'
   },
-  decisions: {
-    label: 'Decisions',
-    section: 'positioning',
-    order: 5,
-    help: 'Positioning choices you recorded. Research follows them and never contradicts them.'
-  },
   'competitor-profiles': {
     label: 'Competitor Profiles',
     section: 'competitors',
@@ -64,6 +58,7 @@ export const MARKER_KINDS = [
   'missing',
   'outOfDate',
   'lowConfidence',
+  'pendingChange',
   'decision',
   'private'
 ] as const
@@ -213,6 +208,8 @@ export type SourcesTree = z.infer<typeof SourcesTreeSchema>
  */
 export const NavStateSchema = z.object({
   collapsed: z.array(z.string().max(600)).max(2000),
-  open: z.array(z.string().max(600)).max(2000)
+  open: z.array(z.string().max(600)).max(2000),
+  /** Changes tab: list regeneration events too (REQUIREMENTS-v3.1 3.6). */
+  showRegenerations: z.boolean().optional()
 })
 export type NavState = z.infer<typeof NavStateSchema>

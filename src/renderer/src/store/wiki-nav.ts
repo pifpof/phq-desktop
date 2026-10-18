@@ -15,6 +15,8 @@ interface WikiNavStore {
   loaded: boolean
   collapsed: Set<string>
   open: Set<string>
+  showRegenerations: boolean
+  setShowRegenerations(show: boolean): void
   load(): Promise<void>
   reloadTrees(): Promise<void>
   isExpanded(key: string): boolean
@@ -33,9 +35,19 @@ export const useWikiNav = create<WikiNavStore>((set, get) => ({
   loaded: false,
   collapsed: new Set(),
   open: new Set(),
+  showRegenerations: false,
+  setShowRegenerations(showRegenerations) {
+    set({ showRegenerations })
+    const { collapsed, open } = get()
+    save({ collapsed: [...collapsed], open: [...open], showRegenerations })
+  },
   async load() {
     const nav = await unwrap(api.getNavState()).catch(() => ({ collapsed: [], open: [] }))
-    set({ collapsed: new Set(nav.collapsed), open: new Set(nav.open) })
+    set({
+      collapsed: new Set(nav.collapsed),
+      open: new Set(nav.open),
+      showRegenerations: !!('showRegenerations' in nav && nav.showRegenerations)
+    })
     await get().reloadTrees()
   },
   async reloadTrees() {
@@ -57,6 +69,6 @@ export const useWikiNav = create<WikiNavStore>((set, get) => ({
       else collapsed.add(k)
     }
     set({ collapsed, open })
-    save({ collapsed: [...collapsed], open: [...open] })
+    save({ collapsed: [...collapsed], open: [...open], showRegenerations: get().showRegenerations })
   }
 }))

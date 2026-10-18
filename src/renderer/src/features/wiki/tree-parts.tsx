@@ -7,6 +7,7 @@ import {
   FileText,
   Globe,
   Lock,
+  PencilLine,
   Quote,
   Scale,
   type LucideIcon
@@ -20,6 +21,7 @@ export const MARKER_ICON: Record<Marker['kind'], { Icon: LucideIcon; className: 
   missing: { Icon: CircleDashed, className: 'text-muted-foreground' },
   outOfDate: { Icon: Clock, className: 'text-warning' },
   lowConfidence: { Icon: CircleAlert, className: 'text-warning' },
+  pendingChange: { Icon: PencilLine, className: 'text-primary' },
   decision: { Icon: Scale, className: 'text-primary' },
   private: { Icon: Lock, className: 'text-muted-foreground' }
 }
@@ -29,7 +31,8 @@ export const MARKER_ADVICE: Record<Marker['kind'], string> = {
   missing: 'Open it to generate it.',
   outOfDate: 'Re-run it to bring it up to date.',
   lowConfidence: 'Add your own files, or re-run it to look for more evidence.',
-  decision: 'Research follows the decision whenever it rewrites this article.',
+  pendingChange: 'They are applied when you regenerate this page.',
+  decision: 'Research keeps to it whenever it rewrites this article.',
   private: 'Left out of exports unless you choose to include private articles.'
 }
 
@@ -52,12 +55,27 @@ export const SOURCE_KIND_LABEL: Record<SourceKind, string> = {
 }
 
 /** Up to two markers by priority; all of them for screen readers. */
-export function Markers({ markers }: { markers: Marker[] }) {
+export function Markers({ markers, onClick }: { markers: Marker[]; onClick?: () => void }) {
   if (!markers.length) return null
   return (
     <span className="mt-0.5 flex shrink-0 items-center gap-1">
       {markers.slice(0, 2).map((m) => {
         const { Icon, className } = MARKER_ICON[m.kind]
+        // The waiting-changes marker is a shortcut to those changes.
+        if (m.kind === 'pendingChange' && onClick)
+          return (
+            <span
+              key={m.kind}
+              role="presentation"
+              onClick={(e) => {
+                e.stopPropagation()
+                onClick()
+              }}
+              className="hover:bg-accent -m-0.5 rounded p-0.5"
+            >
+              <Icon className={cn('size-3.5', className)} strokeWidth={2} aria-hidden />
+            </span>
+          )
         return (
           <Icon key={m.kind} className={cn('size-3.5', className)} strokeWidth={2} aria-hidden />
         )

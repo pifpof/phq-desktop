@@ -72,3 +72,7 @@ export const ChangePageSchema = z.object({
   sections: z.array(z.object({ heading: z.string(), excerpt: z.string() }))
 })
 export type ChangePage = z.infer<typeof ChangePageSchema>
+
+/** A regeneration line from log.md, for the Changes tab's history. */
+export const RegenerationSchema = z.object({ date: z.string(), text: z.string() })
+export type Regeneration = z.infer<typeof RegenerationSchema>

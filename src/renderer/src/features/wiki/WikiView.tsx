@@ -8,6 +8,9 @@ import { cn } from '@/lib/utils'
 import { useApp } from '@/store/app'
 import { useResearch } from '@/store/research'
 import { useWikiNav } from '@/store/wiki-nav'
+import { useChanges, waitingCount } from '@/store/changes'
+import { ChangeDetail } from '@/features/changes/ChangeDetail'
+import { ChangesTab } from '@/features/changes/ChangesTab'
 import { ArticlesTree } from './ArticlesTree'
 import { ArticleView } from './ArticleView'
 import { FilesPane } from './FilesPane'
@@ -48,7 +51,9 @@ function writeWidth(w: number): void {
   }
 }
 
-type Tab = 'articles' | 'sources'
+type Tab = 'articles' | 'sources' | 'changes'
+
+const isChange = (p: string | null): boolean => !!p && /^wiki\/references\/decision-/.test(p)
 
 /** The section and parent keys above a node, so a node opened from elsewhere can be shown. */
 function ancestorKeys(tree: WikiTree, id: string): string[] | null {
@@ -187,6 +192,8 @@ export function WikiView() {
   const [tab, setTab] = useState<Tab>(target?.tab ?? 'articles')
   const [selected, setSelected] = useState<string | null>(target?.path ?? null)
   const [query, setQuery] = useState('')
+  const [changesPage, setChangesPage] = useState<{ slug: string; title: string } | null>(null)
+  const waiting = useChanges((s) => waitingCount(s.changes))
   const [width, setWidth] = useState(readWidth)
   const [error, setError] = useState<string | null>(null)
   const search = useRef<HTMLInputElement>(null)
@@ -226,7 +233,16 @@ export function WikiView() {
 
   const open = useCallback((id: string) => {
     setSelected(id)
-    setTab(id.startsWith('raw/') || id === 'files' ? 'sources' : 'articles')
+    setTab(
+      id.startsWith('raw/') || id === 'files' ? 'sources' : isChange(id) ? 'changes' : 'articles'
+    )
+  }, [])
+  // A page's waiting marker opens the Changes tab for that page (REQUIREMENTS-v3.1 3.6).
+  const showPageChanges = useCallback((node: TreeNode) => {
+    if (!node.slug) return
+    setChangesPage({ slug: node.slug, title: node.label })
+    setTab('changes')
+    setSelected(null)
   }, [])
 
   const rerun = async (taskId: string): Promise<void> => {
@@ -254,7 +270,12 @@ export function WikiView() {
   }
 
   const placeholder = selected?.startsWith('missing:') ? findNode(articles, selected) : null
-  const empty = tab === 'articles' ? !articles?.sections.length : !sources?.sections.length
+  const empty =
+    tab === 'articles'
+      ? !articles?.sections.length
+      : tab === 'sources'
+        ? !sources?.sections.length
+        : false
 
   return (
     <div className="flex h-full" onKeyDown={onKeyDown}>
@@ -268,9 +289,9 @@ export function WikiView() {
           <div
             role="tablist"
             aria-label="Wiki sections"
-            className="bg-secondary mt-3 grid grid-cols-2 rounded-[10px] p-0.5 text-sm"
+            className="bg-secondary mt-3 grid grid-cols-3 rounded-[10px] p-0.5 text-sm"
           >
-            {(['articles', 'sources'] as const).map((t) => (
+            {(['articles', 'sources', 'changes'] as const).map((t) => (
               <button
                 key={t}
                 type="button"
@@ -279,13 +300,20 @@ export function WikiView() {
                 onClick={() => {
                   setTab(t)
                   setSelected(null)
+                  if (t !== 'changes') setChangesPage(null)
                 }}
                 className={cn(
-                  'rounded-[8px] py-1.5 font-medium',
+                  'flex items-center justify-center gap-1 rounded-[8px] py-1.5 font-medium',
                   tab === t ? 'text-primary bg-white shadow-sm' : 'text-muted-foreground'
                 )}
               >
-                {t === 'articles' ? 'Articles' : 'Sources'}
+                {t === 'articles' ? 'Articles' : t === 'sources' ? 'Sources' : 'Changes'}
+                {t === 'changes' && waiting > 0 && (
+                  <span className="bg-primary text-primary-foreground rounded-full px-1.5 text-[11px] leading-4 font-semibold tabular-nums">
+                    {waiting}
+                    <span className="sr-only"> waiting</span>
+                  </span>
+                )}
               </button>
             ))}
           </div>
@@ -335,9 +363,23 @@ export function WikiView() {
               </p>
             )
           ) : tab === 'articles' ? (
-            <ArticlesTree tree={articles!} selectedId={selected} query={query} onOpen={open} />
-          ) : (
+            <ArticlesTree
+              tree={articles!}
+              selectedId={selected}
+              query={query}
+              onOpen={open}
+              onPendingMarker={showPageChanges}
+            />
+          ) : tab === 'sources' ? (
             <SourcesTree tree={sources!} selectedId={selected} query={query} onOpen={open} />
+          ) : (
+            <ChangesTab
+              query={query}
+              selected={selected}
+              page={changesPage}
+              onClearPage={() => setChangesPage(null)}
+              onOpen={open}
+            />
           )}
         </div>
         <div className="border-t px-4 py-3">
@@ -361,7 +403,9 @@ export function WikiView() {
             <p className="max-w-[360px]">
               {tab === 'articles'
                 ? 'Open a section on the left, then choose an article. Hover over anything to see what it is for.'
-                : 'Open a section on the left, then choose a source to read it and see which articles cite it.'}
+                : tab === 'sources'
+                  ? 'Open a section on the left, then choose a source to read it and see which articles cite it.'
+                  : 'Choose a change to see what was asked for, why, and what it affects.'}
             </p>
           </div>
         )}
@@ -375,9 +419,13 @@ export function WikiView() {
             onGenerate={(t) => void rerun(t)}
           />
         )}
-        {selected?.startsWith('wiki/') && selected !== PROFILE && selected !== SOCIAL && (
-          <ArticleView key={selected} path={selected} onRerun={(t) => void rerun(t)} />
-        )}
+        {isChange(selected) && <ChangeDetail path={selected!} />}
+        {selected?.startsWith('wiki/') &&
+          !isChange(selected) &&
+          selected !== PROFILE &&
+          selected !== SOCIAL && (
+            <ArticleView key={selected} path={selected} onRerun={(t) => void rerun(t)} />
+          )}
         {selected?.startsWith('raw/') && <SourceView path={selected} />}
       </section>
     </div>

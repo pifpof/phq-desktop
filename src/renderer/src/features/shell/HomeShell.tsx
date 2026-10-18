@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { useApp } from '@/store/app'
+import { useChanges } from '@/store/changes'
 import { useDocs } from '@/store/docs'
 import { useResearch } from '@/store/research'
 import { ChatView } from '@/features/chat/ChatView'
@@ -29,6 +30,12 @@ export function HomeShell() {
   useEffect(() => {
     void useDocs.getState().refresh()
   }, [runStatus])
+
+  // Changes (REQUIREMENTS-v3.1 3.5): the waiting count shows everywhere, so keep them loaded.
+  useEffect(() => {
+    void useChanges.getState().load()
+    return window.api.onWikiTreeChanged(() => void useChanges.getState().load())
+  }, [])
 
   // Cmd+B (Ctrl+B) collapses the sidebar.
   useEffect(() => {

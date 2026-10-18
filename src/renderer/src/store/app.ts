@@ -15,7 +15,7 @@ export type HomeView = 'chat' | 'wiki' | 'playbook' | 'messaging' | 'use-wiki'
 
 /** What the Wiki pane shows when another view sends someone there. */
 export interface WikiTarget {
-  tab: 'articles' | 'sources'
+  tab: 'articles' | 'sources' | 'changes'
   path: string
 }
 
@@ -83,7 +83,11 @@ export const useApp = create<AppStore>((set, get) => ({
   openWikiFile(path) {
     if (path.startsWith('output/positioning-playbook-')) return set({ homeView: 'playbook' })
     if (path.startsWith('output/messaging-analysis-')) return set({ homeView: 'messaging' })
-    const tab = path.startsWith('raw/') ? 'sources' : 'articles'
+    const tab = path.startsWith('raw/')
+      ? 'sources'
+      : /^wiki\/references\/decision-/.test(path)
+        ? 'changes'
+        : 'articles'
     set({ homeView: 'wiki', wikiTarget: { tab, path } })
   },
   regenPage: null,

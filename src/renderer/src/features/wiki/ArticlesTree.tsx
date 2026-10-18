@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import type { WikiTree } from '@shared/wiki-tree'
+import type { TreeNode, WikiTree } from '@shared/wiki-tree'
 import { cn } from '@/lib/utils'
 import { useApp } from '@/store/app'
 import { useWikiNav } from '@/store/wiki-nav'
@@ -19,7 +19,15 @@ import { buildArticleRows, type ArticleRow } from './tree-rows'
 
 const ATTENTION = 'Something in here is out of date or low confidence'
 
-function RowContent({ row, query }: { row: ArticleRow; query: string }) {
+function RowContent({
+  row,
+  query,
+  onPendingMarker
+}: {
+  row: ArticleRow
+  query: string
+  onPendingMarker?: (node: TreeNode) => void
+}) {
   if (row.type === 'section')
     return (
       <span className="flex h-5 items-center gap-2">
@@ -52,7 +60,14 @@ function RowContent({ row, query }: { row: ArticleRow; query: string }) {
           <AttentionDot label={ATTENTION} />
         </span>
       )}
-      <Markers markers={n.markers} />
+      <Markers
+        markers={n.markers}
+        onClick={
+          onPendingMarker && n.markers.some((m) => m.kind === 'pendingChange')
+            ? () => onPendingMarker(n)
+            : undefined
+        }
+      />
     </span>
   )
 }
@@ -92,12 +107,15 @@ export function ArticlesTree({
   tree,
   selectedId,
   query,
-  onOpen
+  onOpen,
+  onPendingMarker
 }: {
   tree: WikiTree
   selectedId: string | null
   query: string
   onOpen: (id: string) => void
+  /** The waiting-changes marker opens the Changes tab for that page. */
+  onPendingMarker?: (node: TreeNode) => void
 }) {
   const { collapsed, open, setManyExpanded } = useWikiNav()
   const altKey = useApp((s) => (s.state?.platform === 'mac' ? 'Option' : 'Alt'))
@@ -116,7 +134,7 @@ export function ArticlesTree({
       rows={rows}
       label="Articles"
       selectedId={selectedId}
-      render={(r) => <RowContent row={r} query={query} />}
+      render={(r) => <RowContent row={r} query={query} onPendingMarker={onPendingMarker} />}
       tip={(r) => <RowTip row={r} altKey={altKey} />}
     />
   )

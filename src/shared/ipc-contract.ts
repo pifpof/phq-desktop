@@ -9,7 +9,13 @@ import {
   SourceSummarySchema
 } from './wiki-views'
 import { NavStateSchema, SourcesTreeSchema, WikiTreeSchema } from './wiki-tree'
-import { AffectsSchema, ChangeInputSchema, ChangePageSchema, ChangeSchema } from './changes'
+import {
+  AffectsSchema,
+  ChangeInputSchema,
+  ChangePageSchema,
+  ChangeSchema,
+  RegenerationSchema
+} from './changes'
 import { ProfileSchema } from './profile'
 import { RunViewSchema, type RunView } from './research'
 import {
@@ -270,6 +276,7 @@ export const channels = {
   'wiki:sourcesTree': { req: z.undefined(), res: SourcesTreeSchema },
   'wiki:getNavState': { req: z.undefined(), res: NavStateSchema },
   'changes:list': { req: z.undefined(), res: z.array(ChangeSchema) },
+  'changes:regenerations': { req: z.undefined(), res: z.array(RegenerationSchema) },
   'changes:create': { req: ChangeInputSchema, res: ChangeSchema },
   'changes:update': {
     req: z.object({ id: z.string().min(1).max(120), input: ChangeInputSchema }),
@@ -407,6 +414,7 @@ export interface Api {
   onWikiTreeChanged(cb: () => void): () => void
   getNavState(): Promise<Result<Res<'wiki:getNavState'>>>
   listChanges(): Promise<Result<Res<'changes:list'>>>
+  listRegenerations(): Promise<Result<Res<'changes:regenerations'>>>
   createChange(input: Req<'changes:create'>): Promise<Result<Res<'changes:create'>>>
   updateChange(id: string, input: Req<'changes:create'>): Promise<Result<Res<'changes:update'>>>
   withdrawChange(id: string): Promise<Result<Res<'changes:withdraw'>>>

@@ -147,7 +147,7 @@ describe('article tree', () => {
     expect(stripPrefix('Competitor:', 'Competitor')).toBe('Competitor:')
   })
 
-  it('orders children: drivers as the index lists them, decisions newest first, competitors A to Z', () => {
+  it('orders children: drivers as the index lists them, competitors A to Z; changes stay out', () => {
     const vdBody =
       '- [[value-driver-b|B]] ([B](value-driver-b.md))\n- [[value-driver-a|A]] ([A](value-driver-a.md))'
     const tree = buildArticleTree({
@@ -169,11 +169,13 @@ describe('article tree', () => {
       ]
     })
     expect(find(tree, 'Value Drivers')!.children.map((c) => c.label)).toEqual(['Bravo', 'Alpha'])
-    expect(find(tree, 'Decisions')!.children.map((c) => c.label)).toEqual(['New', 'Old'])
+    // Changes are listed in the Changes tab, not the article tree (REQUIREMENTS-v3.1 3.6).
+    expect(find(tree, 'Decisions')).toBeUndefined()
+    expect(find(tree, 'New')).toBeUndefined()
     expect(find(tree, 'Competitor Profiles')!.children.map((c) => c.label)).toEqual(['acme', 'Zed'])
   })
 
-  it('puts unknown slugs under OTHER, alphabetically, and hides Decisions when there are none', () => {
+  it('puts unknown slugs under OTHER, alphabetically', () => {
     const tree = buildArticleTree({
       generated: {},
       files: [
@@ -208,7 +210,7 @@ describe('article tree', () => {
     const proof = find(tree, 'Proof Points')!
     expect(proof.markers).toEqual([
       { kind: 'lowConfidence', text: 'Low confidence: one third-party source' },
-      { kind: 'decision', text: 'A decision applies to this article' },
+      { kind: 'decision', text: 'An earlier change applies to this article' },
       { kind: 'private', text: 'Private: built from your own files' }
     ])
     expect(tree.sections[0].attention).toBe(true)
@@ -254,7 +256,7 @@ describe('out of date', () => {
     expect(marked(tree, 'Ideal Customer Profile')).toBe(true)
   })
 
-  it('flags a decision recorded after the article', () => {
+  it('flags a change applied after the article (a v2 decision counts as applied)', () => {
     const decision = article(
       'decision-2026-10-17-y',
       'references',
@@ -267,8 +269,8 @@ describe('out of date', () => {
       generated: { 'wiki/topics/ideal-customer-profile.md': run1 }
     })
     expect(find(tree, 'Ideal Customer Profile')!.markers.map((m) => m.text)).toEqual([
-      'Out of date: a decision was recorded since',
-      'A decision applies to this article'
+      'Out of date: a change was applied since',
+      'An earlier change applies to this article'
     ])
   })
 
@@ -321,6 +323,33 @@ describe('out of date', () => {
     expect(
       marked(buildArticleTree({ files: await scanWiki(ws), generated }), 'Ideal Customer Profile')
     ).toBe(true)
+  })
+})
+
+describe('changes in the tree', () => {
+  it('marks a page with waiting changes, and ignores waiting and withdrawn ones elsewhere', () => {
+    const change = (slug: string, status: string, mtime = T0 + 3_600_000): WikiFile =>
+      article(
+        slug,
+        'references',
+        { title: 'Change: X', created: '2026-10-17' },
+        `**Status:** ${status}\n\n## What to change\n\nPage: [[ideal-customer-profile|ICP]] ([ICP](../topics/ideal-customer-profile.md))\n\n## Affects\n\n- [[value-drivers|Value Drivers]] ([Value Drivers](../concepts/value-drivers.md))`,
+        mtime
+      )
+    const tree = buildArticleTree({
+      files: [
+        article('ideal-customer-profile', 'topics', {}),
+        article('value-drivers', 'concepts', { title: 'Value Drivers' }),
+        change('decision-2026-10-17-a', 'Pending'),
+        change('decision-2026-10-17-b', 'Pending'),
+        change('decision-2026-10-17-c', 'Withdrawn 2026-10-17')
+      ],
+      generated: { 'wiki/topics/ideal-customer-profile.md': { at: T0, runId: 'r' } }
+    })
+    expect(find(tree, 'Ideal Customer Profile')!.markers).toEqual([
+      { kind: 'pendingChange', text: '2 changes waiting' }
+    ])
+    expect(find(tree, 'Value Drivers')!.markers).toEqual([])
   })
 })
 
