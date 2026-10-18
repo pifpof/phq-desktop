@@ -24,9 +24,12 @@ const CURRENT = 'current'
 const versionOf = (d: { path: string }): number => Number(/-v(\d+)-/.exec(d.path)?.[1] ?? 0)
 
 const generated = (fm: Record<string, unknown>): string => {
-  // A bare date is a calendar day in the founder's time zone, not midnight UTC.
-  const raw = typeof fm.created === 'string' ? fm.created : ''
-  const t = Date.parse(/^\d{4}-\d{2}-\d{2}$/.test(raw) ? `${raw}T00:00:00` : raw)
+  // A date is a calendar day in the founder's time zone. The reader may hand it over as
+  // midnight UTC ("2026-10-18T00:00:00.000Z"), which is the day before in the Americas.
+  const value = fm.created instanceof Date ? fm.created.toISOString() : fm.created
+  const raw = typeof value === 'string' ? value : ''
+  const day = /^(\d{4}-\d{2}-\d{2})(T00:00:00(\.000)?Z)?$/.exec(raw)?.[1]
+  const t = Date.parse(day ? `${day}T00:00:00` : raw)
   return Number.isNaN(t)
     ? ''
     : new Date(t).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -70,12 +73,12 @@ function useSectionArticles(): Map<number, ArticleSummary[]> {
 }
 
 /** True when the company profile or any user file changed after this version was written. */
-function useOutOfDate(created: string | null): boolean {
+function useOutOfDate(path: string | null): boolean {
   const [stale, setStale] = useState(false)
   useEffect(() => {
-    if (!created) return
+    if (!path) return
     const check = (): void => {
-      void unwrap(api.changedSince(created))
+      void unwrap(api.changedSince(path))
         .then((r) => setStale(r.profile || r.inputs))
         .catch(() => setStale(false))
     }
@@ -83,16 +86,16 @@ function useOutOfDate(created: string | null): boolean {
     return api.onWorkspaceChanged(({ paths }) => {
       if (paths.some((p) => p.startsWith('raw/'))) check()
     })
-  }, [created])
+  }, [path])
   // The profile is saved through the app, so re-check whenever it changes in the store.
   const profile = useApp((s) => s.profile)
   useEffect(() => {
-    if (!created) return
-    void unwrap(api.changedSince(created))
+    if (!path) return
+    void unwrap(api.changedSince(path))
       .then((r) => setStale(r.profile || r.inputs))
       .catch(() => undefined)
-  }, [profile, created])
-  return created ? stale : false
+  }, [profile, path])
+  return path ? stale : false
 }
 
 /** Re-run playbook research (REQUIREMENTS-v2 4.2): writes the articles again. Costs money. */
@@ -176,9 +179,7 @@ export function PlaybookView() {
   const path = selected === CURRENT ? current : selected
   const { doc } = useDoc(path)
   const isCurrent = selected === CURRENT
-  const created =
-    isCurrent && doc && typeof doc.frontMatter.created === 'string' ? doc.frontMatter.created : null
-  const stale = useOutOfDate(created)
+  const stale = useOutOfDate(isCurrent && doc ? doc.path : null)
 
   const sections = useMemo(
     () =>

@@ -1024,6 +1024,43 @@ describe('regeneration with changes (REQUIREMENTS-v3.1 4, 5)', () => {
     expect(review.files.map((x) => x.rel)).toEqual(['wiki/references/competitor-wile-co.md'])
   })
 
+  it('an interrupted regeneration is not offered for resume and never writes the wiki', async () => {
+    const f = fakeProvider()
+    const { s } = await fullRun(f)
+    const c = await change()
+    const before = read(ICP)
+    let hold = true
+    const held = fakeProvider({
+      onCall: async (_c, signal) => {
+        if (hold)
+          await new Promise<void>((_r, rej) => {
+            if (signal.aborted) return rej(new Error('aborted'))
+            signal.addEventListener('abort', () => rej(new Error('aborted')))
+          })
+      }
+    })
+    const s1 = makeService(held.provider)
+    await startRegeneration(s1.service, ws, {
+      page: 'ideal-customer-profile',
+      changeIds: [c.id],
+      refreshWeb: false,
+      queue: []
+    })
+    await s1.until(() => s1.last()?.tasks.some((t) => t.status === 'running') ?? false, 'running')
+    s1.service.interrupt()
+    await s1.until(() => !s1.last().tasks.some((t) => t.status === 'running'), 'stopped')
+    await s1.service.flush()
+    hold = false
+    // A new launch.
+    const s2 = makeService(fakeProvider().provider)
+    const run = await s2.service.getRun()
+    expect(run?.status).toBe('cancelled')
+    expect((await readJob(ws))!.status).toBe('failed')
+    expect(read(ICP)).toBe(before)
+    expect((await findChange(ws, c.id))!.status).toBe('pending')
+    void s
+  })
+
   it('spots an outside edit and turns it into a waiting change', async () => {
     const { s } = await fullRun()
     const text = read(ICP)

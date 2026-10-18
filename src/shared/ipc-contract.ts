@@ -220,8 +220,9 @@ export const channels = {
     })
   },
   'docs:copy': { req: z.object({ path: z.string().min(1).max(500) }), res: z.null() },
+  /** Has the profile or a user file changed since this output was written? */
   'docs:changedSince': {
-    req: z.object({ since: z.string().max(64) }),
+    req: z.object({ path: z.string().min(1).max(500) }),
     res: z.object({ profile: z.boolean(), inputs: z.boolean() })
   },
   'social:setTagline': {
@@ -393,7 +394,7 @@ export interface Api {
   openDoc(path: string): Promise<Result<null>>
   revealDoc(path: string): Promise<Result<null>>
   copyDoc(path: string): Promise<Result<null>>
-  changedSince(since: string): Promise<Result<Res<'docs:changedSince'>>>
+  changedSince(path: string): Promise<Result<Res<'docs:changedSince'>>>
   setSocialTagline(network: string, text: string): Promise<Result<null>>
   openSource(url: string, path: string): Promise<Result<null>>
   allowResearchLinks(): Promise<Result<null>>

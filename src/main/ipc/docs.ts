@@ -9,6 +9,7 @@ import type { AppContext } from '../context'
 import { listDocs, readDoc } from '../workspace/documents'
 import { exists } from '../workspace/fs-util'
 import { resolveInside } from '../workspace/paths'
+import { readProvenance } from '../state/provenance'
 import { stateDir } from '../state/app-state'
 import { writableRoot } from './guard'
 import { HandlerError, type Handle } from './register'
@@ -39,10 +40,15 @@ export function registerDocs(handle: Handle, ctx: AppContext): void {
   })
 
   /** Has the profile, or any user file, changed since this time? Drives the playbook's "out of date" banner. */
-  handle('docs:changedSince', async ({ since }) => {
-    const t = Date.parse(since)
-    if (Number.isNaN(t)) throw new HandlerError('invalid_payload')
+  handle('docs:changedSince', async ({ path }) => {
     const r = root()
+    const full = resolveInside(r, path)
+    if (!full) throw new HandlerError('not_allowed')
+    // When the output was really written: provenance, else its file time. A `created` date is a
+    // whole day, so anything written later that same day (the run itself) looked newer.
+    const at = Date.parse((await readProvenance(r))[path]?.at ?? '')
+    const t = Number.isNaN(at) ? await stat(full).then((s) => s.mtimeMs, () => NaN) : at
+    if (Number.isNaN(t)) return { profile: false, inputs: false }
     const newer = async (p: string): Promise<boolean> => {
       try {
         return (await stat(p)).mtimeMs > t + 1000

@@ -257,6 +257,8 @@ export function createResearchService(d: ServiceDeps) {
     const job = await readJob(root)
     if (job?.runId === saved.id) {
       await finishRun(root, saved.id, { ok: false, costUsd: saved.spentUsd })
+      // Not resumable, so it must not offer "Resume research" either.
+      await saveRun(root, { ...saved, status: 'cancelled', pause: null })
       return
     }
     try {
