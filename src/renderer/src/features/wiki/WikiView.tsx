@@ -1,34 +1,52 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Ellipsis, Lock } from 'lucide-react'
-import type { SourceSummary } from '@shared/wiki-views'
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { Ellipsis, Search, X } from 'lucide-react'
 import type { TreeNode, WikiTree } from '@shared/wiki-tree'
 import { Button } from '@/components/ui/button'
-import { api, ApiError, unwrap } from '@/lib/api'
+import { ApiError, api } from '@/lib/api'
 import { isActive } from '@/lib/research'
 import { cn } from '@/lib/utils'
 import { useApp } from '@/store/app'
 import { useResearch } from '@/store/research'
 import { useWikiNav } from '@/store/wiki-nav'
-import { DocView } from '@/features/documents/DocView'
 import { ArticlesTree } from './ArticlesTree'
-import { parentKey, sectionKey } from './tree-rows'
 import { ArticleView } from './ArticleView'
 import { FilesPane } from './FilesPane'
 import { PlaceholderPane } from './PlaceholderPane'
 import { ProfilePane } from './ProfilePane'
 import { SocialPane } from './SocialPane'
+import { SourcesTree } from './SourcesTree'
+import { SourceView } from './SourceView'
+import {
+  allArticleKeys,
+  allSourceKeys,
+  parentKey,
+  sectionKey,
+  sourceGroupKey,
+  sourceSectionKey
+} from './tree-rows'
 
 const PROFILE = 'wiki/references/company-profile.md'
 const SOCIAL = 'wiki/references/social-taglines.md'
 
-const SOURCE_GROUPS = [
-  'Your website',
-  'Competitor sites',
-  'Web citations',
-  'Social',
-  'Your files',
-  'Other'
-]
+/** Pane width (REQUIREMENTS-v3 3.8), remembered on this computer. */
+const WIDTH = { min: 240, max: 420, initial: 280 }
+const WIDTH_KEY = 'phq.wikiPaneWidth'
+const clampWidth = (w: number): number => Math.min(WIDTH.max, Math.max(WIDTH.min, Math.round(w)))
+function readWidth(): number {
+  try {
+    const w = Number(localStorage.getItem(WIDTH_KEY))
+    return w ? clampWidth(w) : WIDTH.initial
+  } catch {
+    return WIDTH.initial
+  }
+}
+function writeWidth(w: number): void {
+  try {
+    localStorage.setItem(WIDTH_KEY, String(w))
+  } catch {
+    // storage unavailable: the width lasts for this session only
+  }
+}
 
 type Tab = 'articles' | 'sources'
 
@@ -49,12 +67,6 @@ function ancestorKeys(tree: WikiTree, id: string): string[] | null {
   return null
 }
 
-function firstArticle(tree: WikiTree | null): string | null {
-  for (const s of tree?.sections ?? [])
-    for (const n of s.items) if (n.kind === 'article') return n.id
-  return null
-}
-
 function findNode(tree: WikiTree | null, id: string): TreeNode | null {
   const walk = (nodes: TreeNode[]): TreeNode | null => {
     for (const n of nodes) {
@@ -71,28 +83,7 @@ function findNode(tree: WikiTree | null, id: string): TreeNode | null {
   return null
 }
 
-function useSourceList(): SourceSummary[] {
-  const [sources, setSources] = useState<SourceSummary[]>([])
-  useEffect(() => {
-    let cancelled = false
-    const load = (): void => {
-      void unwrap(api.listSources())
-        .catch(() => [])
-        .then((s) => {
-          if (!cancelled) setSources(s)
-        })
-    }
-    load()
-    const off = api.onWikiTreeChanged(load)
-    return () => {
-      cancelled = true
-      off()
-    }
-  }, [])
-  return sources
-}
-
-function TreeMenu({ tree }: { tree: WikiTree }) {
+function TreeMenu({ keys }: { keys: () => string[] }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -103,20 +94,8 @@ function TreeMenu({ tree }: { tree: WikiTree }) {
     document.addEventListener('mousedown', close)
     return () => document.removeEventListener('mousedown', close)
   }, [open])
-  const all = (): string[] => {
-    const keys = tree.sections.map((s) => sectionKey(s.id))
-    const walk = (nodes: TreeNode[]): void => {
-      for (const n of nodes)
-        if (n.children.length) {
-          keys.push(parentKey(n.id))
-          walk(n.children)
-        }
-    }
-    for (const s of tree.sections) walk(s.items)
-    return keys
-  }
   const pick = (expanded: boolean): void => {
-    useWikiNav.getState().setManyExpanded(all(), expanded)
+    useWikiNav.getState().setManyExpanded(keys(), expanded)
     setOpen(false)
   }
   return (
@@ -160,14 +139,57 @@ function TreeMenu({ tree }: { tree: WikiTree }) {
   )
 }
 
+/** Drag the pane's right edge; double-click resets it. Arrow keys work too. */
+function ResizeHandle({ width, onWidth }: { width: number; onWidth: (w: number) => void }) {
+  const start = (e: React.PointerEvent<HTMLDivElement>): void => {
+    e.preventDefault()
+    const x0 = e.clientX
+    const w0 = width
+    const move = (ev: PointerEvent): void => onWidth(clampWidth(w0 + ev.clientX - x0))
+    const up = (): void => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+      document.body.style.cursor = ''
+    }
+    document.body.style.cursor = 'col-resize'
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
+  }
+  const onKey = (e: KeyboardEvent<HTMLDivElement>): void => {
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      e.preventDefault()
+      onWidth(clampWidth(width + (e.key === 'ArrowRight' ? 16 : -16)))
+    }
+  }
+  return (
+    <div
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="Resize the wiki list"
+      aria-valuemin={WIDTH.min}
+      aria-valuemax={WIDTH.max}
+      aria-valuenow={width}
+      tabIndex={0}
+      title="Drag to resize. Double-click to reset."
+      onPointerDown={start}
+      onDoubleClick={() => onWidth(WIDTH.initial)}
+      onKeyDown={onKey}
+      className="hover:bg-primary-light/40 focus-visible:bg-primary-light/60 absolute top-0 -right-1 z-10 h-full w-2 cursor-col-resize outline-none"
+    />
+  )
+}
+
 export function WikiView() {
   const target = useApp((s) => s.wikiTarget)
   const workspace = useApp((s) => s.state?.workspacePath)
-  const { articles, loaded } = useWikiNav()
+  const isMac = useApp((s) => s.state?.platform === 'mac')
+  const { articles, sources, loaded } = useWikiNav()
   const [tab, setTab] = useState<Tab>(target?.tab ?? 'articles')
   const [selected, setSelected] = useState<string | null>(target?.path ?? null)
+  const [query, setQuery] = useState('')
+  const [width, setWidth] = useState(readWidth)
   const [error, setError] = useState<string | null>(null)
-  const sources = useSourceList()
+  const search = useRef<HTMLInputElement>(null)
   const run = useResearch((s) => s.run)
 
   useEffect(() => {
@@ -184,19 +206,27 @@ export function WikiView() {
     useApp.setState({ wikiTarget: null })
   }, [target])
 
-  // Make sure the opened article is visible: expand its section and parents.
+  // Make sure the opened file is visible: expand its section and parents.
   useEffect(() => {
-    if (!articles || !selected) return
-    const keys = ancestorKeys(articles, selected)
+    if (!selected) return
     const nav = useWikiNav.getState()
-    const closed = keys?.filter((k) => !nav.isExpanded(k)) ?? []
+    let keys: string[] = []
+    if (selected.startsWith('raw/') && sources) {
+      for (const s of sources.sections) {
+        if (s.sources.some((x) => x.path === selected)) keys = [sourceSectionKey(s.id)]
+        for (const g of s.groups)
+          if (g.sources.some((x) => x.path === selected))
+            keys = [sourceSectionKey(s.id), sourceGroupKey(s.id, g.id)]
+      }
+    } else if (selected === 'files') keys = [sourceSectionKey('files')]
+    else if (articles) keys = ancestorKeys(articles, selected) ?? []
+    const closed = keys.filter((k) => !nav.isExpanded(k))
     if (closed.length) nav.setManyExpanded(closed, true)
-  }, [articles, selected])
+  }, [articles, sources, selected])
 
-  const current = selected ?? (tab === 'articles' ? firstArticle(articles) : 'files')
   const open = useCallback((id: string) => {
     setSelected(id)
-    if (id.startsWith('raw/')) setTab('sources')
+    setTab(id.startsWith('raw/') || id === 'files' ? 'sources' : 'articles')
   }, [])
 
   const rerun = async (taskId: string): Promise<void> => {
@@ -209,24 +239,31 @@ export function WikiView() {
     }
   }
 
-  const sourceGroups = useMemo(() => {
-    const groups = new Map<string, SourceSummary[]>()
-    for (const s of sources) groups.set(s.group, [...(groups.get(s.group) ?? []), s])
-    return SOURCE_GROUPS.filter((g) => groups.has(g)).map((g) => ({
-      title: g,
-      items: groups.get(g)!
-    }))
-  }, [sources])
+  const resize = (w: number): void => {
+    setWidth(w)
+    writeWidth(w)
+  }
 
-  const placeholder = current?.startsWith('missing:') ? findNode(articles, current) : null
+  // Cmd or Ctrl+F searches while the pane has focus (REQUIREMENTS-v3 3.6).
+  const onKeyDown = (e: KeyboardEvent<HTMLDivElement>): void => {
+    if ((isMac ? e.metaKey : e.ctrlKey) && e.key.toLowerCase() === 'f') {
+      e.preventDefault()
+      search.current?.focus()
+      search.current?.select()
+    }
+  }
+
+  const placeholder = selected?.startsWith('missing:') ? findNode(articles, selected) : null
+  const empty = tab === 'articles' ? !articles?.sections.length : !sources?.sections.length
 
   return (
-    <div className="flex h-full">
-      <nav className="flex w-[280px] shrink-0 flex-col border-r" aria-label="Wiki">
-        <div className="px-4 pt-4 pb-3">
+    <div className="flex h-full" onKeyDown={onKeyDown}>
+      <nav className="relative flex shrink-0 flex-col border-r" style={{ width }} aria-label="Wiki">
+        <div className="px-4 pt-4 pb-2">
           <div className="flex items-center justify-between">
             <h2 className="text-[17px]">Wiki</h2>
-            {tab === 'articles' && articles && <TreeMenu tree={articles} />}
+            {tab === 'articles' && articles && <TreeMenu keys={() => allArticleKeys(articles)} />}
+            {tab === 'sources' && sources && <TreeMenu keys={() => allSourceKeys(sources)} />}
           </div>
           <div
             role="tablist"
@@ -252,56 +289,55 @@ export function WikiView() {
               </button>
             ))}
           </div>
+          <div className="relative mt-3">
+            <Search
+              className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2"
+              strokeWidth={2}
+              aria-hidden
+            />
+            <input
+              ref={search}
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape' && query) {
+                  e.preventDefault()
+                  setQuery('')
+                }
+              }}
+              placeholder={`Search ${tab} (${isMac ? 'Cmd' : 'Ctrl'}+F)`}
+              aria-label={`Search ${tab}`}
+              className="border-input focus-visible:border-ring focus-visible:ring-ring/50 h-8 w-full rounded-[10px] border bg-white pr-7 pl-8 text-sm outline-none placeholder:text-[13px] focus-visible:ring-[3px] [&::-webkit-search-cancel-button]:hidden"
+            />
+            {query && (
+              <button
+                type="button"
+                aria-label="Clear search"
+                onClick={() => {
+                  setQuery('')
+                  search.current?.focus()
+                }}
+                className="text-muted-foreground hover:text-foreground absolute top-1/2 right-2 -translate-y-1/2"
+              >
+                <X className="size-3.5" strokeWidth={2} />
+              </button>
+            )}
+          </div>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto px-2">
-          {tab === 'articles' ? (
-            articles && articles.sections.length ? (
-              <ArticlesTree tree={articles} selectedId={current} onOpen={open} />
-            ) : (
-              loaded && (
-                <p className="text-muted-foreground px-2 text-sm">
-                  No articles yet. Run research to write them.
-                </p>
-              )
+        <div className="min-h-0 flex-1 overflow-y-auto px-2 pt-1" data-tree-pane>
+          {empty ? (
+            loaded && (
+              <p className="text-muted-foreground px-2 text-sm">
+                {tab === 'articles'
+                  ? 'No articles yet. Run research to write them.'
+                  : 'No sources yet.'}
+              </p>
             )
+          ) : tab === 'articles' ? (
+            <ArticlesTree tree={articles!} selectedId={selected} query={query} onOpen={open} />
           ) : (
-            <>
-              {[
-                {
-                  title: 'Add',
-                  items: [{ path: 'files', title: 'Your files', tags: [] as string[] }]
-                },
-                ...sourceGroups
-              ].map((g) => (
-                <div key={g.title} className="mb-4">
-                  <p className="eyebrow px-2 pb-1.5 text-[12px]">{g.title}</p>
-                  <ul>
-                    {g.items.map((s) => (
-                      <li key={s.path}>
-                        <button
-                          type="button"
-                          aria-current={current === s.path ? 'true' : undefined}
-                          onClick={() => setSelected(s.path)}
-                          className={cn(
-                            'focus-visible:ring-ring/50 flex w-full items-center gap-2 rounded-[8px] px-2 py-1.5 text-left text-sm outline-none focus-visible:ring-[3px]',
-                            current === s.path ? 'bg-accent text-primary' : 'hover:bg-secondary'
-                          )}
-                        >
-                          <span className="min-w-0 flex-1 truncate">{s.title}</span>
-                          {s.tags.includes('private') && (
-                            <Lock
-                              className="text-muted-foreground size-3 shrink-0"
-                              strokeWidth={2}
-                              aria-label="Private"
-                            />
-                          )}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
-            </>
+            <SourcesTree tree={sources!} selectedId={selected} query={query} onOpen={open} />
           )}
         </div>
         <div className="border-t px-4 py-3">
@@ -315,13 +351,23 @@ export function WikiView() {
             Re-run all research
           </Button>
         </div>
+        <ResizeHandle width={width} onWidth={resize} />
       </nav>
 
       <section className="min-w-0 flex-1">
         {error && <p className="text-destructive border-b px-6 py-2 text-sm">{error}</p>}
-        {current === PROFILE && <ProfilePane />}
-        {current === 'files' && <FilesPane />}
-        {current === SOCIAL && <SocialPane onRerun={() => void rerun('social-taglines')} />}
+        {!selected && (
+          <div className="text-muted-foreground flex h-full items-center justify-center p-6 text-center text-sm">
+            <p className="max-w-[360px]">
+              {tab === 'articles'
+                ? 'Open a section on the left, then choose an article. Hover over anything to see what it is for.'
+                : 'Open a section on the left, then choose a source to read it and see which articles cite it.'}
+            </p>
+          </div>
+        )}
+        {selected === PROFILE && <ProfilePane />}
+        {selected === 'files' && <FilesPane />}
+        {selected === SOCIAL && <SocialPane onRerun={() => void rerun('social-taglines')} />}
         {placeholder && (
           <PlaceholderPane
             node={placeholder}
@@ -329,12 +375,10 @@ export function WikiView() {
             onGenerate={(t) => void rerun(t)}
           />
         )}
-        {current?.startsWith('wiki/') && current !== PROFILE && current !== SOCIAL && (
-          <ArticleView key={current} path={current} onRerun={(t) => void rerun(t)} />
+        {selected?.startsWith('wiki/') && selected !== PROFILE && selected !== SOCIAL && (
+          <ArticleView key={selected} path={selected} onRerun={(t) => void rerun(t)} />
         )}
-        {current?.startsWith('raw/') && (
-          <DocView key={current} path={current} status="Source, read-only" />
-        )}
+        {selected?.startsWith('raw/') && <SourceView path={selected} />}
       </section>
     </div>
   )

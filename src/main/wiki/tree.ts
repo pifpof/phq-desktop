@@ -83,10 +83,14 @@ interface Ctx {
   decisionsFor: Map<string, WikiFile[]>
 }
 
-function resolveSources(ctx: Ctx, f: WikiFile): { list: TreeSource[]; info: SourceInfo[] } {
+/** An article's sources, first-party first, newest first; missing files flagged. */
+export function resolveSources(
+  raw: Map<string, WikiFile>,
+  f: WikiFile
+): { list: TreeSource[]; info: SourceInfo[] } {
   const info: SourceInfo[] = []
   const rows = stringList(f.data?.sources).map((path) => {
-    const r = ctx.raw.get(path)
+    const r = raw.get(path)
     if (!r) {
       return {
         row: {
@@ -188,7 +192,7 @@ function articleNode(ctx: Ctx, f: WikiFile): TreeNode {
   const spec = specFor(f.name)
   const title = stringField(f.data?.title) || f.name
   const label = spec?.pattern ? stripPrefix(title, spec.labelPrefix) : spec?.navLabel || title
-  const { list, info } = resolveSources(ctx, f)
+  const { list, info } = resolveSources(ctx.raw, f)
   const markers: Marker[] = []
   const stale = outOfDateReason(ctx, f, spec)
   if (stale) markers.push({ kind: 'outOfDate', text: stale })
@@ -207,6 +211,7 @@ function articleNode(ctx: Ctx, f: WikiFile): TreeNode {
     title,
     subtitle: spec?.navSubtitle ?? '',
     summary: stringField(f.data?.summary),
+    help: spec ? spec.navHelp : 'Added outside the app, or by another tool.',
     aliases: stringList(f.data?.aliases),
     markers,
     sources: list,
@@ -226,6 +231,7 @@ function placeholder(spec: ArticleSpec, label: string): TreeNode {
     title: label,
     subtitle: '',
     summary: 'Not generated yet.',
+    help: spec.navHelp,
     aliases: [],
     markers: [{ kind: 'missing', text: 'Not generated yet' }],
     sources: [],
@@ -246,6 +252,7 @@ function group(id: VirtualParent, children: TreeNode[]): TreeNode {
     title: label,
     subtitle: '',
     summary: '',
+    help: VIRTUAL_PARENTS[id].help,
     aliases: [],
     markers: [],
     sources: [],
@@ -373,6 +380,7 @@ export function buildArticleTree(input: TreeInput): WikiTree {
     sections.push({
       id: s.id,
       label: s.label,
+      help: s.help,
       count: countArticles(items),
       attention: items.some((i) => i.attention),
       items

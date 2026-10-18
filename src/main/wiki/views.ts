@@ -9,6 +9,7 @@ import { stringField, stringList } from './frontmatter'
 import { linkedSlugs } from './links'
 import { outputVersions } from './paths'
 import { scanWiki, type WikiFile } from './scan'
+import { resolveSources } from './tree'
 
 /** Read-only listings of the wiki for the app's views. Front matter only, plus backlinks. */
 
@@ -87,11 +88,7 @@ export async function articleDetail(root: string, path: string): Promise<Article
     article: summaryOf(f),
     body: f.body,
     aliases: stringList(f.data.aliases),
-    sources: stringList(f.data.sources).map((p) => ({
-      path: p,
-      title: stringField(raw.get(p)?.data?.title) || p.split('/').pop()!,
-      exists: raw.has(p)
-    })),
+    sources: resolveSources(raw, f).list,
     backlinks,
     taskId: spec && spec.task !== 'app' ? taskFor(f.name, spec.task) : null
   }

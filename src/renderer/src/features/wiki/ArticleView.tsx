@@ -10,16 +10,11 @@ import { useApp } from '@/store/app'
 import { useResearch } from '@/store/research'
 import { DocHeader, FileActions } from '@/features/documents/DocParts'
 import { RecordDecisionDialog } from '@/features/decisions/RecordDecisionDialog'
+import { formatDay } from './format'
+import { SOURCE_KIND_LABEL, SourceIcon } from './tree-parts'
 
 /** A neutral badge: facts about the article, not calls to action. */
 const QUIET = 'border-border bg-secondary text-foreground font-medium'
-
-const formatDate = (iso: string): string => {
-  const d = new Date(`${iso}T00:00:00`)
-  return Number.isNaN(d.getTime())
-    ? iso
-    : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-}
 
 /** Title, abstract and sections; the app's own See Also and Sources are shown below instead. */
 const mainBody = (body: string): string =>
@@ -89,7 +84,7 @@ export function ArticleView({
                     : 'rarely'}
               </Badge>
             )}
-            {a.verified && <span>Checked {formatDate(a.verified)}</span>}
+            {a.verified && <span>Checked {formatDay(a.verified)}</span>}
             {a.private && (
               <Badge className={`${QUIET} gap-1`}>
                 <Lock className="size-3" strokeWidth={2} />
@@ -128,19 +123,40 @@ export function ArticleView({
           {detail.sources.length > 0 && (
             <section className="mt-10 border-t pt-6">
               <h3 className="text-[17px]">Sources</h3>
-              <ul className="mt-2 space-y-1 text-sm">
+              <p className="text-muted-foreground mt-1 text-[13px]">
+                Your own material first, then competitor sites and web citations. Open one to read
+                it and see what else cites it.
+              </p>
+              <ul className="mt-3 space-y-1.5 text-sm">
                 {detail.sources.map((s) => (
-                  <li key={s.path}>
+                  <li key={s.path} className="flex items-start gap-2">
                     {s.exists ? (
-                      <button
-                        type="button"
-                        className="text-primary hover:text-primary-hover text-left underline underline-offset-2"
-                        onClick={() => open(s.path)}
-                      >
-                        {s.title}
-                      </button>
+                      <>
+                        <span className="mt-[3px]" title={SOURCE_KIND_LABEL[s.kind]}>
+                          <SourceIcon source={s} />
+                        </span>
+                        <button
+                          type="button"
+                          className="text-primary hover:text-primary-hover text-left underline underline-offset-2"
+                          onClick={() => open(s.path)}
+                        >
+                          {s.title}
+                        </button>
+                        {s.private && (
+                          <Lock
+                            className="text-muted-foreground mt-[4px] size-3 shrink-0"
+                            strokeWidth={2}
+                            aria-label="Private"
+                          />
+                        )}
+                      </>
                     ) : (
-                      <span className="text-muted-foreground">{s.title} (missing)</span>
+                      <span
+                        className="text-destructive"
+                        title="This file is missing. Re-run the article to replace its sources."
+                      >
+                        Missing: {s.path}
+                      </span>
                     )}
                   </li>
                 ))}

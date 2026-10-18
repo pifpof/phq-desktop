@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { TreeSourceSchema } from './wiki-tree'
 
 /** What the Knowledge, Sources and Use your wiki views show (REQUIREMENTS-v2 4.1, 4.5). */
 
@@ -35,7 +36,8 @@ export const ArticleDetailSchema = z.object({
   article: ArticleSummarySchema,
   body: z.string(),
   aliases: z.array(z.string()),
-  sources: z.array(z.object({ path: z.string(), title: z.string(), exists: z.boolean() })),
+  /** First-party first, then social, competitor sites, web citations, legacy; newest first. */
+  sources: z.array(TreeSourceSchema),
   backlinks: z.array(z.object({ path: z.string(), title: z.string() })),
   /** Research task that writes this article, for Re-run. Null for the profile and decisions. */
   taskId: z.string().nullable()

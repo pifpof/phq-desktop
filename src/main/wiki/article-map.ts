@@ -49,11 +49,48 @@ export interface ArticleSpec {
   dependsOn: string[]
   /** Smaller line under the label. */
   navSubtitle: string
+  /** What the article is for, in plain words, for the tree's tooltip. */
+  navHelp: string
+}
+
+/** Tooltip help, by nav label (fixed slugs) or label prefix (patterns). No em dashes. */
+const HELP: Record<string, string> = {
+  'Positioning Statement':
+    'The core answer: who you serve, the problem you solve, and why you win. Everything else supports it.',
+  'Value Drivers':
+    'The outcomes customers buy from you, each backed by evidence. Open one to see the detail.',
+  'Value Driver': 'One outcome customers buy from you, and the evidence behind it.',
+  Moat: 'An advantage competitors would find hard to copy, and why.',
+  'Proof Points': 'Evidence for your claims: results, quotes and named customers.',
+  Decision: 'A positioning choice you recorded. Research follows it.',
+  'Ideal Customer Profile':
+    'The customer you win most often and serve best, and how to recognise them.',
+  'Customer Segment': 'Who buys in your market today, from the research.',
+  'Competitive Landscape': 'How the alternatives compare, and where you win and lose.',
+  Competitor: 'What this competitor offers, how they position, and how you compare.',
+  'Current Messaging': 'What your website says today, read the way a buyer would.',
+  'Social Taglines': 'Your bios and taglines on social profiles, side by side.',
+  'Why Now': 'The market shifts that make your offer matter now.',
+  'Market Segment': 'The market you compete in: its size, trends and buyers.',
+  'Research Summary': 'A summary of the company research: where you stand today.',
+  'Company Profile': 'What you told the app about your company. You can edit it here.',
+  'Company Overview': 'Your company as the research found it: what you do and for whom.',
+  'Product Overview': 'What you sell and how it works, from your website and files.',
+  'Recent Developments': 'News, launches and changes from the last year.',
+  Strengths: 'What you do well, according to the evidence.',
+  Weaknesses: 'Gaps and risks a buyer or a competitor might point to.'
 }
 
 type Nav = Pick<
   ArticleSpec,
-  'navSection' | 'navOrder' | 'navLabel' | 'navParent' | 'labelPrefix' | 'dependsOn' | 'navSubtitle'
+  | 'navSection'
+  | 'navOrder'
+  | 'navLabel'
+  | 'navParent'
+  | 'labelPrefix'
+  | 'dependsOn'
+  | 'navSubtitle'
+  | 'navHelp'
 >
 
 const nav = (
@@ -70,6 +107,7 @@ const nav = (
   labelPrefix: null,
   dependsOn,
   navSubtitle: '',
+  navHelp: HELP[navLabel] ?? '',
   ...more
 })
 
@@ -78,7 +116,8 @@ const child = (
   navParent: string | VirtualParent,
   labelPrefix: string,
   dependsOn: string[] = []
-): Nav => nav(navSection, 0, '', dependsOn, { navParent, labelPrefix })
+): Nav =>
+  nav(navSection, 0, '', dependsOn, { navParent, labelPrefix, navHelp: HELP[labelPrefix] ?? '' })
 
 const fixed = (
   slug: string,

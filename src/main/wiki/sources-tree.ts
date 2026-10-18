@@ -106,6 +106,7 @@ export function buildSourcesTree(files: WikiFile[]): SourcesTree {
     out.push({
       id: s.id,
       label: s.label,
+      help: s.help,
       count: direct.length + groups.reduce((n, g) => n + g.sources.length, 0),
       sources: direct,
       groups

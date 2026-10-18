@@ -7,22 +7,56 @@ import { z } from 'zod'
 
 /** Article tree sections, in display order (REQUIREMENTS-v3 3.1). */
 export const NAV_SECTIONS = [
-  { id: 'positioning', label: 'Positioning' },
-  { id: 'customers', label: 'Customers' },
-  { id: 'competitors', label: 'Competitors' },
-  { id: 'messaging', label: 'Messaging today' },
-  { id: 'market', label: 'Market' },
-  { id: 'company', label: 'Your company' },
-  { id: 'other', label: 'Other' }
+  {
+    id: 'positioning',
+    label: 'Positioning',
+    help: 'Your position: who you are for, the value you deliver, and the proof behind it.'
+  },
+  { id: 'customers', label: 'Customers', help: 'Who you are for, and who buys in your market.' },
+  {
+    id: 'competitors',
+    label: 'Competitors',
+    help: 'The alternatives buyers consider, and how you compare.'
+  },
+  { id: 'messaging', label: 'Messaging today', help: 'What you say about yourself today.' },
+  {
+    id: 'market',
+    label: 'Market',
+    help: 'The market you sell into, and why your offer matters now.'
+  },
+  {
+    id: 'company',
+    label: 'Your company',
+    help: 'Facts about your company, from what you told the app and from the research.'
+  },
+  { id: 'other', label: 'Other', help: 'Articles added outside the app, or by another tool.' }
 ] as const
 export type NavSection = (typeof NAV_SECTIONS)[number]['id']
 
 /** Parents with no article of their own. */
 export const VIRTUAL_PARENTS = {
-  moats: { label: 'Moats', section: 'positioning', order: 3 },
-  decisions: { label: 'Decisions', section: 'positioning', order: 5 },
-  'competitor-profiles': { label: 'Competitor Profiles', section: 'competitors', order: 2 }
-} as const satisfies Record<string, { label: string; section: NavSection; order: number }>
+  moats: {
+    label: 'Moats',
+    section: 'positioning',
+    order: 3,
+    help: 'Advantages competitors would find hard to copy.'
+  },
+  decisions: {
+    label: 'Decisions',
+    section: 'positioning',
+    order: 5,
+    help: 'Positioning choices you recorded. Research follows them and never contradicts them.'
+  },
+  'competitor-profiles': {
+    label: 'Competitor Profiles',
+    section: 'competitors',
+    order: 2,
+    help: 'One article per competitor: what they offer, how they position, and how you compare.'
+  }
+} as const satisfies Record<
+  string,
+  { label: string; section: NavSection; order: number; help: string }
+>
 export type VirtualParent = keyof typeof VIRTUAL_PARENTS
 
 /** Status markers in priority order (REQUIREMENTS-v3 3.5). */
@@ -65,6 +99,8 @@ export interface TreeNode {
   title: string
   subtitle: string
   summary: string
+  /** What this article is for, in plain words (the tooltip). */
+  help: string
   aliases: string[]
   markers: Marker[]
   sources: TreeSource[]
@@ -85,6 +121,7 @@ export const TreeNodeSchema: z.ZodType<TreeNode> = z.lazy(() =>
     title: z.string(),
     subtitle: z.string(),
     summary: z.string(),
+    help: z.string(),
     aliases: z.array(z.string()),
     markers: z.array(MarkerSchema),
     sources: z.array(TreeSourceSchema),
@@ -97,6 +134,7 @@ export const TreeNodeSchema: z.ZodType<TreeNode> = z.lazy(() =>
 export const TreeSectionSchema = z.object({
   id: z.string(),
   label: z.string(),
+  help: z.string(),
   /** Articles inside, placeholders and groups not counted. */
   count: z.number(),
   attention: z.boolean(),
@@ -109,13 +147,33 @@ export type WikiTree = z.infer<typeof WikiTreeSchema>
 
 /** Sources tab (REQUIREMENTS-v3 4). */
 export const SOURCE_SECTIONS = [
-  { id: 'own-site', label: 'Your website' },
-  { id: 'files', label: 'Your files' },
-  { id: 'competitor-sites', label: 'Competitor sites' },
-  { id: 'citations', label: 'Web citations' },
-  { id: 'social', label: 'Social' },
-  { id: 'legacy', label: 'Legacy' },
-  { id: 'other', label: 'Other' }
+  {
+    id: 'own-site',
+    label: 'Your website',
+    help: 'Pages from your website, saved when the research read them.'
+  },
+  {
+    id: 'files',
+    label: 'Your files',
+    help: 'Files you added. They stay private and are never sent to web research.'
+  },
+  {
+    id: 'competitor-sites',
+    label: 'Competitor sites',
+    help: "Pages from competitors' websites, grouped by competitor."
+  },
+  {
+    id: 'citations',
+    label: 'Web citations',
+    help: 'Excerpts from web pages the research cited. Not full copies of the pages.'
+  },
+  { id: 'social', label: 'Social', help: 'Your social profiles, as the research found them.' },
+  {
+    id: 'legacy',
+    label: 'Legacy',
+    help: 'Material carried over from the old workspace format.'
+  },
+  { id: 'other', label: 'Other', help: 'Other files in the raw folder.' }
 ] as const
 
 export const CitedBySchema = z.object({ path: z.string(), label: z.string() })
@@ -136,6 +194,7 @@ export type SourceGroup = z.infer<typeof SourceGroupSchema>
 export const SourceSectionSchema = z.object({
   id: z.string(),
   label: z.string(),
+  help: z.string(),
   count: z.number(),
   /** Sources directly under the heading. */
   sources: z.array(SourceNodeSchema),
