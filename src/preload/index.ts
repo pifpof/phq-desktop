@@ -6,6 +6,7 @@ import {
   EVENT_OPEN_SETTINGS,
   EVENT_RESEARCH,
   EVENT_MIGRATE,
+  EVENT_WIKI_TREE,
   EVENT_WORKSPACE_CHANGED,
   WorkspaceChangedSchema,
   type Api,
@@ -67,6 +68,13 @@ const api: Api = {
   listArticles: () => invoke('wiki:articles'),
   getArticle: (path) => invoke('wiki:article', { path }),
   listSources: () => invoke('wiki:sources'),
+  wikiTree: () => invoke('wiki:tree'),
+  sourcesTree: () => invoke('wiki:sourcesTree'),
+  onWikiTreeChanged: (cb) => {
+    const listener = (): void => cb()
+    ipcRenderer.on(EVENT_WIKI_TREE, listener)
+    return () => ipcRenderer.removeListener(EVENT_WIKI_TREE, listener)
+  },
   listOutputs: (kind) => invoke('wiki:outputs', { kind }),
   reassemble: () => invoke('wiki:reassemble'),
   lastCheck: () => invoke('wiki:lastCheck'),

@@ -312,7 +312,8 @@ describe('indexes', () => {
       dir: 'wiki/topics',
       name,
       data: { title: name.toUpperCase(), summary: `About ${name} | pipes`, tags: ['t'], updated },
-      body: ''
+      body: '',
+      mtimeMs: 0
     })
     const a = renderLeafIndex(
       'wiki/topics',

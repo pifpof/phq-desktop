@@ -1,4 +1,4 @@
-import { readdir, readFile } from 'fs/promises'
+import { readdir, readFile, stat } from 'fs/promises'
 import { join } from 'path'
 import { CATEGORY_DIR, RAW_TYPES } from '@shared/wiki-types'
 import { parseDoc, type FrontMatter } from './frontmatter'
@@ -18,7 +18,12 @@ export interface WikiFile {
   /** Null when the file has no readable front matter. */
   data: FrontMatter | null
   body: string
+  /** File modification time, ms since the epoch. */
+  mtimeMs: number
 }
+
+/** Files already read, keyed by path; reused while their time and size are unchanged. */
+export type ScanCache = Map<string, { mtimeMs: number; size: number; file: WikiFile }>
 
 async function mdFiles(dir: string): Promise<string[]> {
   try {
@@ -31,27 +36,46 @@ async function mdFiles(dir: string): Promise<string[]> {
   }
 }
 
-async function readDir(root: string, dir: string, kind: WikiFileKind): Promise<WikiFile[]> {
-  const out: WikiFile[] = []
-  for (const name of await mdFiles(join(root, dir))) {
-    const rel = `${dir}/${name}`
-    let text: string
-    try {
-      text = await readFile(join(root, rel), 'utf8')
-    } catch {
-      continue
-    }
+async function readOne(
+  root: string,
+  dir: string,
+  name: string,
+  kind: WikiFileKind,
+  cache?: ScanCache
+): Promise<WikiFile | null> {
+  const rel = `${dir}/${name}`
+  const abs = join(root, rel)
+  try {
+    const st = await stat(abs)
+    const hit = cache?.get(rel)
+    if (hit && hit.mtimeMs === st.mtimeMs && hit.size === st.size) return hit.file
+    const text = await readFile(abs, 'utf8')
     const doc = parseDoc(text)
-    out.push({
+    const file: WikiFile = {
       rel,
       kind,
       dir,
       name: name.slice(0, -3),
       data: doc?.data ?? null,
-      body: doc?.body ?? text
-    })
+      body: doc?.body ?? text,
+      mtimeMs: st.mtimeMs
+    }
+    cache?.set(rel, { mtimeMs: st.mtimeMs, size: st.size, file })
+    return file
+  } catch {
+    return null
   }
-  return out
+}
+
+async function readDir(
+  root: string,
+  dir: string,
+  kind: WikiFileKind,
+  cache?: ScanCache
+): Promise<WikiFile[]> {
+  const names = await mdFiles(join(root, dir))
+  const files = await Promise.all(names.map((n) => readOne(root, dir, n, kind, cache)))
+  return files.filter((f): f is WikiFile => f !== null)
 }
 
 export const RAW_DIRS = RAW_TYPES.map((t) => `raw/${t}`)
@@ -59,11 +83,17 @@ export const WIKI_DIRS = Object.values(CATEGORY_DIR).map((d) => `wiki/${d}`)
 /** Required by llm-wiki lint; PositioningHQ never writes articles here. */
 export const THESES_DIR = 'wiki/theses'
 
-export async function scanWiki(root: string): Promise<WikiFile[]> {
+/** With a cache, only files whose time or size changed are read again. */
+export async function scanWiki(root: string, cache?: ScanCache): Promise<WikiFile[]> {
   const parts = await Promise.all([
-    ...RAW_DIRS.map((d) => readDir(root, d, 'raw')),
-    ...[...WIKI_DIRS, THESES_DIR].map((d) => readDir(root, d, 'article')),
-    readDir(root, 'output', 'output')
+    ...RAW_DIRS.map((d) => readDir(root, d, 'raw', cache)),
+    ...[...WIKI_DIRS, THESES_DIR].map((d) => readDir(root, d, 'article', cache)),
+    readDir(root, 'output', 'output', cache)
   ])
-  return parts.flat()
+  const files = parts.flat()
+  if (cache) {
+    const present = new Set(files.map((f) => f.rel))
+    for (const rel of cache.keys()) if (!present.has(rel)) cache.delete(rel)
+  }
+  return files
 }

@@ -1,10 +1,16 @@
 import { app, BrowserWindow, Notification, safeStorage } from 'electron'
-import { EVENT_OPEN_SETTINGS, EVENT_RESEARCH, EVENT_WORKSPACE_CHANGED } from '@shared/ipc-contract'
+import {
+  EVENT_OPEN_SETTINGS,
+  EVENT_RESEARCH,
+  EVENT_WIKI_TREE,
+  EVENT_WORKSPACE_CHANGED
+} from '@shared/ipc-contract'
 import { registerIpc } from './ipc'
 import { createLogger } from './log'
 import { isSecureStorageAvailable, quitWhenAllWindowsClosed } from './platform'
 import { buildMenu } from './platform/menu'
 import { createWorkspaceWatcher } from './workspace/watcher'
+import { createWikiTreeService } from './wiki/tree-service'
 import { getProvider } from './providers/registry'
 import { localHandlers } from './research/local-handlers'
 import { diskSkillReader } from './research/prompt-builder'
@@ -43,9 +49,11 @@ if (!app.requestSingleInstanceLock()) {
       log
     })
     const chat = createChatService()
-    const watcher = createWorkspaceWatcher((paths) =>
+    const wikiTree = createWikiTreeService()
+    const watcher = createWorkspaceWatcher((paths) => {
       win?.webContents.send(EVENT_WORKSPACE_CHANGED, { paths })
-    )
+      if (wikiTree.invalidate(paths)) win?.webContents.send(EVENT_WIKI_TREE)
+    })
 
     let pricing: ReturnType<typeof loadPricing> | null = null
     const research = createResearchService({
@@ -79,6 +87,7 @@ if (!app.requestSingleInstanceLock()) {
 
     registerIpc({
       research,
+      wikiTree,
       settings,
       secrets,
       chat,

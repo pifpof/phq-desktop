@@ -134,7 +134,8 @@ describe('workspace chat mode (index-first)', () => {
       dir: 'wiki/topics',
       name,
       data,
-      body: ''
+      body: '',
+      mtimeMs: 0
     })
     const icp = f('ideal-customer-profile', {
       title: 'Ideal Customer Profile',

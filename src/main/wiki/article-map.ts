@@ -1,4 +1,5 @@
 import type { Category, Volatility } from '@shared/wiki-types'
+import type { NavSection, VirtualParent } from '@shared/wiki-tree'
 import { articleRel } from './paths'
 
 /**
@@ -34,7 +35,50 @@ export interface ArticleSpec {
   template: string | null
   /** v1 task ID that writes it, or "app" for articles the app writes without a model. */
   task: string
+  /** Wiki pane placement (REQUIREMENTS-v3 3.1, 5). */
+  navSection: NavSection
+  /** Order within the section, or within the parent for children. */
+  navOrder: number
+  /** Short label in the tree. Empty for patterns, which use their title. */
+  navLabel: string
+  /** A real parent's slug or a virtual parent's id. */
+  navParent: string | null
+  /** Title prefix dropped in the tree ("Value Driver" for "Value Driver: Faster Ramp"). */
+  labelPrefix: string | null
+  /** Slugs (or "prefix*" patterns) of the articles that feed this one, for "Out of date". */
+  dependsOn: string[]
+  /** Smaller line under the label. */
+  navSubtitle: string
 }
+
+type Nav = Pick<
+  ArticleSpec,
+  'navSection' | 'navOrder' | 'navLabel' | 'navParent' | 'labelPrefix' | 'dependsOn' | 'navSubtitle'
+>
+
+const nav = (
+  navSection: NavSection,
+  navOrder: number,
+  navLabel: string,
+  dependsOn: string[] = [],
+  more: Partial<Nav> = {}
+): Nav => ({
+  navSection,
+  navOrder,
+  navLabel,
+  navParent: null,
+  labelPrefix: null,
+  dependsOn,
+  navSubtitle: '',
+  ...more
+})
+
+const child = (
+  navSection: NavSection,
+  navParent: string | VirtualParent,
+  labelPrefix: string,
+  dependsOn: string[] = []
+): Nav => nav(navSection, 0, '', dependsOn, { navParent, labelPrefix })
 
 const fixed = (
   slug: string,
@@ -44,7 +88,8 @@ const fixed = (
   group: ArticleGroup,
   task: string,
   template: string | null,
-  aliases: string[] = []
+  aliases: string[],
+  placement: Nav
 ): ArticleSpec => ({
   slug,
   pattern: false,
@@ -54,7 +99,8 @@ const fixed = (
   aliases,
   group,
   template,
-  task
+  task,
+  ...placement
 })
 
 const pattern = (
@@ -63,7 +109,8 @@ const pattern = (
   volatility: Volatility,
   group: ArticleGroup,
   task: string,
-  template: string | null
+  template: string | null,
+  placement: Nav
 ): ArticleSpec => ({
   slug: prefix,
   pattern: true,
@@ -73,8 +120,21 @@ const pattern = (
   aliases: [],
   group,
   template,
-  task
+  task,
+  ...placement
 })
+
+/** The company research the synthesis reads. */
+const RESEARCH = [
+  'company-overview',
+  'product-overview',
+  'market-segment',
+  'customer-segment',
+  'strengths',
+  'weaknesses',
+  'recent-developments',
+  'competitor-*'
+]
 
 const CR = 'company-research/assets'
 const PB = 'positioning-playbook/assets'
@@ -89,7 +149,8 @@ export const ARTICLE_MAP: ArticleSpec[] = [
     'Company',
     'research-01-overview',
     `${CR}/01-company-overview.md`,
-    ['company', 'about']
+    ['company', 'about'],
+    nav('company', 2, 'Company Overview', ['current-messaging'])
   ),
   fixed(
     'product-overview',
@@ -99,7 +160,8 @@ export const ARTICLE_MAP: ArticleSpec[] = [
     'Company',
     'research-02-product',
     `${CR}/02-product-analysis.md`,
-    ['product', 'offering']
+    ['product', 'offering'],
+    nav('company', 3, 'Product Overview')
   ),
   fixed(
     'market-segment',
@@ -109,7 +171,8 @@ export const ARTICLE_MAP: ArticleSpec[] = [
     'Market',
     'research-03-market-segment',
     `${CR}/03-market-segment.md`,
-    ['industry', 'market']
+    ['industry', 'market'],
+    nav('market', 2, 'Market Segment')
   ),
   fixed(
     'customer-segment',
@@ -119,7 +182,8 @@ export const ARTICLE_MAP: ArticleSpec[] = [
     'Customers',
     'research-04-customer-segment',
     `${CR}/04-customer-segment.md`,
-    ['customers', 'clients']
+    ['customers', 'clients'],
+    nav('customers', 2, 'Customer Segment')
   ),
   fixed(
     'recent-developments',
@@ -129,7 +193,8 @@ export const ARTICLE_MAP: ArticleSpec[] = [
     'Company',
     'research-07-recent-developments',
     `${CR}/07-recent-developments.md`,
-    ['news', 'launches']
+    ['news', 'launches'],
+    nav('company', 4, 'Recent Developments')
   ),
   fixed(
     'market-position-summary',
@@ -139,7 +204,8 @@ export const ARTICLE_MAP: ArticleSpec[] = [
     'Market',
     'research-09-synthesis',
     `${CR}/09-synthesis.md`,
-    ['research summary']
+    ['research summary'],
+    nav('market', 3, 'Research Summary', RESEARCH)
   ),
   fixed(
     'market-overview',
@@ -149,7 +215,8 @@ export const ARTICLE_MAP: ArticleSpec[] = [
     'Market',
     'playbook-01-market',
     `${PB}/01-market-overview.md`,
-    ['why now', 'market shifts']
+    ['why now', 'market shifts'],
+    nav('market', 1, 'Why Now', ['market-position-summary', 'current-messaging'])
   ),
   fixed(
     'ideal-customer-profile',
@@ -159,7 +226,8 @@ export const ARTICLE_MAP: ArticleSpec[] = [
     'Customers',
     'playbook-02-icp',
     `${PB}/02-target-customers.md`,
-    ['ICP', 'target customer', 'ideal customer']
+    ['ICP', 'target customer', 'ideal customer'],
+    nav('customers', 1, 'Ideal Customer Profile', ['market-position-summary', 'current-messaging'])
   ),
   fixed(
     'competitive-landscape',
@@ -169,7 +237,8 @@ export const ARTICLE_MAP: ArticleSpec[] = [
     'Competitors',
     'playbook-06-competitive',
     `${PB}/06-competitive-intelligence.md`,
-    ['competition', 'market map']
+    ['competition', 'market map'],
+    nav('competitors', 1, 'Competitive Landscape', ['competitor-*'])
   ),
   fixed(
     'current-messaging',
@@ -179,7 +248,8 @@ export const ARTICLE_MAP: ArticleSpec[] = [
     'Messaging',
     'website-positioning',
     'website-positioning/assets/website-positioning.md',
-    ['website messaging', 'current positioning']
+    ['website messaging', 'current positioning'],
+    nav('messaging', 1, 'Current Messaging')
   ),
   // 6.2 wiki/concepts/
   fixed(
@@ -190,7 +260,14 @@ export const ARTICLE_MAP: ArticleSpec[] = [
     'Positioning',
     'playbook-05-statement',
     `${PB}/05-positioning-statement.md`,
-    ['positioning', 'value proposition']
+    ['positioning', 'value proposition'],
+    nav('positioning', 1, 'Positioning Statement', [
+      'market-overview',
+      'ideal-customer-profile',
+      'value-drivers',
+      'moat-*',
+      'competitive-landscape'
+    ])
   ),
   fixed(
     'value-drivers',
@@ -200,7 +277,8 @@ export const ARTICLE_MAP: ArticleSpec[] = [
     'Positioning',
     'playbook-03-value',
     `${PB}/03-value-drivers.md`,
-    ['value pillars', 'outcomes']
+    ['value pillars', 'outcomes'],
+    nav('positioning', 2, 'Value Drivers', ['ideal-customer-profile', 'market-position-summary'])
   ),
   pattern(
     'value-driver-',
@@ -208,7 +286,11 @@ export const ARTICLE_MAP: ArticleSpec[] = [
     'cold',
     'Positioning',
     'playbook-03-value',
-    `${PB}/03-value-drivers.md`
+    `${PB}/03-value-drivers.md`,
+    child('positioning', 'value-drivers', 'Value Driver', [
+      'ideal-customer-profile',
+      'market-position-summary'
+    ])
   ),
   pattern(
     'moat-',
@@ -216,12 +298,25 @@ export const ARTICLE_MAP: ArticleSpec[] = [
     'cold',
     'Positioning',
     'playbook-04-moat',
-    `${PB}/04-distinct-advantages.md`
+    `${PB}/04-distinct-advantages.md`,
+    child('positioning', 'moats', 'Moat', [
+      'value-drivers',
+      'ideal-customer-profile',
+      'market-position-summary'
+    ])
   ),
   // 6.3 wiki/references/
-  fixed('company-profile', 'reference', 'cold', 'Company Profile', 'Company', 'app', null, [
-    'profile'
-  ]),
+  fixed(
+    'company-profile',
+    'reference',
+    'cold',
+    'Company Profile',
+    'Company',
+    'app',
+    null,
+    ['profile'],
+    nav('company', 1, 'Company Profile', [], { navSubtitle: 'What you told us' })
+  ),
   fixed(
     'strengths',
     'reference',
@@ -229,7 +324,9 @@ export const ARTICLE_MAP: ArticleSpec[] = [
     'Strengths',
     'Company',
     'research-05-strengths',
-    `${CR}/05-strengths.md`
+    `${CR}/05-strengths.md`,
+    [],
+    nav('company', 5, 'Strengths')
   ),
   fixed(
     'weaknesses',
@@ -238,7 +335,9 @@ export const ARTICLE_MAP: ArticleSpec[] = [
     'Weaknesses',
     'Company',
     'research-06-weaknesses',
-    `${CR}/06-weaknesses.md`
+    `${CR}/06-weaknesses.md`,
+    [],
+    nav('company', 6, 'Weaknesses')
   ),
   pattern(
     'competitor-',
@@ -246,7 +345,8 @@ export const ARTICLE_MAP: ArticleSpec[] = [
     'hot',
     'Competitors',
     'competitor-profiles',
-    'competitor-profile/assets/competitor-profile.md'
+    'competitor-profile/assets/competitor-profile.md',
+    child('competitors', 'competitor-profiles', 'Competitor')
   ),
   fixed(
     'proof-points',
@@ -256,7 +356,8 @@ export const ARTICLE_MAP: ArticleSpec[] = [
     'Proof',
     'playbook-07-proof',
     `${PB}/07-customer-proof-points.md`,
-    ['proof', 'customer evidence']
+    ['proof', 'customer evidence'],
+    nav('positioning', 4, 'Proof Points')
   ),
   fixed(
     'social-taglines',
@@ -266,9 +367,18 @@ export const ARTICLE_MAP: ArticleSpec[] = [
     'Messaging',
     'social-taglines',
     'social-taglines/assets/social-taglines.md',
-    ['social bios']
+    ['social bios'],
+    nav('messaging', 2, 'Social Taglines')
   ),
-  pattern('decision-', 'reference', 'cold', 'Decisions', 'app', null)
+  pattern(
+    'decision-',
+    'reference',
+    'cold',
+    'Decisions',
+    'app',
+    null,
+    child('positioning', 'decisions', 'Decision')
+  )
 ]
 
 /** The five "Start here" articles for the master index, in order (spec section 5). */

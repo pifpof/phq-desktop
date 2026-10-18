@@ -9,6 +9,7 @@ import {
   OutputVersionSchema,
   SourceSummarySchema
 } from './wiki-views'
+import { SourcesTreeSchema, WikiTreeSchema } from './wiki-tree'
 import { ProfileSchema } from './profile'
 import { RunViewSchema, type RunView } from './research'
 import {
@@ -265,6 +266,8 @@ export const channels = {
     res: ArticleDetailSchema.nullable()
   },
   'wiki:sources': { req: z.undefined(), res: z.array(SourceSummarySchema) },
+  'wiki:tree': { req: z.undefined(), res: WikiTreeSchema },
+  'wiki:sourcesTree': { req: z.undefined(), res: SourcesTreeSchema },
   'wiki:outputs': {
     req: z.object({ kind: z.enum(['positioning-playbook', 'messaging-analysis']) }),
     res: z.array(OutputVersionSchema)
@@ -319,6 +322,8 @@ export const EVENT_OPEN_SETTINGS = 'menu:openSettings'
 export const EVENT_WORKSPACE_CHANGED = 'workspace:changed'
 export const EVENT_RESEARCH = 'research:event'
 export const EVENT_MIGRATE = 'migrate:event'
+/** The Wiki pane's trees changed; fetch them again (REQUIREMENTS-v3 5). */
+export const EVENT_WIKI_TREE = 'wiki:treeChanged'
 
 export const WorkspaceChangedSchema = z.object({ paths: z.array(z.string()) })
 export type WorkspaceChanged = z.infer<typeof WorkspaceChangedSchema>
@@ -383,6 +388,9 @@ export interface Api {
   listArticles(): Promise<Result<Res<'wiki:articles'>>>
   getArticle(path: string): Promise<Result<Res<'wiki:article'>>>
   listSources(): Promise<Result<Res<'wiki:sources'>>>
+  wikiTree(): Promise<Result<Res<'wiki:tree'>>>
+  sourcesTree(): Promise<Result<Res<'wiki:sourcesTree'>>>
+  onWikiTreeChanged(cb: () => void): () => void
   listOutputs(kind: Req<'wiki:outputs'>['kind']): Promise<Result<Res<'wiki:outputs'>>>
   reassemble(): Promise<Result<Res<'wiki:reassemble'>>>
   lastCheck(): Promise<Result<Res<'wiki:lastCheck'>>>

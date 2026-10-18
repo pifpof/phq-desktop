@@ -41,6 +41,8 @@ export function registerWiki(handle: Handle, ctx: AppContext): void {
   handle('wiki:articles', () => listArticles(root()))
   handle('wiki:article', ({ path }) => articleDetail(root(), path))
   handle('wiki:sources', () => listSources(root()))
+  handle('wiki:tree', async () => (await ctx.wikiTree.get(root())).articles)
+  handle('wiki:sourcesTree', async () => (await ctx.wikiTree.get(root())).sources)
   handle('wiki:outputs', ({ kind }) => listOutputs(root(), kind))
 
   // Reassemble (REQUIREMENTS-v2 4.2): the playbook from the current articles, no model call.
