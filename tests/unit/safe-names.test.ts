@@ -1,3 +1,4 @@
+import { resolve } from 'path'
 import { describe, expect, it } from 'vitest'
 import { safeName } from '../../src/main/workspace/safe-name'
 import { resolveInside } from '../../src/main/workspace/paths'
@@ -25,7 +26,7 @@ describe('safeName', () => {
 describe('resolveInside', () => {
   const root = '/ws'
   it('allows paths inside the workspace', () => {
-    expect(resolveInside(root, 'memory/a.md')).toBe('/ws/memory/a.md')
+    expect(resolveInside(root, 'memory/a.md')).toBe(resolve(root, 'memory/a.md'))
   })
   it('refuses traversal, absolute paths and empty input', () => {
     expect(resolveInside(root, '../etc/passwd')).toBeNull()
