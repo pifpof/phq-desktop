@@ -19,6 +19,7 @@ import { scanWiki } from '../wiki/scan'
 import { parseSocialTable } from '@shared/social'
 import {
   ARTICLE_TOOL,
+  ARTICLE_TOOL_WITH_REPORT,
   checkChangeReport,
   type ChangeReportEntry,
   type PreparedFile,
@@ -618,7 +619,9 @@ export function createExecutor(
 
     const tools = {
       ...(web ? { webSearch: web.search, ...(web.fetch ? { webFetch: web.fetch } : {}) } : {}),
-      ...(writes?.kind === 'articles' ? { output: ARTICLE_TOOL } : {})
+      ...(writes?.kind === 'articles'
+        ? { output: regen?.changes.length ? ARTICLE_TOOL_WITH_REPORT : ARTICLE_TOOL }
+        : {})
     }
     const maxTokens = writes?.kind === 'articles' ? ARTICLE_MAX_TOKENS : undefined
     const call = (extra?: string) =>

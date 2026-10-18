@@ -13,6 +13,7 @@ import { ResearchBanner } from './ResearchBanner'
 import { Sidebar } from './Sidebar'
 import { WorkspaceBanner } from './WorkspaceBanner'
 import { RegeneratePreview } from '@/features/regenerate/RegeneratePreview'
+import { ReviewResult } from '@/features/regenerate/ReviewResult'
 
 export function HomeShell() {
   const view = useApp((s) => s.homeView)
@@ -66,6 +67,7 @@ export function HomeShell() {
         </div>
       </main>
       <RegeneratePreview />
+      <ReviewResult />
     </div>
   )
 }

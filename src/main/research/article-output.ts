@@ -136,6 +136,12 @@ export const ARTICLE_TOOL: OutputTool = {
   }
 }
 
+/** The same tool for a regeneration: the change report is required (REQUIREMENTS-v3.1 4.3). */
+export const ARTICLE_TOOL_WITH_REPORT: OutputTool = {
+  ...ARTICLE_TOOL,
+  schema: { ...ARTICLE_TOOL.schema, required: ['articles', 'change_report'] }
+}
+
 const str = z.string()
 const SourceSchema = z.object({ ref: str, quote: str.optional() })
 const ArticleOutSchema = z.object({

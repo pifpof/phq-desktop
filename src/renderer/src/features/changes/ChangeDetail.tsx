@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Check, PencilLine, RefreshCw, X } from 'lucide-react'
 import type { Change } from '@shared/changes'
 import { Badge } from '@/components/ui/badge'
@@ -9,6 +9,8 @@ import { useApp } from '@/store/app'
 import { useChanges } from '@/store/changes'
 import { formatDay } from '@/features/wiki/format'
 import { MakeChangeDialog } from './MakeChangeDialog'
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
+import { BeforeAfter, type VersionPair } from '@/features/regenerate/BeforeAfter'
 
 const STATUS: Record<Change['status'], { label: string; className: string }> = {
   pending: { label: 'Waiting', className: 'border-primary-light bg-accent text-primary' },
@@ -47,6 +49,20 @@ export function ChangeDetail({ path }: { path: string }) {
   const [dialog, setDialog] = useState<'edit' | 'related' | null>(null)
   const [confirming, setConfirming] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [history, setHistory] = useState<VersionPair[] | null>(null)
+  const [showHistory, setShowHistory] = useState(false)
+  const id = change?.id
+  const applied = change?.status === 'applied'
+  useEffect(() => {
+    if (!id || !applied) return
+    let cancelled = false
+    void unwrap(api.changeHistory(id))
+      .then((h) => !cancelled && setHistory(h))
+      .catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [id, applied])
 
   if (!change)
     return (
@@ -180,13 +196,35 @@ export function ChangeDetail({ path }: { path: string }) {
             </Block>
           )}
           {c.status === 'applied' && !c.legacy && (
-            <p className="text-muted-foreground mt-8 flex items-center gap-1.5 text-sm">
+            <p className="text-muted-foreground mt-8 flex flex-wrap items-center gap-1.5 text-sm">
               <Check className="text-primary size-4" strokeWidth={2} />
               Every later regeneration keeps to this change.
+              {history && history.length > 0 && (
+                <button
+                  type="button"
+                  className="text-primary hover:text-primary-hover ml-2 underline underline-offset-2"
+                  onClick={() => setShowHistory(true)}
+                >
+                  What changed
+                </button>
+              )}
             </p>
           )}
         </article>
       </div>
+      {showHistory && history && (
+        <Dialog open onOpenChange={setShowHistory}>
+          <DialogContent className="h-[calc(100vh-48px)] max-w-[1180px] gap-0 p-0">
+            <div className="border-b px-6 pt-5 pb-3">
+              <DialogTitle>What changed</DialogTitle>
+              <DialogDescription className="mt-1">
+                The regeneration that applied &quot;{c.name}&quot;.
+              </DialogDescription>
+            </div>
+            <BeforeAfter files={history} />
+          </DialogContent>
+        </Dialog>
+      )}
       {dialog && (
         <MakeChangeDialog
           open
