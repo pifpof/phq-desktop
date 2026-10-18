@@ -14,6 +14,8 @@ export const LOG_OPS = [
   'compile',
   'output',
   'decision',
+  'change',
+  'regenerate',
   'lint',
   'migrate'
 ] as const

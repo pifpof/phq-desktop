@@ -347,8 +347,11 @@ function brief(
   const prefixes = [...targets.allowed, ...(targets.patches ?? [])]
   const touches = (slug: string): boolean =>
     prefixes.some((t) => (t.endsWith('*') ? slug.startsWith(t.slice(0, -1)) : slug === t))
+  // Only applied changes (and v2 decisions, which have no Status line) are respected;
+  // waiting changes apply only when a regeneration includes them (REQUIREMENTS-v3.1 6).
   const decisions = [...existing.values()]
     .filter((a) => a.slug.startsWith('decision-'))
+    .filter((a) => !/^\*\*Status:\*\*\s*(Pending|Withdrawn|Replaced)\b/m.test(a.body))
     .filter(
       (a) => linkedSlugs(a.path, a.body).some(touches) || stringList(a.data.tags).some(touches)
     )

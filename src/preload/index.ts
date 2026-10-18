@@ -71,6 +71,12 @@ const api: Api = {
   wikiTree: () => invoke('wiki:tree'),
   sourcesTree: () => invoke('wiki:sourcesTree'),
   getNavState: () => invoke('wiki:getNavState'),
+  listChanges: () => invoke('changes:list'),
+  createChange: (input) => invoke('changes:create', input),
+  updateChange: (id, input) => invoke('changes:update', { id, input }),
+  withdrawChange: (id) => invoke('changes:withdraw', { id }),
+  changeAffects: (page) => invoke('changes:affects', { page }),
+  addChangeFiles: () => invoke('changes:addFiles'),
   setNavState: (state) => invoke('wiki:setNavState', state),
   onWikiTreeChanged: (cb) => {
     const listener = (): void => cb()

@@ -27,6 +27,8 @@ export const APP_ERROR_CODES = [
   'source_in_use',
   'no_key',
   'not_allowed',
+  'not_found',
+  'not_pending',
   'internal'
 ] as const
 export type ErrorCode = (typeof APP_ERROR_CODES)[number]
@@ -59,6 +61,8 @@ export const ERROR_COPY: Record<ErrorCode, string> = {
   source_in_use: "Articles in your wiki cite this file, so it can't be removed.",
   no_key: 'Reconnect your AI to continue.',
   not_allowed: "That link can't be opened from PositioningHQ.",
+  not_found: 'That is no longer in the wiki. It may have been moved or deleted.',
+  not_pending: 'Only a waiting change can be edited or withdrawn.',
   internal: 'Something went wrong. Please try again.'
 }
 

@@ -228,6 +228,37 @@ export async function addInputs(
 }
 
 /**
+ * Evidence for a change (REQUIREMENTS-v3.1 3.2, "Add a file"): copied in and ingested as private
+ * sources without a category. Returns the raw files written; unreadable files are skipped.
+ */
+export async function addEvidenceFiles(
+  root: string,
+  paths: string[],
+  date: string = isoDay()
+): Promise<{ path: string; title: string }[]> {
+  const records = await readRecords(root)
+  const out: { path: string; title: string }[] = []
+  await mkdir(join(root, 'inbox'), { recursive: true })
+  for (const src of paths.slice(0, INPUT_LIMITS.maxFiles)) {
+    try {
+      const info = await stat(src)
+      if (!info.isFile() || info.size > INPUT_LIMITS.maxFileBytes) continue
+      const record = await ingestOne(root, await copyUnique(src, join(root, 'inbox')), null, date)
+      records.push(record)
+      if (record.raw) {
+        out.push({ path: record.raw, title: basename(record.name, extname(record.name)) })
+        await appendLog(root, 'ingest', `${record.name} (${record.raw})`, date)
+      }
+    } catch {
+      // Skipped: never put file content or paths in an error.
+    }
+  }
+  await saveRecords(root, records)
+  if (out.length) await writeIndexes(root)
+  return out
+}
+
+/**
  * Files someone dropped straight into inbox/ (in Finder, say) are ingested too, without a
  * category. Run by the research step that reads the person's files.
  */

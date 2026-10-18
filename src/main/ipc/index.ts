@@ -1,5 +1,6 @@
 import type { AppContext } from '../context'
 import { registerApp } from './app'
+import { registerChanges } from './changes'
 import { registerChat } from './chat'
 import { registerDev } from './dev'
 import { registerDocs } from './docs'
@@ -25,6 +26,7 @@ export function registerIpc(ctx: AppContext): void {
   registerResearch(handle, ctx)
   registerDev(handle, ctx)
   registerWiki(handle, ctx)
+  registerChanges(handle, ctx)
   registerMigrate(handle, ctx)
   registerShell(handle)
 }

@@ -10,6 +10,7 @@ import {
   SourceSummarySchema
 } from './wiki-views'
 import { NavStateSchema, SourcesTreeSchema, WikiTreeSchema } from './wiki-tree'
+import { AffectsSchema, ChangeInputSchema, ChangeSchema } from './changes'
 import { ProfileSchema } from './profile'
 import { RunViewSchema, type RunView } from './research'
 import {
@@ -269,6 +270,19 @@ export const channels = {
   'wiki:tree': { req: z.undefined(), res: WikiTreeSchema },
   'wiki:sourcesTree': { req: z.undefined(), res: SourcesTreeSchema },
   'wiki:getNavState': { req: z.undefined(), res: NavStateSchema },
+  'changes:list': { req: z.undefined(), res: z.array(ChangeSchema) },
+  'changes:create': { req: ChangeInputSchema, res: ChangeSchema },
+  'changes:update': {
+    req: z.object({ id: z.string().min(1).max(120), input: ChangeInputSchema }),
+    res: ChangeSchema
+  },
+  'changes:withdraw': { req: z.object({ id: z.string().min(1).max(120) }), res: ChangeSchema },
+  'changes:affects': { req: z.object({ page: z.string().min(1).max(80) }), res: AffectsSchema },
+  /** Picks files and adds them as private sources; returns their raw paths. */
+  'changes:addFiles': {
+    req: z.undefined(),
+    res: z.array(z.object({ path: z.string(), title: z.string() }))
+  },
   'wiki:setNavState': { req: NavStateSchema, res: z.null() },
   'wiki:outputs': {
     req: z.object({ kind: z.enum(['positioning-playbook', 'messaging-analysis']) }),
@@ -394,6 +408,12 @@ export interface Api {
   sourcesTree(): Promise<Result<Res<'wiki:sourcesTree'>>>
   onWikiTreeChanged(cb: () => void): () => void
   getNavState(): Promise<Result<Res<'wiki:getNavState'>>>
+  listChanges(): Promise<Result<Res<'changes:list'>>>
+  createChange(input: Req<'changes:create'>): Promise<Result<Res<'changes:create'>>>
+  updateChange(id: string, input: Req<'changes:create'>): Promise<Result<Res<'changes:update'>>>
+  withdrawChange(id: string): Promise<Result<Res<'changes:withdraw'>>>
+  changeAffects(page: string): Promise<Result<Res<'changes:affects'>>>
+  addChangeFiles(): Promise<Result<Res<'changes:addFiles'>>>
   setNavState(state: Req<'wiki:setNavState'>): Promise<Result<null>>
   listOutputs(kind: Req<'wiki:outputs'>['kind']): Promise<Result<Res<'wiki:outputs'>>>
   reassemble(): Promise<Result<Res<'wiki:reassemble'>>>
