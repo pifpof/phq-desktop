@@ -82,3 +82,7 @@ Public GitHub repo `phq-desktop`, MIT. Separate from the skill-pack repo `github
 20. **Indexes are derived.** Regenerate `_index.md` files from front matter after every write; never hand-edit them. No model call in index generation or playbook assembly.
 21. **Lint stays green.** `tests/fixtures/phq-wiki-min` and `tests/fixtures/phq-wiki-generated` pass `llm-wiki lint --fail-on warning` at the pinned tag (`docs/v2-assumptions.md`).
 
+## v3 rules (do not break)
+
+22. **The Wiki pane's trees are built in main** (`wiki/tree.ts`, `wiki/sources-tree.ts`) from front matter, file times and provenance, with no model call. The renderer never reads wiki files to draw the tree. Placement, labels, help text and "out of date" inputs live in the article map, not in components.
+23. **Expand state is app state** (`wiki-nav.json` in the workspace's app-state folder), never the wiki. Section headings start collapsed; searching never changes the saved state.

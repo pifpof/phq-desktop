@@ -1,9 +1,9 @@
 {
   "name": "phq-desktop",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Build your positioning and competitive intelligence with an AI guide. Free and open source.",
   "main": "./out/main/index.js",
-  "author": "Parallel79\u00b0",
+  "author": "Parallel79°",
   "license": "MIT",
   "private": true,
   "scripts": {
