@@ -9,6 +9,7 @@ import { finalizeDocument, replaceEmDashes, stripOuterFence } from './postproces
 import { normalizeSourceUrl, sourceTagger, type RunSources } from '../ingest/citations-to-raw'
 import { MAX_TOKENS_PER_FILE } from '../ingest/extract'
 import { categoryTag } from '../ingest/files-to-raw'
+import { contentHash, saveGenerated, saveProfileSnapshot } from '../state/history'
 import { recordProvenance, type ProvenanceEntry } from '../state/provenance'
 import { parseDoc, stringifyDoc, stringList } from '../wiki/frontmatter'
 import { writeIndexes } from '../wiki/index-gen'
@@ -18,6 +19,9 @@ import { scanWiki } from '../wiki/scan'
 import { parseSocialTable } from '@shared/social'
 import {
   ARTICLE_TOOL,
+  checkChangeReport,
+  type ChangeReportEntry,
+  type PreparedFile,
   addBacklinks,
   loadArticles,
   loadRaw,
@@ -80,6 +84,27 @@ export interface ExecutorDeps {
   tasks: TaskDef[]
   /** YYYY-MM-DD for files written by this run. Defaults to today. */
   today?: string
+  /** Set for a regeneration (REQUIREMENTS-v3.1 4.3): its task writes to staging, not the wiki. */
+  regen?: RegenDeps
+}
+
+export interface RegenDeps {
+  taskId: string
+  /** The pages this regeneration rewrites. Other competitor profiles in a group are skipped. */
+  slugs: string[]
+  /** The founder's changes to apply, labelled C1, C2... */
+  changes: { label: string; id: string; text: string }[]
+  /** Raw files the changes are based on: task inputs (private ones never reach a web call). */
+  basedOn: string[]
+  refreshWeb: boolean
+  /** Receives what the task would have written. */
+  stage(r: {
+    task: string
+    files: PreparedFile[]
+    report: (ChangeReportEntry & { id: string })[]
+    createdRaw: string[]
+    inputs: string[]
+  }): Promise<void>
 }
 
 export function makeContext(
@@ -408,6 +433,43 @@ export async function writeSocialNotes(
   return out
 }
 
+/**
+ * A regeneration's extra inputs: the current version of the pages it rewrites, the raw files they
+ * cite, and the files the changes are based on. A web call never sees private material.
+ */
+async function regenDocuments(
+  wikiRoot: string,
+  regen: RegenDeps,
+  web: boolean
+): Promise<PromptDocument[]> {
+  const files = await scanWiki(wikiRoot)
+  const raw = new Map(files.filter((f) => f.kind === 'raw').map((f) => [f.rel, f]))
+  const isPrivate = (tags: unknown): boolean => stringList(tags).includes('private')
+  const out: PromptDocument[] = []
+  const seen = new Set<string>()
+  const addRaw = (path: string): void => {
+    const f = raw.get(path)
+    if (!f || seen.has(path) || !f.body.trim()) return
+    if (web && isPrivate(f.data?.tags)) return
+    seen.add(path)
+    out.push({ path, content: f.body.trim(), rawSources: [path], private: isPrivate(f.data?.tags) })
+  }
+  for (const f of files) {
+    if (f.kind !== 'article' || !regen.slugs.includes(f.name)) continue
+    if (web && isPrivate(f.data?.tags)) continue
+    const sources = stringList(f.data?.sources)
+    out.push({
+      path: f.rel,
+      content: `Current version of this page:\n\n${f.body.trim()}`,
+      rawSources: sources,
+      private: isPrivate(f.data?.tags)
+    })
+    for (const s of sources) addRaw(s)
+  }
+  for (const p of regen.basedOn) addRaw(p)
+  return out
+}
+
 /** Runs one task: local handlers on this computer, AI tasks through the provider. */
 export function createExecutor(
   d: ExecutorDeps
@@ -445,21 +507,47 @@ export function createExecutor(
         model: d.model,
         at: new Date().toISOString(),
         inputs,
-        hash: sha256(text)
+        hash: sha256(text),
+        contentHash: contentHash(text)
       }
+      // The page as written, to describe outside edits later (REQUIREMENTS-v3.1 4.2).
+      if (text) await saveGenerated(d.wikiRoot, p, text).catch(() => undefined)
     }
     await recordProvenance(d.wikiRoot, entries)
+    await saveProfileSnapshot(d.wikiRoot, d.runId, d.profile).catch(() => undefined)
   }
 
   return async (task, signal) => {
     if (task.local) return runLocal(task.local, task, signal)
+
+    // A regeneration rewrites one page's task; a competitor group runs only that competitor.
+    const regen =
+      d.regen && (task.id === d.regen.taskId || task.id.startsWith(`${d.regen.taskId}:`))
+        ? d.regen
+        : null
+    if (regen && task.id.includes(':')) {
+      const targets = task.writes?.kind === 'articles' ? task.writes.targets.allowed : []
+      if (!targets.some((t) => regen.slugs.includes(t))) {
+        const note = 'Skipped: not part of this regeneration.'
+        await writeReceipt(d.root, task.output(ctx), {
+          task: task.id,
+          runId: d.runId,
+          written: [],
+          note
+        })
+        return { costUsd: 0, output: task.output(ctx), note }
+      }
+    }
+    // Without "Also refresh web research", a regeneration uses the sources it already has.
+    const web: TaskDef['web'] = regen && !regen.refreshWeb ? false : task.web
+    const createdRaw: string[] = []
 
     const key = d.getKey()
     if (!key) throw new ProviderError('invalid_key')
 
     // Defence in depth: the graph is checked when a run starts, and again here.
     const categories = task.inputs?.inputCategories ?? []
-    if (task.web && categories.length) throw new Error('A web task must not be shown user files.')
+    if (web && categories.length) throw new Error('A web task must not be shown user files.')
 
     const docs: PromptDocument[] = []
     for (const id of [...(task.inputs?.outputs ?? []), ...(task.inputs?.optionalOutputs ?? [])]) {
@@ -467,7 +555,7 @@ export function createExecutor(
       if (source)
         docs.push(
           ...(await documentsFor(d.root, source, ctx, {
-            pages: task.web === false,
+            pages: !web,
             wikiRoot: d.wikiRoot
           }))
         )
@@ -481,6 +569,7 @@ export function createExecutor(
         docs.push({ path: f.rel, content: f.body.trim(), rawSources: [f.rel] })
       }
     }
+    if (regen) docs.push(...(await regenDocuments(d.wikiRoot, regen, !!web)))
     const documents = fitDocuments(docs)
 
     // The private tag is the isolation boundary (REQUIREMENTS-v2 3.3): a web task may not be shown
@@ -490,7 +579,7 @@ export function createExecutor(
       (doc) =>
         doc.private || (doc.rawSources ?? []).some((p) => raw.get(p)?.tags.includes('private'))
     )
-    if (task.web && sawPrivate) throw new Error('A web task must not be shown private material.')
+    if (web && sawPrivate) throw new Error('A web task must not be shown private material.')
 
     const writes = task.writes
     const existing = writes?.kind === 'articles' ? await loadArticles(d.wikiRoot) : new Map()
@@ -517,17 +606,18 @@ export function createExecutor(
         profile: d.profile,
         documents,
         instruction: task.instruction!,
-        web: task.web !== false,
+        web: !!web,
         cacheDocuments: task.cacheDocuments,
-        ...(writes?.kind === 'articles' ? { articles: brief(writes.targets, existing) } : {})
+        ...(writes?.kind === 'articles' ? { articles: brief(writes.targets, existing) } : {}),
+        ...(regen?.changes.length
+          ? { mustApply: regen.changes.map((c) => ({ label: c.label, text: c.text })) }
+          : {})
       },
       d.readSkill
     )
 
     const tools = {
-      ...(task.web
-        ? { webSearch: task.web.search, ...(task.web.fetch ? { webFetch: task.web.fetch } : {}) }
-        : {}),
+      ...(web ? { webSearch: web.search, ...(web.fetch ? { webFetch: web.fetch } : {}) } : {}),
       ...(writes?.kind === 'articles' ? { output: ARTICLE_TOOL } : {})
     }
     const maxTokens = writes?.kind === 'articles' ? ARTICLE_MAX_TOKENS : undefined
@@ -549,7 +639,7 @@ export function createExecutor(
     // Citation ingest (REQUIREMENTS-v2 3.1). Pages the model lists as sources count when a search
     // or fetch in this task really returned them; they become raw citation records too.
     const ingest = async (r: typeof result): Promise<Map<string, string>> => {
-      if (!task.web) return new Map()
+      if (!web) return new Map()
       const returned = new Map(
         [...r.consulted, ...r.sources].map((c) => [normalizeSourceUrl(c.url), c.title])
       )
@@ -583,6 +673,7 @@ export function createExecutor(
         competitor: task.competitor
       })
       const report = await d.sources.ingest([...bySource.values()], tagger)
+      createdRaw.push(...report.created)
       if (report.created.length) {
         await appendLog(
           d.wikiRoot,
@@ -615,6 +706,7 @@ export function createExecutor(
             : undefined
           if (art) {
             const notes = await writeSocialNotes(d.wikiRoot, art.body, today())
+            createdRaw.push(...notes)
             for (const n of notes) refs.set(n, [n])
             const extra = await loadRaw(d.wikiRoot)
             for (const [k, v] of extra) rawNow.set(k, v)
@@ -640,7 +732,7 @@ export function createExecutor(
           let fallback: string[] | null = null
           const fallbackRefs = async (): Promise<string[]> => {
             if (fallback) return fallback
-            if (task.web) {
+            if (web) {
               fallback = r.sources.map((x) => normalizeSourceUrl(x.url)).filter((u) => refs.has(u))
               if (!fallback.length && r.consulted.length) {
                 const tagger = sourceTagger({
@@ -653,6 +745,7 @@ export function createExecutor(
                     .map((c) => ({ url: c.url, title: c.title, excerpts: [], cited: false })),
                   tagger
                 )
+                createdRaw.push(...extra.created)
                 for (const [u, p] of extra.paths) refs.set(u, [p])
                 for (const [k, v] of await loadRaw(d.wikiRoot)) rawNow.set(k, v)
                 fallback = [...extra.paths.keys()]
@@ -676,6 +769,7 @@ export function createExecutor(
             return { ...x, sources: refsFor.map((ref) => ({ ref })) }
           }
           output = {
+            ...withSources.data,
             articles: await Promise.all(withSources.data.articles.map(fix)),
             patches: await Promise.all(withSources.data.patches.map(fix))
           }
@@ -695,6 +789,13 @@ export function createExecutor(
         const problem = task.validate && body !== undefined ? task.validate(body) : null
         if (problem) v.errors.push(problem)
         if (r.output === undefined) v.errors.push(`No ${ARTICLE_TOOL.name} call was made.`)
+        if (regen?.changes.length)
+          v.errors.push(
+            ...checkChangeReport(
+              output,
+              regen.changes.map((c) => c.label)
+            ).errors
+          )
         if (fellBack.length)
           v.warnings.push(
             `No usable sources listed for ${fellBack.join(', ')}: cited what the task used instead.`
@@ -718,6 +819,35 @@ export function createExecutor(
       }
       if (!v.files.length && writes.targets.required.length)
         throw new Error('No valid articles were returned.')
+      if (regen) {
+        // Staged for the founder's review; the wiki is untouched until they keep it.
+        const { report } = checkChangeReport(
+          result.output,
+          regen.changes.map((c) => c.label)
+        )
+        await regen.stage({
+          task: task.id,
+          files: v.files,
+          report: regen.changes.map((c) => ({
+            id: c.id,
+            ...(report.get(c.label) ?? {
+              change: c.label,
+              applied: 'no' as const,
+              note: 'The model did not report on this change.'
+            })
+          })),
+          createdRaw,
+          inputs: inputPaths
+        })
+        await writeReceipt(d.root, task.output(ctx), {
+          task: task.id,
+          runId: d.runId,
+          written: [],
+          note: note ?? 'Staged for review.',
+          warnings: [...v.errors, ...v.warnings]
+        })
+        return { costUsd, usage: result.usage, output: task.output(ctx), note }
+      }
       const written = await writePrepared(d.wikiRoot, v.files)
       await addBacklinks(d.wikiRoot, written)
       await provenance(written, task, inputPaths)
@@ -794,7 +924,7 @@ export function createExecutor(
         model: d.model,
         body: result.text,
         inputs: inputPaths,
-        web: task.web !== false,
+        web: !!web,
         citations: result.citations,
         consulted: result.consulted,
         truncated: result.truncated,

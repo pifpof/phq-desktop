@@ -17,6 +17,8 @@ export interface ProvenanceEntry {
   inputs: string[]
   /** sha256 of the file as written, so the app can tell when someone has edited it since. */
   hash?: string
+  /** Hash of the page's own content (history.ts contentHash), unaffected by See Also edits. */
+  contentHash?: string
 }
 
 type Provenance = Record<string, ProvenanceEntry>

@@ -43,6 +43,15 @@ import { emptyProfile } from '../../src/shared/profile'
 import { parseScorecard } from '../../src/shared/scorecard'
 import { fakeArticleOutput, GOOD_ANALYSIS } from './fixtures'
 import type { RunView } from '../../src/shared/research'
+import { createChange, findChange, listChanges } from '../../src/main/wiki/changes'
+import { planRegeneration } from '../../src/main/research/regen-plan'
+import {
+  editsToChange,
+  keepRegeneration,
+  startRegeneration
+} from '../../src/main/research/regenerate'
+import { discardJob, readJob, reviewJob } from '../../src/main/research/regen-job'
+import { listHistory } from '../../src/main/state/history'
 
 const root = join(__dirname, '../..')
 // Skills written in later phases. Until they exist, the test stands in a stub so the whole graph can run.
@@ -845,5 +854,184 @@ describe('research service: active state', () => {
     expect(s.service.isActive()).toBe(true)
     await s.service.cancel()
     expect(s.service.isActive()).toBe(false)
+  })
+})
+
+describe('regeneration with changes (REQUIREMENTS-v3.1 4, 5)', () => {
+  const ICP = 'wiki/topics/ideal-customer-profile.md'
+  const read = (rel: string): string => readFileSync(join(ws, rel), 'utf8')
+
+  async function fullRun(f = fakeProvider()) {
+    const s = makeService(f.provider)
+    await s.service.start()
+    await s.until(() => s.finished.length === 1, 'first run')
+    return { f, s }
+  }
+  const change = (more: Partial<Parameters<typeof createChange>[1]> = {}) =>
+    createChange(ws, {
+      page: 'ideal-customer-profile',
+      section: 'Details',
+      quote: '',
+      why: 'Our buyers are heads of sales.',
+      changeTo: 'Lead with heads of sales. Founders are secondary.',
+      basedOn: [],
+      notes: '',
+      affects: [],
+      ...more
+    })
+
+  it('previews without spending, stages the result, and keeps it: changes applied, wiki updated', async () => {
+    const { f, s } = await fullRun()
+    const c = await change({ notes: `Call notes. ${SECRET}` })
+    const callsBefore = f.calls.length
+    const plan = (await planRegeneration(ws, 'ideal-customer-profile', s.service.planDeps()))!
+    expect(f.calls.length).toBe(callsBefore)
+    expect(plan.taskId).toBe('playbook-02-icp')
+    expect(plan.pending.map((x) => x.id)).toEqual([c.id])
+    expect(plan.estimate.base.costUsd.high).toBeGreaterThan(0)
+    expect(plan.dependents.map((x) => x.slug)).toContain('positioning-statement')
+    expect(plan.reassemblesPlaybook).toBe(true)
+
+    const before = read(ICP)
+    await startRegeneration(s.service, ws, {
+      page: 'ideal-customer-profile',
+      changeIds: [c.id],
+      refreshWeb: false,
+      queue: []
+    })
+    await s.until(() => s.finished.length === 2, 'regeneration')
+    // One call, no web tools, told what to apply, shown the current page and the private notes.
+    const regen = f.calls.slice(callsBefore)
+    expect(regen).toHaveLength(1)
+    expect(regen[0].web).toBe(false)
+    expect(regen[0].text).toContain('Changes the founder asked for')
+    expect(regen[0].text).toContain('Change it to: Lead with heads of sales')
+    expect(regen[0].text).toContain('Current version of this page')
+    expect(regen[0].text).toContain(SECRET)
+
+    // Staged, not written.
+    expect(read(ICP)).toBe(before)
+    const review = (await reviewJob(ws))!
+    expect(review.job.status).toBe('review')
+    expect(review.files.map((x) => x.rel)).toEqual([ICP])
+    expect(review.files[0].before).toBe(before)
+    expect(review.job.report).toEqual([
+      { id: c.id, name: c.name, applied: 'yes', note: 'Applied in the Details section (C1).' }
+    ])
+
+    const kept = await keepRegeneration(s.service, ws, 'claude-sonnet-5-5')
+    expect(kept).toMatchObject({ written: [ICP], applied: [c.id], notApplied: [], next: null })
+    expect(read(ICP)).toBe(review.files[0].after)
+    expect((await findChange(ws, c.id))!).toMatchObject({
+      status: 'applied',
+      statusRef: 'ideal-customer-profile'
+    })
+    expect(read('log.md')).toMatch(/regenerate \| Ideal Customer Profile applying 1 change/)
+    expect((await readProvenance(ws))[ICP].runId).toBe(review.job.runId)
+    expect((await listHistory(ws))[0].changes).toEqual([c.id])
+    // The private notes made the page private.
+    expect(read(ICP)).toMatch(/^tags: .*private/m)
+    const lint = officialLint(ws)
+    if (lint) expect(lint.status, lint.out).toBe(0)
+  })
+
+  it('discard leaves the wiki as it was and the change waiting', async () => {
+    const { s } = await fullRun()
+    const c = await change()
+    const before = read(ICP)
+    await startRegeneration(s.service, ws, {
+      page: 'ideal-customer-profile',
+      changeIds: [c.id],
+      refreshWeb: false,
+      queue: []
+    })
+    await s.until(() => s.finished.length === 2, 'regeneration')
+    await discardJob(ws)
+    expect(read(ICP)).toBe(before)
+    expect((await findChange(ws, c.id))!.status).toBe('pending')
+    expect((await readJob(ws))!.status).toBe('discarded')
+    const lint = officialLint(ws)
+    if (lint) expect(lint.status, lint.out).toBe(0)
+  })
+
+  it('keeps a change the model could not apply waiting, and says so', async () => {
+    const { s } = await fullRun()
+    const c = await change({ changeTo: 'NOT-POSSIBLE: name a customer we do not have.' })
+    await startRegeneration(s.service, ws, {
+      page: 'ideal-customer-profile',
+      changeIds: [c.id],
+      refreshWeb: false,
+      queue: []
+    })
+    await s.until(() => s.finished.length === 2, 'regeneration')
+    const kept = await keepRegeneration(s.service, ws, 'claude-sonnet-5-5')
+    expect(kept.notApplied).toEqual([c.name])
+    expect((await findChange(ws, c.id))!.status).toBe('pending')
+  })
+
+  it('a later full run respects an applied change (it reaches the prompt as a decision)', async () => {
+    const { f, s } = await fullRun()
+    const c = await change()
+    await startRegeneration(s.service, ws, {
+      page: 'ideal-customer-profile',
+      changeIds: [c.id],
+      refreshWeb: false,
+      queue: []
+    })
+    await s.until(() => s.finished.length === 2, 'regeneration')
+    await keepRegeneration(s.service, ws, 'claude-sonnet-5-5')
+    const n = f.calls.length
+    await s.service.start()
+    await s.until(() => s.finished.length === 3, 'second full run')
+    const icpCall = f.calls.slice(n).find((x) => x.text.includes('ideal-customer-profile (topic)'))!
+    expect(icpCall.text).toContain('Decisions the founder made')
+    expect(icpCall.text).toContain('Lead with heads of sales')
+    // Waiting changes are not respected by a normal run.
+    const waiting = await change({ changeTo: 'Something still waiting.' })
+    const m = f.calls.length
+    await s.service.rerun({ taskIds: ['playbook-02-icp'] })
+    await s.until(() => s.finished.length === 4, 'rerun')
+    expect(f.calls.slice(m)[0].text).not.toContain('Something still waiting')
+    expect((await listChanges(ws)).find((x) => x.id === waiting.id)!.status).toBe('pending')
+  })
+
+  it('never sends a private Based on file to a web call, and regenerates only that competitor', async () => {
+    const { f, s } = await fullRun()
+    const c = await createChange(ws, {
+      page: 'competitor-wile-co',
+      section: null,
+      quote: '',
+      why: 'They dropped their free plan.',
+      changeTo: 'Say they have no free plan.',
+      basedOn: [],
+      notes: `Sales call. ${SECRET}`,
+      affects: []
+    })
+    const n = f.calls.length
+    await startRegeneration(s.service, ws, {
+      page: 'competitor-wile-co',
+      changeIds: [c.id],
+      refreshWeb: true,
+      queue: []
+    })
+    await s.until(() => s.finished.length === 2, 'competitor regeneration')
+    const calls = f.calls.slice(n)
+    expect(calls).toHaveLength(1)
+    expect(calls[0].web).toBe(false)
+    expect(calls[0].text).toContain(SECRET)
+    expect(f.calls.filter((x) => x.web).some((x) => x.text.includes(SECRET))).toBe(false)
+    const review = (await reviewJob(ws))!
+    expect(review.files.map((x) => x.rel)).toEqual(['wiki/references/competitor-wile-co.md'])
+  })
+
+  it('spots an outside edit and turns it into a waiting change', async () => {
+    const { s } = await fullRun()
+    const text = read(ICP)
+    writeFileSync(join(ws, ICP), text.replace('## Details', '## Details\n\nOur own sentence.'))
+    const plan = (await planRegeneration(ws, 'ideal-customer-profile', s.service.planDeps()))!
+    expect(plan.outsideEdit).toEqual({ edited: true, canDescribe: true })
+    const c = await editsToChange(ws, 'ideal-customer-profile')
+    expect(c.status).toBe('pending')
+    expect(c.changeTo).toContain('Added: Our own sentence.')
   })
 })

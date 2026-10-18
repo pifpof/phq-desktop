@@ -10,6 +10,13 @@ import {
 } from './wiki-views'
 import { NavStateSchema, SourcesTreeSchema, WikiTreeSchema } from './wiki-tree'
 import {
+  KeepResultSchema,
+  RegenJobSchema,
+  RegenPlanSchema,
+  RegenReviewSchema,
+  RegenStartSchema
+} from './regen'
+import {
   AffectsSchema,
   ChangeInputSchema,
   ChangePageSchema,
@@ -289,6 +296,22 @@ export const channels = {
   },
   'changes:affects': { req: z.object({ page: z.string().min(1).max(80) }), res: AffectsSchema },
   /** Picks files and adds them as private sources; returns their raw paths. */
+  'regen:plan': {
+    req: z.object({ page: z.string().min(1).max(80) }),
+    res: RegenPlanSchema.nullable()
+  },
+  /** "Turn my edits into a change": a waiting change describing the outside edits. */
+  'regen:editsToChange': { req: z.object({ page: z.string().min(1).max(80) }), res: ChangeSchema },
+  'regen:start': { req: RegenStartSchema, res: RunViewSchema },
+  'regen:job': { req: z.undefined(), res: RegenJobSchema.nullable() },
+  'regen:review': { req: z.undefined(), res: RegenReviewSchema.nullable() },
+  'regen:keep': { req: z.undefined(), res: KeepResultSchema },
+  'regen:discard': { req: z.undefined(), res: z.null() },
+  /** Before and after from the regeneration that applied a change, while history keeps it. */
+  'regen:changeHistory': {
+    req: z.object({ id: z.string().min(1).max(120) }),
+    res: RegenReviewSchema.shape.files.nullable()
+  },
   'changes:addFiles': {
     req: z.undefined(),
     res: z.array(z.object({ path: z.string(), title: z.string() }))
@@ -421,6 +444,14 @@ export interface Api {
   changePage(page: string): Promise<Result<Res<'changes:page'>>>
   changeAffects(page: string): Promise<Result<Res<'changes:affects'>>>
   addChangeFiles(): Promise<Result<Res<'changes:addFiles'>>>
+  planRegeneration(page: string): Promise<Result<Res<'regen:plan'>>>
+  editsToChange(page: string): Promise<Result<Res<'regen:editsToChange'>>>
+  startRegeneration(r: Req<'regen:start'>): Promise<Result<Res<'regen:start'>>>
+  regenJob(): Promise<Result<Res<'regen:job'>>>
+  regenReview(): Promise<Result<Res<'regen:review'>>>
+  keepRegeneration(): Promise<Result<Res<'regen:keep'>>>
+  discardRegeneration(): Promise<Result<null>>
+  changeHistory(id: string): Promise<Result<Res<'regen:changeHistory'>>>
   setNavState(state: Req<'wiki:setNavState'>): Promise<Result<null>>
   listOutputs(kind: Req<'wiki:outputs'>['kind']): Promise<Result<Res<'wiki:outputs'>>>
   reassemble(): Promise<Result<Res<'wiki:reassemble'>>>

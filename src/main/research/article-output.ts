@@ -98,6 +98,23 @@ export const ARTICLE_TOOL: OutputTool = {
           ]
         }
       },
+      change_report: {
+        type: 'array',
+        description:
+          'Only when the task lists changes the founder asked for: one entry per change, saying whether and where you applied it.',
+        items: {
+          type: 'object',
+          properties: {
+            change: { type: 'string', description: 'The change label, such as C1.' },
+            applied: { type: 'string', enum: ['yes', 'partly', 'no'] },
+            note: {
+              type: 'string',
+              description: 'One line: where and how it was applied, or why not.'
+            }
+          },
+          required: ['change', 'applied', 'note']
+        }
+      },
       patches: {
         type: 'array',
         description: 'Sections to add to existing articles, when the task says to.',
@@ -143,10 +160,38 @@ const PatchOutSchema = z.object({
   sections: str,
   sources: z.array(SourceSchema).optional().default([])
 })
+const ChangeReportSchema = z.object({
+  change: str,
+  applied: z.enum(['yes', 'partly', 'no']).catch('no'),
+  note: str.optional().default('')
+})
 export const ToolOutputSchema = z.object({
   articles: z.array(ArticleOutSchema).optional().default([]),
-  patches: z.array(PatchOutSchema).optional().default([])
+  patches: z.array(PatchOutSchema).optional().default([]),
+  change_report: z.array(ChangeReportSchema).optional().default([])
 })
+export type ChangeReportEntry = z.infer<typeof ChangeReportSchema>
+
+/**
+ * A regeneration must report every change it was asked to apply (REQUIREMENTS-v3.1 4.3).
+ * Returns the report by label, or the problems for a retry.
+ */
+export function checkChangeReport(
+  raw: unknown,
+  labels: string[]
+): { report: Map<string, ChangeReportEntry>; errors: string[] } {
+  const parsed = ToolOutputSchema.safeParse(raw ?? {})
+  const report = new Map<string, ChangeReportEntry>()
+  if (parsed.success)
+    for (const r of parsed.data.change_report) report.set(r.change.trim().toUpperCase(), r)
+  const missing = labels.filter((l) => !report.has(l))
+  return {
+    report,
+    errors: missing.length
+      ? [`change_report has no entry for ${missing.join(', ')}. Report every change listed.`]
+      : []
+  }
+}
 export type ToolOutput = z.infer<typeof ToolOutputSchema>
 export type ArticleOut = z.infer<typeof ArticleOutSchema>
 

@@ -77,5 +77,14 @@ export function fakeArticleOutput(prompt: string, web: boolean): unknown {
     sections: '## Sales Tactics\n\nPatched in.',
     sources
   }))
-  return { articles, patches }
+  // A regeneration lists the founder's changes as C1, C2...; a good model reports on each.
+  const labels = /Changes the founder asked for/.test(prompt)
+    ? [...new Set([...prompt.matchAll(/^(C\d+)\.$/gm)].map((m) => m[1]))]
+    : []
+  const change_report = labels.map((change) => ({
+    change,
+    applied: /NOT-POSSIBLE/.test(prompt) && change === 'C1' ? 'no' : 'yes',
+    note: `Applied in the Details section (${change}).`
+  }))
+  return { articles, patches, ...(labels.length ? { change_report } : {}) }
 }

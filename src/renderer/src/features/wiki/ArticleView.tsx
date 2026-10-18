@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Lock, PencilLine, RotateCcw } from 'lucide-react'
+import { Lock, PencilLine, RefreshCw } from 'lucide-react'
 import type { ArticleDetail } from '@shared/wiki-views'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -44,13 +44,7 @@ export function useArticle(path: string): {
 }
 
 /** A wiki article (REQUIREMENTS-v2 4.1): badges, body, Sources, Linked from, actions. */
-export function ArticleView({
-  path,
-  onRerun
-}: {
-  path: string
-  onRerun: (taskId: string) => void
-}) {
+export function ArticleView({ path }: { path: string }) {
   const { detail } = useArticle(path)
   const run = useResearch((s) => s.run)
   // The section the change dialog opens on: '' for the whole page, null when closed.
@@ -105,11 +99,11 @@ export function ArticleView({
             variant="ghost"
             size="sm"
             disabled={isActive(run)}
-            title={isActive(run) ? 'Research is running' : 'Research this article again'}
-            onClick={() => onRerun(detail.taskId!)}
+            title={isActive(run) ? 'Research is running' : 'See what would change, then regenerate'}
+            onClick={() => useApp.getState().openRegenerate(a.slug)}
           >
-            <RotateCcw strokeWidth={1.8} />
-            Re-run
+            <RefreshCw strokeWidth={1.8} />
+            Regenerate
           </Button>
         )}
         {!a.slug.startsWith('decision-') && (

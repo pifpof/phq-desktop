@@ -6,6 +6,7 @@ import { registerDev } from './dev'
 import { registerDocs } from './docs'
 import { registerInputs } from './inputs'
 import { registerNet } from './net'
+import { registerRegen } from './regen'
 import { registerResearch } from './research'
 import { registerProvider } from './provider'
 import { makeHandle } from './register'
@@ -27,6 +28,7 @@ export function registerIpc(ctx: AppContext): void {
   registerDev(handle, ctx)
   registerWiki(handle, ctx)
   registerChanges(handle, ctx)
+  registerRegen(handle, ctx)
   registerMigrate(handle, ctx)
   registerShell(handle)
 }

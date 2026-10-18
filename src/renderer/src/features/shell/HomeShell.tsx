@@ -12,6 +12,7 @@ import { MigrationWizard } from '@/features/migrate/MigrationWizard'
 import { ResearchBanner } from './ResearchBanner'
 import { Sidebar } from './Sidebar'
 import { WorkspaceBanner } from './WorkspaceBanner'
+import { RegeneratePreview } from '@/features/regenerate/RegeneratePreview'
 
 export function HomeShell() {
   const view = useApp((s) => s.homeView)
@@ -64,6 +65,7 @@ export function HomeShell() {
           {!needsMigration && view === 'use-wiki' && <UseWikiView />}
         </div>
       </main>
+      <RegeneratePreview />
     </div>
   )
 }

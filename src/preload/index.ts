@@ -79,6 +79,14 @@ const api: Api = {
   changePage: (page) => invoke('changes:page', { page }),
   changeAffects: (page) => invoke('changes:affects', { page }),
   addChangeFiles: () => invoke('changes:addFiles'),
+  planRegeneration: (page) => invoke('regen:plan', { page }),
+  editsToChange: (page) => invoke('regen:editsToChange', { page }),
+  startRegeneration: (r) => invoke('regen:start', r),
+  regenJob: () => invoke('regen:job'),
+  regenReview: () => invoke('regen:review'),
+  keepRegeneration: () => invoke('regen:keep'),
+  discardRegeneration: () => invoke('regen:discard'),
+  changeHistory: (id) => invoke('regen:changeHistory', { id }),
   setNavState: (state) => invoke('wiki:setNavState', state),
   onWikiTreeChanged: (cb) => {
     const listener = (): void => cb()

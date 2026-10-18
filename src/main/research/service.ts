@@ -22,6 +22,9 @@ import { readProfile } from '../workspace/profile'
 import { safeName } from '../workspace/safe-name'
 import { ResearchEngine, type EngineDeps } from './engine'
 import { estimateRun, type TaskKind } from './estimates'
+import type { PlanDeps } from './regen-plan'
+import type { RegenDeps } from './executor'
+import { finishRun, readJob } from './regen-job'
 import { createExecutor, makeContext, outputVerifier, type LocalRunner } from './executor'
 import { priceFor, type Pricing } from './pricing'
 import type { SkillReader } from './prompt-builder'
@@ -78,6 +81,8 @@ export interface StartOptions {
   concurrency?: number
   /** Limit the run to these task IDs (see ResearchEngine `only`). */
   only?: string[]
+  /** A regeneration: built once the run ID is known (REQUIREMENTS-v3.1 4.3). */
+  regen?: (runId: string) => Promise<RegenDeps>
 }
 
 /** What "Regenerate playbook" runs: read the files again, the seven sections, publishing, and the messaging analysis. */
@@ -154,7 +159,8 @@ export function createResearchService(d: ServiceDeps) {
 
   /** Everything an engine needs for a run in this workspace. */
   async function engineDeps(
-    runId: string
+    runId: string,
+    regen?: RegenDeps
   ): Promise<{ deps: EngineDeps; root: string; model: string }> {
     const { root, model, profile } = await need()
     const company = safeName(profile.company.name)
@@ -173,7 +179,8 @@ export function createResearchService(d: ServiceDeps) {
       getKey: d.getKey,
       pricing: d.pricing(),
       readSkill: d.readSkill,
-      local: d.local
+      local: d.local,
+      ...(regen ? { regen } : {})
     })
     const deps: EngineDeps = {
       ...d.engine,
@@ -195,7 +202,16 @@ export function createResearchService(d: ServiceDeps) {
         ) {
           notified = true
           d.log.info(`Research run ${run.id} ${run.status}: spent $${run.spentUsd.toFixed(2)}`)
-          void afterRun(root, run, model).finally(() => d.onFinished?.(run))
+          void afterRun(root, run, model)
+            .then(async () => {
+              // A regeneration is ready for review once its run ends (REQUIREMENTS-v3.1 5).
+              if (regen)
+                await finishRun(root, run.id, {
+                  ok: run.status === 'done',
+                  costUsd: run.spentUsd
+                })
+            })
+            .finally(() => d.onFinished?.(run))
         }
       }
     }
@@ -237,6 +253,12 @@ export function createResearchService(d: ServiceDeps) {
     if (!root || engine) return
     const saved = await latestRun(root)
     if (!saved || !isUnfinished(saved)) return
+    // A regeneration can't resume without its staging setup: it would write to the wiki.
+    const job = await readJob(root)
+    if (job?.runId === saved.id) {
+      await finishRun(root, saved.id, { ok: false, costUsd: saved.spentUsd })
+      return
+    }
     try {
       const { deps, model } = await engineDeps(saved.id)
       engine = await ResearchEngine.restore(
@@ -292,7 +314,8 @@ export function createResearchService(d: ServiceDeps) {
       const { key, model } = await need()
       const skipWeb = (await webSearchAvailable(key, model)) === false
       const runId = newRunId()
-      const { deps } = await engineDeps(runId)
+      const regen = options.regen ? await options.regen(runId) : undefined
+      const { deps } = await engineDeps(runId, regen)
       notified = false
       engine = new ResearchEngine(deps, {
         runId,
@@ -383,6 +406,21 @@ export function createResearchService(d: ServiceDeps) {
     async setBudget(budgetCapUsd: number): Promise<void> {
       await loadInterrupted()
       active().setBudget(Math.max(0.01, budgetCapUsd))
+    },
+
+    /** What a Regenerate preview needs to estimate (REQUIREMENTS-v3.1 4.1). */
+    planDeps(): PlanDeps {
+      const model = d.getModel() ?? ''
+      const pricing = d.pricing()
+      return {
+        tasks,
+        model,
+        budgetCapUsd: DEFAULT_BUDGET_USD,
+        estimate: (kinds) => {
+          const e = estimateRun(kinds, model, pricing, 1)
+          return { costUsd: e.costUsd, minutes: e.minutes }
+        }
+      }
     },
 
     /** True while a run is going or paused (resumable) in this workspace. */

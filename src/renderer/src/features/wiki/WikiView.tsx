@@ -411,7 +411,7 @@ export function WikiView() {
         )}
         {selected === PROFILE && <ProfilePane />}
         {selected === 'files' && <FilesPane />}
-        {selected === SOCIAL && <SocialPane onRerun={() => void rerun('social-taglines')} />}
+        {selected === SOCIAL && <SocialPane onRerun={() => useApp.getState().openRegenerate('social-taglines')} />}
         {placeholder && (
           <PlaceholderPane
             node={placeholder}
@@ -424,7 +424,7 @@ export function WikiView() {
           !isChange(selected) &&
           selected !== PROFILE &&
           selected !== SOCIAL && (
-            <ArticleView key={selected} path={selected} onRerun={(t) => void rerun(t)} />
+            <ArticleView key={selected} path={selected} />
           )}
         {selected?.startsWith('raw/') && <SourceView path={selected} />}
       </section>

@@ -29,6 +29,7 @@ export const APP_ERROR_CODES = [
   'not_allowed',
   'not_found',
   'not_pending',
+  'review_pending',
   'internal'
 ] as const
 export type ErrorCode = (typeof APP_ERROR_CODES)[number]
@@ -63,6 +64,7 @@ export const ERROR_COPY: Record<ErrorCode, string> = {
   not_allowed: "That link can't be opened from PositioningHQ.",
   not_found: 'That is no longer in the wiki. It may have been moved or deleted.',
   not_pending: 'Only a waiting change can be edited or withdrawn.',
+  review_pending: 'Finish reviewing the last regeneration first: keep it or discard it.',
   internal: 'Something went wrong. Please try again.'
 }
 

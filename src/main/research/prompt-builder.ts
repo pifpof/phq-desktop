@@ -48,6 +48,20 @@ export interface PromptSpec {
   cacheDocuments?: boolean
   /** Set for tasks that write wiki articles through the output tool. */
   articles?: ArticleBrief
+  /** A regeneration: the founder's changes to apply, labelled C1, C2... (REQUIREMENTS-v3.1 4.3). */
+  mustApply?: { label: string; text: string }[]
+}
+
+/** The founder's changes, after the article rules: they decide what this version must say. */
+export function mustApplyRules(changes: { label: string; text: string }[]): string {
+  return [
+    'This is a regeneration. The documents include the current version of the article(s). Revise them; keep what is still right.',
+    '',
+    'Changes the founder asked for. You must apply every one of them:',
+    ...changes.map((c) => `\n${c.label}.\n${c.text}`),
+    '',
+    'In write_articles, fill change_report with one entry per change (C1, C2...): applied yes, partly or no, and a one-line note saying where and how, or why not. Say no rather than claim a change you did not make.'
+  ].join('\n')
 }
 
 export type SkillReader = (skill: string, file: string) => string
@@ -181,6 +195,7 @@ export function buildPrompt(
   }
   // In the user message, after the cached documents: the list of articles changes during a run.
   if (spec.articles) user.push({ text: articleRules(spec.articles, spec.web) })
+  if (spec.mustApply?.length) user.push({ text: mustApplyRules(spec.mustApply) })
   user.push({ text: spec.instruction })
   return { system, user }
 }
