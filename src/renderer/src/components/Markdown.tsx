@@ -53,7 +53,8 @@ function makeComponents(
   sources: string[] | undefined,
   onSource: ((url: string) => void) | undefined,
   docPath?: string,
-  onWikiLink?: (path: string) => void
+  onWikiLink?: (path: string) => void,
+  onSectionAction?: SectionAction
 ): Components {
   return {
     h1: (p) => (
@@ -63,13 +64,28 @@ function makeComponents(
         {...strip(p)}
       />
     ),
-    h2: (p) => (
-      <h2
-        id={anchor(textOf(p.children))}
-        className="mt-5 mb-2 scroll-mt-4 text-xl leading-tight first:mt-0"
-        {...strip(p)}
-      />
-    ),
+    h2: (p) =>
+      onSectionAction ? (
+        <h2
+          id={anchor(textOf(p.children))}
+          className="group mt-5 mb-2 flex scroll-mt-4 items-baseline gap-3 text-xl leading-tight first:mt-0"
+        >
+          <span>{p.children}</span>
+          <button
+            type="button"
+            onClick={() => onSectionAction.run(textOf(p.children))}
+            className="text-primary hover:text-primary-hover focus-visible:ring-ring/50 rounded-[6px] font-sans text-[13px] font-medium opacity-0 outline-none group-hover:opacity-100 focus-visible:opacity-100 focus-visible:ring-[3px]"
+          >
+            {onSectionAction.label}
+          </button>
+        </h2>
+      ) : (
+        <h2
+          id={anchor(textOf(p.children))}
+          className="mt-5 mb-2 scroll-mt-4 text-xl leading-tight first:mt-0"
+          {...strip(p)}
+        />
+      ),
     h3: (p) => (
       <h3
         id={anchor(textOf(p.children))}
@@ -181,6 +197,12 @@ function strip<T extends { node?: unknown }>(props: T): Omit<T, 'node'> {
   return rest
 }
 
+/** A small action shown when hovering an H2, such as "Change this section". */
+export interface SectionAction {
+  label: string
+  run: (heading: string) => void
+}
+
 interface MarkdownProps {
   children: string
   /** URLs this document lists as its sources. They may open, through `onSource`. */
@@ -189,6 +211,7 @@ interface MarkdownProps {
   /** Wiki path of this document, so its relative links can open other wiki files. */
   docPath?: string
   onWikiLink?: (path: string) => void
+  onSectionAction?: SectionAction
 }
 
 export const Markdown = memo(function Markdown({
@@ -196,11 +219,12 @@ export const Markdown = memo(function Markdown({
   sources,
   onSource,
   docPath,
-  onWikiLink
+  onWikiLink,
+  onSectionAction
 }: MarkdownProps) {
   const components = useMemo(
-    () => makeComponents(sources, onSource, docPath, onWikiLink),
-    [sources, onSource, docPath, onWikiLink]
+    () => makeComponents(sources, onSource, docPath, onWikiLink, onSectionAction),
+    [sources, onSource, docPath, onWikiLink, onSectionAction]
   )
   // No rehype-raw: raw HTML in model output is shown as text, never rendered.
   return (

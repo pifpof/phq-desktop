@@ -5,12 +5,11 @@ import { CheckReportSchema, FixReportSchema } from './conformance'
 import {
   ArticleDetailSchema,
   ArticleSummarySchema,
-  DecisionInputSchema,
   OutputVersionSchema,
   SourceSummarySchema
 } from './wiki-views'
 import { NavStateSchema, SourcesTreeSchema, WikiTreeSchema } from './wiki-tree'
-import { AffectsSchema, ChangeInputSchema, ChangeSchema } from './changes'
+import { AffectsSchema, ChangeInputSchema, ChangePageSchema, ChangeSchema } from './changes'
 import { ProfileSchema } from './profile'
 import { RunViewSchema, type RunView } from './research'
 import {
@@ -277,6 +276,10 @@ export const channels = {
     res: ChangeSchema
   },
   'changes:withdraw': { req: z.object({ id: z.string().min(1).max(120) }), res: ChangeSchema },
+  'changes:page': {
+    req: z.object({ page: z.string().min(1).max(80) }),
+    res: ChangePageSchema.nullable()
+  },
   'changes:affects': { req: z.object({ page: z.string().min(1).max(80) }), res: AffectsSchema },
   /** Picks files and adds them as private sources; returns their raw paths. */
   'changes:addFiles': {
@@ -301,11 +304,6 @@ export const channels = {
     req: z.undefined(),
     res: z.object({ path: z.string(), files: z.number() }).nullable()
   },
-  'decision:preview': {
-    req: DecisionInputSchema,
-    res: z.object({ path: z.string(), text: z.string() })
-  },
-  'decision:record': { req: DecisionInputSchema, res: z.object({ path: z.string() }) },
   'shell:openObsidian': { req: z.undefined(), res: z.null() },
   'migrate:select': { req: z.object({ path: z.string().min(1).max(4096) }), res: z.null() },
   'migrate:start': {
@@ -412,6 +410,7 @@ export interface Api {
   createChange(input: Req<'changes:create'>): Promise<Result<Res<'changes:create'>>>
   updateChange(id: string, input: Req<'changes:create'>): Promise<Result<Res<'changes:update'>>>
   withdrawChange(id: string): Promise<Result<Res<'changes:withdraw'>>>
+  changePage(page: string): Promise<Result<Res<'changes:page'>>>
   changeAffects(page: string): Promise<Result<Res<'changes:affects'>>>
   addChangeFiles(): Promise<Result<Res<'changes:addFiles'>>>
   setNavState(state: Req<'wiki:setNavState'>): Promise<Result<null>>
@@ -420,8 +419,6 @@ export interface Api {
   lastCheck(): Promise<Result<Res<'wiki:lastCheck'>>>
   exportFile(includePrivate: boolean): Promise<Result<Res<'wiki:exportFile'>>>
   exportZip(): Promise<Result<Res<'wiki:exportZip'>>>
-  previewDecision(d: Req<'decision:preview'>): Promise<Result<Res<'decision:preview'>>>
-  recordDecision(d: Req<'decision:record'>): Promise<Result<Res<'decision:record'>>>
   openObsidian(): Promise<Result<null>>
   selectForMigration(path: string): Promise<Result<null>>
   startMigration(mode: Req<'migrate:start'>['mode']): Promise<Result<Res<'migrate:start'>>>

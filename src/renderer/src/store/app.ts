@@ -37,6 +37,9 @@ interface AppStore {
   openWikiFile(path: string): void
   sidebarCollapsed: boolean
   toggleSidebar(): void
+  /** The page whose Regenerate preview is open (REQUIREMENTS-v3.1 4). */
+  regenPage: string | null
+  openRegenerate(page: string | null): void
   /** Home, showing this view. */
   goHome(view?: HomeView): Promise<void>
   settingsOpen: boolean
@@ -83,6 +86,8 @@ export const useApp = create<AppStore>((set, get) => ({
     const tab = path.startsWith('raw/') ? 'sources' : 'articles'
     set({ homeView: 'wiki', wikiTarget: { tab, path } })
   },
+  regenPage: null,
+  openRegenerate: (regenPage) => set({ regenPage }),
   sidebarCollapsed: readCollapsed(),
   toggleSidebar() {
     const sidebarCollapsed = !get().sidebarCollapsed

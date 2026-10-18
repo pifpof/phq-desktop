@@ -7,9 +7,11 @@ import {
   createChange,
   findChange,
   listChanges,
+  pageSections,
   setChangeStatus,
   updateChange
 } from '../wiki/changes'
+import { stringField } from '../wiki/frontmatter'
 import { scanWiki } from '../wiki/scan'
 import { workspaceRoot, writableRoot } from './guard'
 import { HandlerError, type Handle } from './register'
@@ -26,6 +28,18 @@ export function registerChanges(handle: Handle, ctx: AppContext): void {
   }
 
   handle('changes:list', () => listChanges(root()))
+  handle('changes:page', async ({ page }) => {
+    const f = (await scanWiki(root())).find(
+      (x) => x.kind === 'article' && x.name === page && x.dir !== 'wiki/theses'
+    )
+    if (!f) return null
+    return {
+      slug: f.name,
+      title: stringField(f.data?.title) || f.name,
+      path: f.rel,
+      sections: pageSections(f.body)
+    }
+  })
   handle('changes:affects', async ({ page }) => affectsOf(page, await scanWiki(root())))
 
   handle('changes:create', async (input) => {

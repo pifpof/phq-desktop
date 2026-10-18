@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react'
-import { Lock, RotateCcw, Scale } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Lock, PencilLine, RotateCcw } from 'lucide-react'
 import type { ArticleDetail } from '@shared/wiki-views'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -9,7 +9,7 @@ import { isActive } from '@/lib/research'
 import { useApp } from '@/store/app'
 import { useResearch } from '@/store/research'
 import { DocHeader, FileActions } from '@/features/documents/DocParts'
-import { RecordDecisionDialog } from '@/features/decisions/RecordDecisionDialog'
+import { MakeChangeDialog } from '@/features/changes/MakeChangeDialog'
 import { formatDay } from './format'
 import { SOURCE_KIND_LABEL, SourceIcon } from './tree-parts'
 
@@ -52,7 +52,12 @@ export function ArticleView({
 }) {
   const { detail } = useArticle(path)
   const run = useResearch((s) => s.run)
-  const [deciding, setDeciding] = useState(false)
+  // The section the change dialog opens on: '' for the whole page, null when closed.
+  const [changing, setChanging] = useState<string | null>(null)
+  const sectionAction = useMemo(
+    () => ({ label: 'Change this section', run: (h: string) => setChanging(h) }),
+    []
+  )
   const open = useCallback((p: string) => useApp.getState().openWikiFile(p), [])
 
   if (detail === undefined) return null
@@ -107,16 +112,20 @@ export function ArticleView({
           </Button>
         )}
         {!a.slug.startsWith('decision-') && (
-          <Button variant="ghost" size="sm" onClick={() => setDeciding(true)}>
-            <Scale strokeWidth={1.8} />
-            Record a decision
+          <Button variant="ghost" size="sm" onClick={() => setChanging('')}>
+            <PencilLine strokeWidth={1.8} />
+            Make a change
           </Button>
         )}
         <FileActions path={path} />
       </DocHeader>
       <div className="min-h-0 flex-1 overflow-y-auto">
         <article className="mx-auto max-w-[760px] px-6 py-8">
-          <Markdown docPath={path} onWikiLink={open}>
+          <Markdown
+            docPath={path}
+            onWikiLink={open}
+            onSectionAction={a.slug.startsWith('decision-') ? undefined : sectionAction}
+          >
             {mainBody(detail.body)}
           </Markdown>
 
@@ -184,12 +193,14 @@ export function ArticleView({
           )}
         </article>
       </div>
-      <RecordDecisionDialog
-        open={deciding}
-        onOpenChange={setDeciding}
-        affects={[a.slug]}
-        onRecorded={open}
-      />
+      {changing !== null && (
+        <MakeChangeDialog
+          open
+          onOpenChange={(o) => !o && setChanging(null)}
+          pages={[a.slug]}
+          section={changing || null}
+        />
+      )}
     </div>
   )
 }

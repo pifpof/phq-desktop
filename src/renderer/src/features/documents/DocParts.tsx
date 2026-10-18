@@ -9,7 +9,7 @@ import {
   DialogDescription,
   DialogTitle
 } from '@/components/ui/dialog'
-import { Markdown } from '@/components/Markdown'
+import { Markdown, type SectionAction } from '@/components/Markdown'
 import { api } from '@/lib/api'
 import { useApp } from '@/store/app'
 import { docSources } from './useDoc'
@@ -52,7 +52,15 @@ export function FileActions({ path }: { path: string }) {
 }
 
 /** The document's markdown. Its sources open in the browser after a one-time confirmation. */
-export function DocBody({ doc, body }: { doc: Doc; body?: string }) {
+export function DocBody({
+  doc,
+  body,
+  sectionAction
+}: {
+  doc: Doc
+  body?: string
+  sectionAction?: SectionAction
+}) {
   const allowed = useApp((s) => s.state?.openResearchLinks ?? false)
   const [pending, setPending] = useState<string | null>(null)
   const sources = docSources(doc)
@@ -75,7 +83,7 @@ export function DocBody({ doc, body }: { doc: Doc; body?: string }) {
 
   return (
     <>
-      <Markdown sources={sources} onSource={onSource}>
+      <Markdown sources={sources} onSource={onSource} onSectionAction={sectionAction}>
         {body ?? doc.body}
       </Markdown>
       <Dialog open={pending !== null} onOpenChange={(o) => !o && setPending(null)}>

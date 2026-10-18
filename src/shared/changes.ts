@@ -63,3 +63,12 @@ export type Affects = z.infer<typeof AffectsSchema>
 
 /** Generators must respect these (REQUIREMENTS-v3.1 6). */
 export const mustRespect = (c: Pick<Change, 'status'>): boolean => c.status === 'applied'
+
+/** A page as the dialog needs it: its H2 sections, each with a sentence to use as an example. */
+export const ChangePageSchema = z.object({
+  slug: z.string(),
+  title: z.string(),
+  path: z.string(),
+  sections: z.array(z.object({ heading: z.string(), excerpt: z.string() }))
+})
+export type ChangePage = z.infer<typeof ChangePageSchema>

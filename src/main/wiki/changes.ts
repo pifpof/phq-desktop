@@ -435,3 +435,24 @@ export function changesForPage(changes: Change[], page: string) {
 }
 
 export const isChangeSlug = (slug: string): boolean => specFor(slug)?.slug === 'decision-'
+
+/** The page's H2 sections (not See Also or Sources), each with its first sentence. */
+export function pageSections(body: string): { heading: string; excerpt: string }[] {
+  const out: { heading: string; excerpt: string }[] = []
+  const parts = body.split(/^## /m).slice(1)
+  for (const part of parts) {
+    const [first, ...rest] = part.split('\n')
+    const heading = first.trim()
+    if (!heading || /^(See Also|Sources)$/i.test(heading)) continue
+    const text = rest
+      .join(' ')
+      .replace(/\[\[[^\]|]+\|([^\]]+)\]\]/g, '$1')
+      .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+      .replace(/[#*_>`|]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+    const sentence = /^(.{20,160}?[.!?])(\s|$)/.exec(text)?.[1] ?? text.slice(0, 140)
+    out.push({ heading, excerpt: sentence })
+  }
+  return out
+}

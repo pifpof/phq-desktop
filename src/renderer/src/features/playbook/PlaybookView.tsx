@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { BookOpen, Check, Copy, FileText, Layers, RefreshCw, Scale } from 'lucide-react'
+import { BookOpen, Check, Copy, FileText, Layers, PencilLine, RefreshCw } from 'lucide-react'
 import { anchor } from '@shared/anchor'
 import {
   PLAYBOOK_SECTION_ARTICLES,
@@ -17,7 +17,7 @@ import { useResearch } from '@/store/research'
 import { DocBody, DocHeader, FileActions, withoutTitle } from '@/features/documents/DocParts'
 import { useDoc } from '@/features/documents/useDoc'
 import { TaskRow } from '@/features/research/TaskRow'
-import { RecordDecisionDialog } from '@/features/decisions/RecordDecisionDialog'
+import { MakeChangeDialog } from '@/features/changes/MakeChangeDialog'
 
 const CURRENT = 'current'
 
@@ -159,7 +159,20 @@ export function PlaybookView() {
   const [selected, setSelected] = useState(CURRENT)
   const [copied, setCopied] = useState(false)
   const sectionArticles = useSectionArticles()
-  const [deciding, setDeciding] = useState<string[] | null>(null)
+  // The pages behind the section a change is being made to; null when closed.
+  const [changing, setChanging] = useState<string[] | null>(null)
+  // "Change this section" on the playbook's own headings maps to the articles behind it.
+  const sectionAction = useMemo(
+    () => ({
+      label: 'Change this section',
+      run: (heading: string) => {
+        const n = Number(/^Section (\d+)/.exec(heading)?.[1])
+        const slugs = (sectionArticles.get(n) ?? []).map((a) => a.slug)
+        if (slugs.length) setChanging(slugs)
+      }
+    }),
+    [sectionArticles]
+  )
   const path = selected === CURRENT ? current : selected
   const { doc } = useDoc(path)
   const isCurrent = selected === CURRENT
@@ -324,14 +337,15 @@ export function PlaybookView() {
                       ))}
                       <button
                         type="button"
-                        title="Record a decision about this section"
+                        title="Change this section"
                         className="text-primary hover:text-primary-hover inline-flex items-center gap-1"
+                        disabled={!(sectionArticles.get(s.n) ?? []).length}
                         onClick={() =>
-                          setDeciding((sectionArticles.get(s.n) ?? []).map((a) => a.slug))
+                          setChanging((sectionArticles.get(s.n) ?? []).map((a) => a.slug))
                         }
                       >
-                        <Scale className="size-3" strokeWidth={1.8} />
-                        Decide
+                        <PencilLine className="size-3" strokeWidth={1.8} />
+                        Change
                       </button>
                     </span>
                   </li>
@@ -340,16 +354,13 @@ export function PlaybookView() {
             </nav>
           )}
           <article className="max-w-[720px] min-w-0 flex-1">
-            <DocBody doc={doc} body={withoutTitle(doc)} />
+            <DocBody doc={doc} body={withoutTitle(doc)} sectionAction={sectionAction} />
           </article>
         </div>
       </div>
-      <RecordDecisionDialog
-        open={deciding !== null}
-        onOpenChange={(o) => !o && setDeciding(null)}
-        affects={deciding ?? []}
-        onRecorded={(p) => useApp.getState().openWikiFile(p)}
-      />
+      {changing && changing.length > 0 && (
+        <MakeChangeDialog open onOpenChange={(o) => !o && setChanging(null)} pages={changing} />
+      )}
     </div>
   )
 }

@@ -1,11 +1,13 @@
 import { memo, useState } from 'react'
-import { RotateCcw, Scale } from 'lucide-react'
+import { PencilLine, RotateCcw } from 'lucide-react'
 import { isRetryable } from '@shared/errors'
 import { Button } from '@/components/ui/button'
 import { Markdown } from '@/components/Markdown'
 import type { Message as Msg } from '@/store/chat'
 import { useApp } from '@/store/app'
-import { RecordDecisionDialog } from '@/features/decisions/RecordDecisionDialog'
+import { MakeChangeDialog } from '@/features/changes/MakeChangeDialog'
+import { useWikiNav } from '@/store/wiki-nav'
+import type { TreeNode } from '@shared/wiki-tree'
 
 const fmt = new Intl.NumberFormat('en-US')
 
@@ -25,7 +27,27 @@ interface Props {
 }
 
 export const Message = memo(function Message({ message: m, canRetry, onRetry }: Props) {
-  const [deciding, setDeciding] = useState(false)
+  // The pages a change from this reply can be made on; null when the dialog is closed.
+  const [changePages, setChangePages] = useState<string[] | null>(null)
+  const openChange = async (): Promise<void> => {
+    const slug = (p: string): string => p.split('/').pop()!.replace(/\.md$/, '')
+    const cited = (m.sources ?? [])
+      .map((s) => s.path)
+      .filter((p) => p.startsWith('wiki/') && !slug(p).startsWith('decision-'))
+      .map(slug)
+    if (cited.length) return setChangePages([...new Set(cited)])
+    // Nothing cited: the founder picks from every page.
+    if (!useWikiNav.getState().articles) await useWikiNav.getState().reloadTrees()
+    const all: string[] = []
+    const walk = (nodes: TreeNode[]): void => {
+      for (const n of nodes) {
+        if (n.kind === 'article' && n.slug && !n.slug.startsWith('decision-')) all.push(n.slug)
+        walk(n.children)
+      }
+    }
+    for (const s of useWikiNav.getState().articles?.sections ?? []) walk(s.items)
+    setChangePages(all)
+  }
   if (m.role === 'user') {
     return (
       <div className="flex justify-end">
@@ -84,23 +106,23 @@ export const Message = memo(function Message({ message: m, canRetry, onRetry }: 
               {fmt.format(m.usage.inputTokens)} in · {fmt.format(m.usage.outputTokens)} out
             </span>
           )}
-          {/* REQUIREMENTS-v2 3.5: "make that our decision" from a reply. */}
+          {/* REQUIREMENTS-v3.1 3.1: a reply's suggestion becomes a change to a cited page. */}
           <button
             type="button"
             className="hover:text-primary inline-flex items-center gap-1"
-            onClick={() => setDeciding(true)}
+            onClick={() => void openChange()}
           >
-            <Scale className="size-3.5" strokeWidth={1.8} />
-            Record as decision
+            <PencilLine className="size-3.5" strokeWidth={1.8} />
+            Make this a change
           </button>
         </div>
       )}
-      {deciding && (
-        <RecordDecisionDialog
+      {changePages && (
+        <MakeChangeDialog
           open
-          onOpenChange={setDeciding}
-          decided={m.content}
-          onRecorded={(p) => useApp.getState().openWikiFile(p)}
+          onOpenChange={(o) => !o && setChangePages(null)}
+          pages={changePages}
+          changeTo={m.content}
         />
       )}
       {m.status === 'error' && m.error && (

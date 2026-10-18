@@ -12,16 +12,23 @@ function sourceFiles(dir: string): string[] {
   })
 }
 
-/** The pane is called Wiki from v3 (REQUIREMENTS-v3 2). */
+const hits = (re: RegExp): string[] =>
+  sourceFiles(SRC).flatMap((f) =>
+    readFileSync(f, 'utf8')
+      .split('\n')
+      .map((line, i) => ({ line, at: `${f.slice(SRC.length + 1)}:${i + 1}` }))
+      .filter(({ line }) => re.test(line))
+      .map(({ at }) => at)
+  )
+
 describe('copy', () => {
+  // The pane is called Wiki from v3 (REQUIREMENTS-v3 2).
   it('never calls the wiki "Training Data"', () => {
-    const hits = sourceFiles(SRC).flatMap((f) =>
-      readFileSync(f, 'utf8')
-        .split('\n')
-        .map((line, i) => ({ line, at: `${f.slice(SRC.length + 1)}:${i + 1}` }))
-        .filter(({ line }) => /training[\s_-]?data/i.test(line))
-        .map(({ at }) => at)
-    )
-    expect(hits).toEqual([])
+    expect(hits(/training[\s_-]?data/i)).toEqual([])
+  })
+
+  // Founders make changes, not decisions (REQUIREMENTS-v3.1 1).
+  it('never asks to "record a decision"', () => {
+    expect(hits(/record (a|as) decision/i)).toEqual([])
   })
 })

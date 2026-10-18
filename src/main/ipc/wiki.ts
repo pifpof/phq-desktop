@@ -6,7 +6,6 @@ import { NavStateSchema } from '@shared/wiki-tree'
 import type { AppContext } from '../context'
 import { exportSingleFile, exportZip } from '../export/wiki-export'
 import { assemblePlaybook } from '../research/assemble-playbook'
-import { draftDecision, recordDecision } from '../research/decisions'
 import { recordProvenance } from '../state/provenance'
 import { stateDir, writeJsonAtomic } from '../state/app-state'
 import { checkWiki } from '../wiki/conformance'
@@ -78,13 +77,6 @@ export function registerWiki(handle: Handle, ctx: AppContext): void {
     return { path: out.output, version: out.version }
   })
 
-  handle('decision:preview', async (input) => {
-    const d = await draftDecision(root(), input)
-    return { path: d.path, text: d.text }
-  })
-  handle('decision:record', async (input) => ({
-    path: await recordDecision(await idleRoot(), input)
-  }))
 
   handle('wiki:exportFile', async ({ includePrivate }) =>
     exportSingleFile(await idleRoot(), { includePrivate })
