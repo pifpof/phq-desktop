@@ -146,3 +146,14 @@ export type SourceSection = z.infer<typeof SourceSectionSchema>
 
 export const SourcesTreeSchema = z.object({ sections: z.array(SourceSectionSchema) })
 export type SourcesTree = z.infer<typeof SourcesTreeSchema>
+
+/**
+ * Which parts of the Wiki pane are open, per workspace (REQUIREMENTS-v3 3.3). Sections and
+ * parents start expanded, so they are listed when collapsed; source lists start collapsed, so
+ * they are listed when open.
+ */
+export const NavStateSchema = z.object({
+  collapsed: z.array(z.string().max(600)).max(2000),
+  open: z.array(z.string().max(600)).max(2000)
+})
+export type NavState = z.infer<typeof NavStateSchema>

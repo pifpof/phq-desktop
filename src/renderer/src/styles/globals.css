@@ -38,6 +38,8 @@
   --accent: #f0f7f8; /* solid equivalent of teal-wash on white */
   --accent-foreground: #2e7a7f;
   --destructive: #b3191f;
+  --warning: #a15c07; /* 5.2:1 on white, 4.75:1 on secondary */
+  --warning-bg: #fdf4e6;
 
   --border: #e4e4e1;
   --input: #e4e4e1;
@@ -72,6 +74,8 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
+  --color-warning: var(--warning);
+  --color-warning-bg: var(--warning-bg);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);

@@ -70,6 +70,8 @@ const api: Api = {
   listSources: () => invoke('wiki:sources'),
   wikiTree: () => invoke('wiki:tree'),
   sourcesTree: () => invoke('wiki:sourcesTree'),
+  getNavState: () => invoke('wiki:getNavState'),
+  setNavState: (state) => invoke('wiki:setNavState', state),
   onWikiTreeChanged: (cb) => {
     const listener = (): void => cb()
     ipcRenderer.on(EVENT_WIKI_TREE, listener)

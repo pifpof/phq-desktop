@@ -2,12 +2,13 @@ import { app, dialog, shell } from 'electron'
 import { readFile } from 'fs/promises'
 import { isAbsolute, join, relative, sep } from 'path'
 import { CheckReportSchema } from '@shared/conformance'
+import { NavStateSchema } from '@shared/wiki-tree'
 import type { AppContext } from '../context'
 import { exportSingleFile, exportZip } from '../export/wiki-export'
 import { assemblePlaybook } from '../research/assemble-playbook'
 import { draftDecision, recordDecision } from '../research/decisions'
 import { recordProvenance } from '../state/provenance'
-import { stateDir } from '../state/app-state'
+import { stateDir, writeJsonAtomic } from '../state/app-state'
 import { checkWiki } from '../wiki/conformance'
 import { fixWiki } from '../wiki/fix'
 import { findHub, isRegistered, registerInHub } from '../wiki/hub'
@@ -43,6 +44,21 @@ export function registerWiki(handle: Handle, ctx: AppContext): void {
   handle('wiki:sources', () => listSources(root()))
   handle('wiki:tree', async () => (await ctx.wikiTree.get(root())).articles)
   handle('wiki:sourcesTree', async () => (await ctx.wikiTree.get(root())).sources)
+  // Expand and collapse state: app state, never the wiki (REQUIREMENTS-v3 3.3).
+  handle('wiki:getNavState', async () => {
+    try {
+      const raw = await readFile(join(await stateDir(root()), 'wiki-nav.json'), 'utf8')
+      const parsed = NavStateSchema.safeParse(JSON.parse(raw))
+      if (parsed.success) return parsed.data
+    } catch {
+      // first use, or an unreadable file: start from the defaults
+    }
+    return { collapsed: [], open: [] }
+  })
+  handle('wiki:setNavState', async (state) => {
+    await writeJsonAtomic(join(await stateDir(root()), 'wiki-nav.json'), state)
+    return null
+  })
   handle('wiki:outputs', ({ kind }) => listOutputs(root(), kind))
 
   // Reassemble (REQUIREMENTS-v2 4.2): the playbook from the current articles, no model call.

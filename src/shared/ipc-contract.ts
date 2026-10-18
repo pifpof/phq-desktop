@@ -9,7 +9,7 @@ import {
   OutputVersionSchema,
   SourceSummarySchema
 } from './wiki-views'
-import { SourcesTreeSchema, WikiTreeSchema } from './wiki-tree'
+import { NavStateSchema, SourcesTreeSchema, WikiTreeSchema } from './wiki-tree'
 import { ProfileSchema } from './profile'
 import { RunViewSchema, type RunView } from './research'
 import {
@@ -268,6 +268,8 @@ export const channels = {
   'wiki:sources': { req: z.undefined(), res: z.array(SourceSummarySchema) },
   'wiki:tree': { req: z.undefined(), res: WikiTreeSchema },
   'wiki:sourcesTree': { req: z.undefined(), res: SourcesTreeSchema },
+  'wiki:getNavState': { req: z.undefined(), res: NavStateSchema },
+  'wiki:setNavState': { req: NavStateSchema, res: z.null() },
   'wiki:outputs': {
     req: z.object({ kind: z.enum(['positioning-playbook', 'messaging-analysis']) }),
     res: z.array(OutputVersionSchema)
@@ -391,6 +393,8 @@ export interface Api {
   wikiTree(): Promise<Result<Res<'wiki:tree'>>>
   sourcesTree(): Promise<Result<Res<'wiki:sourcesTree'>>>
   onWikiTreeChanged(cb: () => void): () => void
+  getNavState(): Promise<Result<Res<'wiki:getNavState'>>>
+  setNavState(state: Req<'wiki:setNavState'>): Promise<Result<null>>
   listOutputs(kind: Req<'wiki:outputs'>['kind']): Promise<Result<Res<'wiki:outputs'>>>
   reassemble(): Promise<Result<Res<'wiki:reassemble'>>>
   lastCheck(): Promise<Result<Res<'wiki:lastCheck'>>>
