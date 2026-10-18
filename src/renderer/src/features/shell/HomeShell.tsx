@@ -5,7 +5,7 @@ import { useResearch } from '@/store/research'
 import { ChatView } from '@/features/chat/ChatView'
 import { MessagingView } from '@/features/messaging/MessagingView'
 import { PlaybookView } from '@/features/playbook/PlaybookView'
-import { TrainingDataView } from '@/features/training-data/TrainingDataView'
+import { WikiView } from '@/features/wiki/WikiView'
 import { UseWikiView } from '@/features/use-wiki/UseWikiView'
 import { MigrationWizard } from '@/features/migrate/MigrationWizard'
 import { ResearchBanner } from './ResearchBanner'
@@ -51,10 +51,10 @@ export function HomeShell() {
         <div className="min-h-0 flex-1">
           {needsMigration && <MigrationWizard />}
           {!needsMigration && view === 'chat' && <ChatView />}
-          {!needsMigration && view === 'training' && <TrainingDataView />}
+          {!needsMigration && view === 'wiki' && <WikiView />}
           {!needsMigration && view === 'playbook' && <PlaybookView />}
           {!needsMigration && view === 'messaging' && <MessagingView />}
-          {!needsMigration && view === 'wiki' && <UseWikiView />}
+          {!needsMigration && view === 'use-wiki' && <UseWikiView />}
         </div>
       </main>
     </div>

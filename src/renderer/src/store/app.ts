@@ -11,11 +11,11 @@ export type Step = 'welcome' | WizardStep | 'home' | 'progress'
  * and `research` opens the start-research card from home. All of them return home.
  */
 export type Flow = 'wizard' | 'replaceKey' | 'changeFolder' | 'research'
-export type HomeView = 'chat' | 'training' | 'playbook' | 'messaging' | 'wiki'
+export type HomeView = 'chat' | 'wiki' | 'playbook' | 'messaging' | 'use-wiki'
 
-/** What Training Data shows when another view sends someone there. */
-export interface TrainingTarget {
-  tab: 'knowledge' | 'sources'
+/** What the Wiki pane shows when another view sends someone there. */
+export interface WikiTarget {
+  tab: 'articles' | 'sources'
   path: string
 }
 
@@ -32,8 +32,8 @@ interface AppStore {
   profile: Profile | null
   homeView: HomeView
   setHomeView(view: HomeView): void
-  trainingTarget: TrainingTarget | null
-  /** Opens a wiki file where it belongs: articles and sources in Training Data, outputs in their view. */
+  wikiTarget: WikiTarget | null
+  /** Opens a wiki file where it belongs: articles and sources in the Wiki pane, outputs in their view. */
   openWikiFile(path: string): void
   sidebarCollapsed: boolean
   toggleSidebar(): void
@@ -76,12 +76,12 @@ export const useApp = create<AppStore>((set, get) => ({
   profile: null,
   homeView: 'chat',
   setHomeView: (homeView) => set({ homeView }),
-  trainingTarget: null,
+  wikiTarget: null,
   openWikiFile(path) {
     if (path.startsWith('output/positioning-playbook-')) return set({ homeView: 'playbook' })
     if (path.startsWith('output/messaging-analysis-')) return set({ homeView: 'messaging' })
-    const tab = path.startsWith('raw/') ? 'sources' : 'knowledge'
-    set({ homeView: 'training', trainingTarget: { tab, path } })
+    const tab = path.startsWith('raw/') ? 'sources' : 'articles'
+    set({ homeView: 'wiki', wikiTarget: { tab, path } })
   },
   sidebarCollapsed: readCollapsed(),
   toggleSidebar() {

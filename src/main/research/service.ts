@@ -328,7 +328,7 @@ export function createResearchService(d: ServiceDeps) {
       return this.start({ only: unique })
     },
 
-    /** Every output the pipeline writes, for the Training Data list (missing files show as missing). */
+    /** Every output the pipeline writes, for the Wiki pane (missing files show as missing). */
     async catalog(): Promise<CatalogEntry[]> {
       const root = d.getRoot()
       if (!root) throw new ResearchError('no_workspace', 'Choose a workspace folder first.')

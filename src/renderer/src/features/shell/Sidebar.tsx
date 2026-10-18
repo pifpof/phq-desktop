@@ -1,7 +1,7 @@
 import type { ComponentType } from 'react'
 import {
   BookOpen,
-  Database,
+  BookText,
   Folder,
   Gauge,
   Share2,
@@ -20,10 +20,10 @@ import { ResearchPill } from './ResearchPill'
 
 const NAV: { view: HomeView; label: string; Icon: ComponentType<LucideProps> }[] = [
   { view: 'chat', label: 'Chat', Icon: MessageSquare },
-  { view: 'training', label: 'Training Data', Icon: Database },
+  { view: 'wiki', label: 'Wiki', Icon: BookText },
   { view: 'playbook', label: 'Positioning Playbook', Icon: BookOpen },
   { view: 'messaging', label: 'Messaging Analysis', Icon: Gauge },
-  { view: 'wiki', label: 'Use your wiki', Icon: Share2 }
+  { view: 'use-wiki', label: 'Use your wiki', Icon: Share2 }
 ]
 
 export function Sidebar() {

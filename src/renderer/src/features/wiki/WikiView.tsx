@@ -34,7 +34,7 @@ const SOURCE_GROUPS = [
   'Other'
 ]
 
-type Tab = 'knowledge' | 'sources'
+type Tab = 'articles' | 'sources'
 /** "profile", "files", or a wiki path. */
 type Selection = string
 
@@ -72,9 +72,9 @@ function useWikiLists(): { articles: ArticleSummary[]; sources: SourceSummary[] 
   return { articles, sources }
 }
 
-export function TrainingDataView() {
-  const target = useApp((s) => s.trainingTarget)
-  const [tab, setTab] = useState<Tab>(target?.tab ?? 'knowledge')
+export function WikiView() {
+  const target = useApp((s) => s.wikiTarget)
+  const [tab, setTab] = useState<Tab>(target?.tab ?? 'articles')
   const [selected, setSelected] = useState<Selection>(target?.path ?? 'profile')
   const [error, setError] = useState<string | null>(null)
   const { articles, sources } = useWikiLists()
@@ -86,7 +86,7 @@ export function TrainingDataView() {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- following a navigation request
     setTab(target.tab)
     setSelected(target.path)
-    useApp.setState({ trainingTarget: null })
+    useApp.setState({ wikiTarget: null })
   }, [target])
 
   const knowledge = useMemo(() => {
@@ -168,15 +168,15 @@ export function TrainingDataView() {
 
   return (
     <div className="flex h-full">
-      <nav className="w-[270px] shrink-0 overflow-y-auto border-r py-4" aria-label="Training data">
+      <nav className="w-[270px] shrink-0 overflow-y-auto border-r py-4" aria-label="Wiki">
         <div className="mb-3 px-4">
-          <h2 className="text-[17px]">Training Data</h2>
+          <h2 className="text-[17px]">Wiki</h2>
           <div
             role="tablist"
-            aria-label="Wiki"
+            aria-label="Wiki sections"
             className="bg-secondary mt-3 grid grid-cols-2 rounded-[10px] p-0.5 text-sm"
           >
-            {(['knowledge', 'sources'] as const).map((t) => (
+            {(['articles', 'sources'] as const).map((t) => (
               <button
                 key={t}
                 type="button"
@@ -184,19 +184,19 @@ export function TrainingDataView() {
                 aria-selected={tab === t}
                 onClick={() => {
                   setTab(t)
-                  setSelected(t === 'knowledge' ? 'profile' : 'files')
+                  setSelected(t === 'articles' ? 'profile' : 'files')
                 }}
                 className={cn(
                   'rounded-[8px] py-1.5 font-medium',
                   tab === t ? 'text-primary bg-white shadow-sm' : 'text-muted-foreground'
                 )}
               >
-                {t === 'knowledge' ? 'Knowledge' : 'Sources'}
+                {t === 'articles' ? 'Articles' : 'Sources'}
               </button>
             ))}
           </div>
         </div>
-        {tab === 'knowledge' ? (
+        {tab === 'articles' ? (
           <>
             {group('Your company', [{ key: 'profile', label: 'Company profile' }])}
             {knowledge.map((g) => group(g.title, g.items))}
