@@ -10,7 +10,8 @@ import {
   Settings,
   type LucideProps
 } from 'lucide-react'
-import { Wordmark } from '@/components/Wordmark'
+import icon from '@/assets/images/icon.png'
+import logo from '@/assets/images/phq-logo.png'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { useApp, type HomeView } from '@/store/app'
@@ -47,25 +48,25 @@ export function Sidebar() {
         collapsed ? 'w-[64px]' : 'w-[240px]'
       )}
     >
-      <div
-        className={cn(
-          'drag flex h-[64px] shrink-0 items-center gap-2 pr-2',
-          isMac ? (collapsed ? 'pl-0' : 'pl-[78px]') : 'pl-4'
-        )}
-      >
-        {!collapsed && (
-          <div className="min-w-0 flex-1">
-            <Wordmark />
-            {company && (
-              <span className="text-muted-foreground -mt-0.5 block truncate text-[13px]">
-                {company}
-              </span>
-            )}
-          </div>
-        )}
-      </div>
+      {/* Drag strip; on macOS it holds the window controls. */}
+      <div className={cn('drag shrink-0', isMac ? 'h-[48px]' : 'h-4')} />
 
-      <nav className="mt-2 space-y-0.5 px-3" aria-label="Main">
+      {collapsed ? (
+        <div className="flex justify-center">
+          <img src={icon} alt="PositioningHQ" className="size-9 rounded-[10px] border" />
+        </div>
+      ) : (
+        <div className="min-w-0 px-6">
+          <img src={logo} alt="PositioningHQ" className="block h-[22px] w-auto max-w-full" />
+          {company && (
+            <span className="text-muted-foreground mt-1 block truncate text-[13px]">
+              {company}
+            </span>
+          )}
+        </div>
+      )}
+
+      <nav className="mt-4 space-y-0.5 px-3" aria-label="Main">
         {NAV.map(({ view: v, label, Icon }) => (
           <div key={v}>
             <button
