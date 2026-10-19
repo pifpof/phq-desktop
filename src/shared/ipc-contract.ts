@@ -25,7 +25,7 @@ import {
   ChangeSchema,
   RegenerationSchema
 } from './changes'
-import { PlaybookNavSchema, PlaybookViewSchema } from './playbook'
+import { PdfOptionsSchema, PlaybookNavSchema, PlaybookViewSchema } from './playbook'
 import { HelpItemSchema, HelpPlanSchema } from './help'
 import { ProfileSchema } from './profile'
 import { RunViewSchema, type RunView } from './research'
@@ -338,6 +338,15 @@ export const channels = {
   'help:add': { req: HelpItemSchema.omit({ addedAt: true }), res: HelpPlanSchema },
   'help:remove': { req: z.object({ id: z.string().min(1).max(80) }), res: HelpPlanSchema },
   'help:markRequested': { req: z.undefined(), res: HelpPlanSchema },
+  /** Export PDF (REQUIREMENTS-v4 8): save dialog, hidden print window, printToPDF. */
+  'playbook:exportPdf': {
+    req: PdfOptionsSchema,
+    res: z.object({ path: z.string() }).nullable()
+  },
+  /** The print view finished drawing. */
+  'print:ready': { req: z.undefined(), res: z.null() },
+  /** Shows the PDF just exported in Finder (or Explorer). Only that file. */
+  'playbook:revealPdf': { req: z.undefined(), res: z.null() },
   'playbook:takeawaysPlan': { req: z.undefined(), res: TakeawaysPlanSchema.nullable() },
   'playbook:addTakeaways': { req: z.undefined(), res: RunViewSchema },
   'wiki:outputs': {
@@ -479,6 +488,9 @@ export interface Api {
   listOutputs(kind: Req<'wiki:outputs'>['kind']): Promise<Result<Res<'wiki:outputs'>>>
   playbookView(path: string | null): Promise<Result<Res<'playbook:view'>>>
   takeawaysPlan(): Promise<Result<Res<'playbook:takeawaysPlan'>>>
+  exportPdf(options: Req<'playbook:exportPdf'>): Promise<Result<Res<'playbook:exportPdf'>>>
+  printReady(): Promise<Result<null>>
+  revealPdf(): Promise<Result<null>>
   helpPlan(): Promise<Result<Res<'help:get'>>>
   addHelp(item: Req<'help:add'>): Promise<Result<Res<'help:add'>>>
   removeHelp(id: string): Promise<Result<Res<'help:remove'>>>

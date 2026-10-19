@@ -129,7 +129,7 @@ export function PlaybookOverview({
           aria-label="Biggest gap"
           className="bg-warning-bg border-warning-border mt-6 rounded-xl border px-5 py-4"
         >
-          <h3 className="text-warning flex font-sans items-center gap-1.5 text-[12px] font-semibold tracking-[0.08em] uppercase">
+          <h3 className="text-warning flex items-center gap-1.5 font-sans text-[12px] font-semibold tracking-[0.08em] uppercase">
             <CircleAlert className="size-3.5" strokeWidth={2.4} />
             Biggest gap: {gapSection.title}
           </h3>

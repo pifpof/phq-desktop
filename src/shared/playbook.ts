@@ -117,6 +117,34 @@ export const PlaybookNavSchema = z.object({
 })
 export type PlaybookNav = z.infer<typeof PlaybookNavSchema>
 
+/** Export PDF options (REQUIREMENTS-v4 8). The print view reads them from its URL. */
+export const PdfOptionsSchema = z.object({
+  path: z.string().min(1).max(512).nullable(),
+  pageSize: z.enum(['A4', 'Letter']),
+  includeGaps: z.boolean(),
+  includePrivate: z.boolean()
+})
+export type PdfOptions = z.infer<typeof PdfOptionsSchema>
+
+/** The print view's options, from its URL (#print=<json>); null for any other page. */
+export function readPrintOptions(hash: string): PdfOptions | null {
+  const m = /^#print=(.*)$/.exec(hash)
+  if (!m) return null
+  try {
+    const parsed = PdfOptionsSchema.safeParse(JSON.parse(decodeURIComponent(m[1])))
+    return parsed.success ? parsed.data : null
+  } catch {
+    return null
+  }
+}
+
+/** Letter where it is the usual paper size, A4 everywhere else (REQUIREMENTS-v4 8). */
+const LETTER = new Set(['US', 'CA', 'MX', 'PH', 'CL', 'CO', 'VE', 'GT', 'CR', 'PR'])
+export function defaultPageSize(locale: string): PdfOptions['pageSize'] {
+  const region = /[-_]([A-Za-z]{2})\b/.exec(locale)?.[1]?.toUpperCase()
+  return region && LETTER.has(region) ? 'Letter' : 'A4'
+}
+
 /** Biggest gap priority when there is no Messaging Analysis (REQUIREMENTS-v4 6.3). */
 export const GAP_PRIORITY: StepId[] = [
   'proof',

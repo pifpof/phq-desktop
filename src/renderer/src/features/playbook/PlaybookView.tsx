@@ -1,5 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
-import { BookOpen, Copy, FileText, FolderOpen, Layers, RefreshCw, Sparkles } from 'lucide-react'
+import {
+  BookOpen,
+  Copy,
+  FileDown,
+  FileText,
+  FolderOpen,
+  Layers,
+  RefreshCw,
+  Sparkles
+} from 'lucide-react'
 import type { PlaybookView as View, StepId } from '@shared/playbook'
 import { Button } from '@/components/ui/button'
 import { MenuButton } from '@/components/MenuButton'
@@ -18,6 +27,7 @@ import { PlaybookSection } from './PlaybookSection'
 import { RegeneratePlaybookDialog, TakeawaysDialog } from './PlaybookDialogs'
 import { usePlaybookNav, usePlaybookView, useVersions } from './usePlaybook'
 import { GapActions, HelpChip, HelpSheet } from './HelpSheet'
+import { ExportPdfDialog } from './ExportPdfDialog'
 import { useHelp } from '@/store/help'
 
 /**
@@ -121,7 +131,7 @@ export function PlaybookView() {
   const target = useApp((s) => s.playbookTarget)
   const [step, setStep] = useState<StepKey | null>(null)
   const [focus, setFocus] = useState<{ card?: string; gap?: boolean } | null>(null)
-  const [dialog, setDialog] = useState<'regenerate' | 'takeaways' | null>(null)
+  const [dialog, setDialog] = useState<'regenerate' | 'takeaways' | 'pdf' | null>(null)
   const [copied, setCopied] = useState(false)
   const stale = useOutOfDate(view?.current ? view.path : null)
   // The Help plan belongs to the workspace: load it when the page opens.
@@ -196,6 +206,10 @@ export function PlaybookView() {
                 </Select>
               </div>
             )}
+            <Button variant="outline" size="sm" onClick={() => setDialog('pdf')}>
+              <FileDown strokeWidth={1.8} />
+              Export PDF
+            </Button>
             <MenuButton
               label="More actions"
               items={[
@@ -332,6 +346,7 @@ export function PlaybookView() {
       <HelpSheet company={view.company} />
       {dialog === 'regenerate' && <RegeneratePlaybookDialog onClose={() => setDialog(null)} />}
       {dialog === 'takeaways' && <TakeawaysDialog onClose={() => setDialog(null)} />}
+      {dialog === 'pdf' && <ExportPdfDialog view={view} onClose={() => setDialog(null)} />}
     </div>
   )
 }

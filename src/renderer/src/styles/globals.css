@@ -195,3 +195,15 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* The PDF print view (REQUIREMENTS-v4 8): the whole document, not one screen. */
+html.printing,
+html.printing body,
+html.printing #root {
+  height: auto;
+  overflow: visible;
+}
+html.printing body {
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}

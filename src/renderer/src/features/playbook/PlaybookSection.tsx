@@ -226,7 +226,7 @@ export function GapBox({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3
           id={`gap-title-${section.id}`}
-          className="text-warning flex items-center font-sans gap-1.5 text-[12px] font-semibold tracking-[0.08em] uppercase"
+          className="text-warning flex items-center gap-1.5 font-sans text-[12px] font-semibold tracking-[0.08em] uppercase"
         >
           <CircleAlert className="size-3.5" strokeWidth={2.4} />
           Gap to close

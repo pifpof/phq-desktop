@@ -18,6 +18,11 @@ export function isAppUrl(url: string): boolean {
   return url.startsWith(pathToFileURL(rendererIndex).href)
 }
 
+/** The renderer's own URL, for windows that load a view of it (the PDF print view). */
+export function appUrl(): string {
+  return devUrl() ?? pathToFileURL(rendererIndex).href
+}
+
 type Bounds = NonNullable<Settings['windowBounds']>
 
 function usableBounds(b: Bounds | null): Bounds | null {

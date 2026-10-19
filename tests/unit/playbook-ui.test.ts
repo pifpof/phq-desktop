@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { onlySources, type SourcesTree } from '../../src/shared/wiki-tree'
 import { playbookStepFor } from '../../src/shared/wiki-views'
+import { defaultPageSize, readPrintOptions } from '../../src/shared/playbook'
 
 const node = (path: string) => ({ path }) as SourcesTree['sections'][number]['sources'][number]
 
@@ -44,5 +45,27 @@ describe('playbook links into the wiki (REQUIREMENTS-v4 4.1, 6.2)', () => {
     expect(playbookStepFor('moat-data')).toBe(4)
     expect(playbookStepFor('competitor-acme')).toBeNull()
     expect(playbookStepFor('company-overview')).toBeNull()
+  })
+})
+
+describe('Export PDF helpers (REQUIREMENTS-v4 8)', () => {
+  it('reads the print options from the print view URL, and nothing else', () => {
+    const o = {
+      path: 'output/positioning-playbook-v3-2026-10-19.md',
+      pageSize: 'A4',
+      includeGaps: true,
+      includePrivate: false
+    }
+    expect(readPrintOptions(`#print=${encodeURIComponent(JSON.stringify(o))}`)).toEqual(o)
+    expect(readPrintOptions('')).toBeNull()
+    expect(readPrintOptions('#print=not-json')).toBeNull()
+    expect(readPrintOptions(`#print=${encodeURIComponent('{"pageSize":"A3"}')}`)).toBeNull()
+  })
+
+  it('picks Letter for North America, A4 elsewhere', () => {
+    expect(defaultPageSize('en-US')).toBe('Letter')
+    expect(defaultPageSize('en-CA')).toBe('Letter')
+    expect(defaultPageSize('en-GB')).toBe('A4')
+    expect(defaultPageSize('de')).toBe('A4')
   })
 })

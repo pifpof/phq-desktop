@@ -1,8 +1,11 @@
+import { shell } from 'electron'
 import { readFile } from 'fs/promises'
 import { join } from 'path'
 import { HelpPlanSchema, type HelpPlan } from '@shared/help'
 import { PlaybookNavSchema } from '@shared/playbook'
 import type { AppContext } from '../context'
+import { links } from '@shared/links'
+import { exportPlaybookPdf, printReady } from '../export/playbook-pdf'
 import { PLAYBOOK_TASKS } from '../research/service'
 import { stateDir, writeJsonAtomic } from '../state/app-state'
 import { PLAYBOOK_STEPS } from '../wiki/article-map'
@@ -98,6 +101,34 @@ export function registerPlaybook(handle: Handle, ctx: AppContext): void {
       model: d.model,
       waiting
     }
+  })
+
+  // Export PDF: nothing leaves the machine (REQUIREMENTS-v4 8).
+  let lastPdf: string | null = null
+  handle('playbook:revealPdf', () => {
+    if (!lastPdf) throw new HandlerError('not_found')
+    shell.showItemInFolder(lastPdf)
+    return null
+  })
+  handle('playbook:exportPdf', async (options) => {
+    const r = workspaceRoot(ctx)
+    const company = (await readProfile(r))?.company.name || 'Company'
+    const view = await playbookView(r, options.path, company)
+    if (!view) throw new HandlerError('not_found')
+    const saved = await exportPlaybookPdf({
+      parent: ctx.getWindow(),
+      workspace: r,
+      company,
+      version: view.version,
+      options: { ...options, path: view.path },
+      siteUrl: links.pdfSiteUrl
+    })
+    if (saved) lastPdf = saved.path
+    return saved
+  })
+  handle('print:ready', (_payload, event) => {
+    printReady(event.sender.id)
+    return null
   })
 
   // Nothing runs and nothing is spent until Start (CLAUDE.md rule 25).

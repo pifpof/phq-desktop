@@ -68,7 +68,9 @@ export function renderTakeawaysAndGap(
       `${h} ${TAKEAWAYS_HEADING}\n\n${takeaways.map((t, i) => `${i + 1}. ${t}`).join('\n')}`
     )
   if (gap)
-    parts.push(`${h} ${GAP_HEADING}\n\n**Problem:** ${gap.problem}\n\n**Next step:** ${gap.nextStep}`)
+    parts.push(
+      `${h} ${GAP_HEADING}\n\n**Problem:** ${gap.problem}\n\n**Next step:** ${gap.nextStep}`
+    )
   return parts.join('\n\n')
 }
 
