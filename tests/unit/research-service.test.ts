@@ -596,7 +596,7 @@ describe('research service: playbook versions', () => {
     expect(current.data.title).toBe('Positioning Playbook: Acme Rockets (v1)')
     expect([...current.body.matchAll(/^## Section \d: /gm)]).toHaveLength(7)
     expect(current.body).toContain('## Table of Contents')
-    expect(current.body).toContain('### Value Driver: Value Driver One')
+    expect(current.body).toContain('### Value Driver: One')
     expect(current.data.sources).toContain('wiki/concepts/positioning-statement.md')
     expect(s.last().tasks.find((t) => t.id === 'playbook-assemble')?.note).toBe('Version 1')
 

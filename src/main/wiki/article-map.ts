@@ -1,3 +1,5 @@
+import type { StepId } from '@shared/playbook'
+import type { SCORE_DIMENSIONS } from '@shared/scorecard'
 import type { Category, Volatility } from '@shared/wiki-types'
 import type { NavSection, VirtualParent } from '@shared/wiki-tree'
 import { articleRel } from './paths'
@@ -419,6 +421,71 @@ export const ARTICLE_MAP: ArticleSpec[] = [
     child('positioning', 'decisions', 'Decision')
   )
 ]
+
+/**
+ * The playbook's seven steps (REQUIREMENTS-v4 4.1), in skill-pack order. `slug` is the section's
+ * own article (none for Distinct Advantages); `cards` is the prefix of the articles shown as cards
+ * and `cardLabel` the heading prefix assembly gives them. `takeaways` marks the articles that carry
+ * Key takeaways and Gap to close (spec 6.6 addition). `scoreDimension` maps a step to a Messaging
+ * Analysis scorecard dimension for the gap chip.
+ */
+export interface PlaybookStep {
+  id: StepId
+  n: number
+  title: string
+  stepLabel: string
+  slug: string
+  cards: string | null
+  cardLabel: string | null
+  takeaways: boolean
+  scoreDimension: (typeof SCORE_DIMENSIONS)[number] | null
+}
+
+export const PLAYBOOK_STEPS: PlaybookStep[] = [
+  step('market', 1, 'Market Overview', 'Market', 'market-overview'),
+  step('customers', 2, 'Target Customers', 'Customers', 'ideal-customer-profile', {
+    scoreDimension: 'Customer focus'
+  }),
+  step('value', 3, 'Value Drivers', 'Value', 'value-drivers', {
+    cards: 'value-driver-',
+    cardLabel: 'Value Driver'
+  }),
+  step('advantages', 4, 'Distinct Advantages', 'Advantages', '', {
+    cards: 'moat-',
+    cardLabel: 'Moat',
+    takeaways: false
+  }),
+  step('positioning', 5, 'Positioning Statement', 'Positioning', 'positioning-statement', {
+    scoreDimension: 'Differentiation'
+  }),
+  step('competitors', 6, 'Competitive Intelligence', 'Competitors', 'competitive-landscape', {
+    cards: 'competitor-',
+    cardLabel: 'Competitor'
+  }),
+  step('proof', 7, 'Customer Proof Points', 'Proof', 'proof-points', { scoreDimension: 'Proof' })
+]
+
+function step(
+  id: StepId,
+  n: number,
+  title: string,
+  stepLabel: string,
+  slug: string,
+  more: Partial<PlaybookStep> = {}
+): PlaybookStep {
+  return {
+    id,
+    n,
+    title,
+    stepLabel,
+    slug,
+    cards: null,
+    cardLabel: null,
+    takeaways: true,
+    scoreDimension: null,
+    ...more
+  }
+}
 
 /** The five "Start here" articles for the master index, in order (spec section 5). */
 export const START_HERE = [

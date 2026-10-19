@@ -6,7 +6,8 @@ import {
   applyCategoryTerms,
   assemblePlaybookText,
   demote,
-  plainLinks
+  plainLinks,
+  stripPrefix
 } from '../../src/main/research/assemble-playbook'
 
 const GOLDEN = resolve(__dirname, '../fixtures/assemble/positioning-playbook-golden.md')
@@ -39,7 +40,7 @@ const ARTICLES = new Map<string, ExistingArticle>([
     'ideal-customer-profile',
     'topics',
     'Ideal Customer Profile',
-    '## ICP Formula\n\nRevOps leaders at 100 to 1,000 person SaaS companies.'
+    '## Key takeaways\n\n1. RevOps leaders buy, not CFOs.\n2. Mid-size SaaS, 100 to 1,000 people.\n3. Triggered by a missed forecast.\n\n## Gap to close\n\n**Problem:** Only two call notes back the size band.\n**Next step:** Ask five recent buyers their headcount.\n\n## ICP Formula\n\nRevOps leaders at 100 to 1,000 person SaaS companies.'
   ),
   art(
     'value-drivers',
@@ -50,8 +51,9 @@ const ARTICLES = new Map<string, ExistingArticle>([
   art(
     'value-driver-speed',
     'concepts',
-    'Speed',
-    '## Challenge\n\nForecasts take two days in Sheets & Co exports.'
+    'Value Driver: Speed',
+    '## Challenge\n\nForecasts take two days in Sheets & Co exports.',
+    { summary: 'Forecasts in minutes, not days.' }
   ),
   art('value-driver-accuracy', 'concepts', 'Accuracy', '## Challenge\n\nMissed quarters.'),
   art(
@@ -76,15 +78,31 @@ const ARTICLES = new Map<string, ExistingArticle>([
     'competitor-ledgerly',
     'references',
     'Ledgerly',
-    '**Category term:** legacy finance suites\n\n## Overview\n\nA suite.',
+    '**Category term:** legacy finance suites\n\n## Overview\n\nA suite.\n\n## When We Win and Lose\n\n- **Win story:** A RevOps lead wants answers today, not after a Ledgerly rollout.\n- **When they win:** The CFO owns the budget.',
     { aliases: ['Ledgerly Inc'] }
+  ),
+  art(
+    'competitor-fintrak',
+    'references',
+    'Fintrak',
+    '**Category term:** legacy finance suites\n\n## Executive Summary\n\nAnother suite.',
+    { summary: 'Fintrak sells finance suites to CFOs.' }
   ),
   art('competitor-sheets', 'references', 'Sheets & Co', '## Overview\n\nNo category term here.')
 ])
 
 describe('playbook assembly (no model call)', () => {
   it('matches the golden file', () => {
-    const out = assemblePlaybookText(ARTICLES, { company: 'Acme', version: 2, date: '2026-10-17' })
+    const out = assemblePlaybookText(
+      ARTICLES,
+      { company: 'Acme', version: 2, date: '2026-10-17' },
+      {
+        advantages: {
+          takeaways: ['History is hard to copy.', 'Three years of data.', 'Unproven in sales.'],
+          gap: null
+        }
+      }
+    )
     if (!existsSync(GOLDEN)) writeFileSync(GOLDEN, out.text)
     expect(out.text).toBe(readFileSync(GOLDEN, 'utf8'))
     expect(out.missingSections).toEqual(['Section 7: Customer Proof Points'])
@@ -97,8 +115,40 @@ describe('playbook assembly (no model call)', () => {
       'wiki/concepts/value-driver-speed.md',
       'wiki/concepts/moat-data.md',
       'wiki/concepts/positioning-statement.md',
-      'wiki/topics/competitive-landscape.md'
+      'wiki/topics/competitive-landscape.md',
+      'wiki/references/competitor-fintrak.md',
+      'wiki/references/competitor-ledgerly.md',
+      'wiki/references/competitor-sheets.md'
     ])
+  })
+
+  it('writes each value driver heading once, even when the title carries the prefix (REQ-v4 7.4)', () => {
+    const out = assemblePlaybookText(ARTICLES, { company: 'Acme', version: 1, date: '2026-10-17' })
+    expect(out.text).toContain('### Value Driver: Speed\n')
+    expect(out.text).not.toMatch(/Value Driver: Value Driver/)
+    expect(stripPrefix('Value Driver: Value Driver: Speed', 'Value Driver')).toBe('Speed')
+    expect(stripPrefix('Value Driver One', 'Value Driver')).toBe('One')
+    expect(stripPrefix('Value Driver', 'Value Driver')).toBe('Value Driver')
+    expect(stripPrefix('Moat: Data', 'Value Driver')).toBe('Moat: Data')
+  })
+
+  it('copies takeaways and the gap under the section, and leaves them out of the body', () => {
+    const out = assemblePlaybookText(ARTICLES, { company: 'Acme', version: 1, date: '2026-10-17' })
+    const icp = out.text.slice(out.text.indexOf('## Section 2'), out.text.indexOf('## Section 3'))
+    expect(icp).toMatch(
+      /^## Section 2: Target Customers\n\n### Key takeaways\n\n1\. RevOps leaders buy, not CFOs\.\n2\. .+\n3\. .+\n\n### Gap to close\n\n\*\*Problem:\*\* Only two call notes back the size band\.\n\*\*Next step:\*\* Ask five recent buyers their headcount\.\n\n### ICP Formula/
+    )
+    // Without extras, no other section has takeaways: their boxes stay hidden.
+    expect(out.text.match(/### Key takeaways/g)).toHaveLength(1)
+  })
+
+  it('groups competitors that share a category term into one card, named by the term', () => {
+    const out = assemblePlaybookText(ARTICLES, { company: 'Acme', version: 1, date: '2026-10-17' })
+    expect(out.text.match(/^### Competitor: legacy finance suites$/gm)).toHaveLength(1)
+    expect(out.text).toContain('### Competitor: Sheets & Co')
+    expect(out.text).toContain(
+      'A RevOps lead wants answers today, not after a legacy finance suites rollout.'
+    )
   })
 
   it('uses category terms, not competitor names, except in code and link targets', () => {

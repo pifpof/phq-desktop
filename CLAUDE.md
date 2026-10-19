@@ -2,7 +2,7 @@
 
 Free, open-source (MIT) desktop app by Parallel79°. It guides a founder through building a positioning and competitive-intelligence wiki using their own LLM API key. Everything is stored in a local folder they choose.
 
-**Current milestone: v3.1 (Make a change, and preview before regenerating).** v0 to v3 are done and tested. Specs: `docs/v3.1/REQUIREMENTS-v3.1.md`. Build order: `docs/v3.1/IMPLEMENTATION_PLAN-v3.1.md`. v3 (`docs/v3/`) still applies unless v3.1 changes it. Don't add features outside v3.1 scope (REQUIREMENTS-v3.1 1.1) without asking Shahed.
+**Current milestone: v4 (Positioning Playbook page redesign).** v0 to v3.1 are done and tested. Specs: `docs/v4/REQUIREMENTS-v4.md`. Build order: `docs/v4/IMPLEMENTATION_PLAN-v4.md`. v3.1 (`docs/v3.1/`) and v3 (`docs/v3/`) still apply unless v4 changes them. Don't add features outside v4 scope (REQUIREMENTS-v4 2.1) without asking Shahed. Decided 2026-10-19: competitor cards in the playbook use category terms only (no brand names); competitors sharing a term share one card.
 
 v2 still applies unless v3 changes it: `docs/v2/REQUIREMENTS-v2.md`, the format contract `docs/v2/WIKI-FORMAT-SPEC.md` (unchanged in v3, and it wins over the requirements if they disagree), and the Phase 0 findings in `docs/v2-assumptions.md`. v0 and v1 specs (`docs/v0/`, `docs/v1/`) still apply unless a later version changes them. Work the plan phase by phase; don't skip ahead.
 

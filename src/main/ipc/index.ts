@@ -6,6 +6,7 @@ import { registerDev } from './dev'
 import { registerDocs } from './docs'
 import { registerInputs } from './inputs'
 import { registerNet } from './net'
+import { registerPlaybook } from './playbook'
 import { registerRegen } from './regen'
 import { registerResearch } from './research'
 import { registerProvider } from './provider'
@@ -29,6 +30,7 @@ export function registerIpc(ctx: AppContext): void {
   registerWiki(handle, ctx)
   registerChanges(handle, ctx)
   registerRegen(handle, ctx)
+  registerPlaybook(handle, ctx)
   registerMigrate(handle, ctx)
   registerShell(handle)
 }

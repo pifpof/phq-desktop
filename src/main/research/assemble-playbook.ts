@@ -1,10 +1,20 @@
 import { writeFile } from 'fs/promises'
 import { anchor } from '@shared/anchor'
-import { stringifyDoc, stringList } from '../wiki/frontmatter'
+import type { Gap, StepId } from '@shared/playbook'
+import { PLAYBOOK_STEPS, type PlaybookStep } from '../wiki/article-map'
+import { stringField, stringifyDoc, stringList } from '../wiki/frontmatter'
 import { writeIndexes } from '../wiki/index-gen'
 import { appendLog } from '../wiki/log'
 import { nextOutputVersion, outputRel, safeJoin } from '../wiki/paths'
+import {
+  GAP_HEADING,
+  readGap,
+  readTakeaways,
+  renderTakeawaysAndGap,
+  TAKEAWAYS_HEADING
+} from '../wiki/sections'
 import { loadArticles, splitSections, type ExistingArticle } from './article-output'
+import { readPlaybookExtras } from '../state/playbook-extras'
 import { replaceEmDashes } from './postprocess'
 
 /**
@@ -15,19 +25,18 @@ import { replaceEmDashes } from './postprocess'
 
 export const PLAYBOOK_KIND = 'positioning-playbook'
 
-/** The seven sections in skill-pack order, and the articles each is built from. */
-export const PLAYBOOK_SECTIONS: { n: number; title: string; slug: string; pattern?: string }[] = [
-  { n: 1, title: 'Market Overview', slug: 'market-overview' },
-  { n: 2, title: 'Target Customers', slug: 'ideal-customer-profile' },
-  { n: 3, title: 'Value Drivers', slug: 'value-drivers', pattern: 'value-driver-' },
-  { n: 4, title: 'Distinct Advantages', slug: '', pattern: 'moat-' },
-  { n: 5, title: 'Positioning Statement', slug: 'positioning-statement' },
-  { n: 6, title: 'Competitive Intelligence', slug: 'competitive-landscape' },
-  { n: 7, title: 'Customer Proof Points', slug: 'proof-points' }
-]
-
 export const sectionHeading = (s: { n: number; title: string }): string =>
   `Section ${s.n}: ${s.title}`
+
+/** The prefix an article title may carry ("Value Driver: Speed", "Value Driver Speed"), dropped once or more. */
+export const stripPrefix = (title: string, label: string | null): string => {
+  if (!label) return title.trim()
+  const re = new RegExp(
+    `^(?:${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:\\s*:\\s*|\\s+))+`,
+    'i'
+  )
+  return title.replace(re, '').trim() || title.trim()
+}
 
 /** Moves headings down `levels` (## to ###), outside code blocks. */
 export function demote(md: string, levels: number): string {
@@ -51,8 +60,11 @@ export const plainLinks = (md: string): string =>
     .replace(/\[\[([^\]]+)\]\]/g, '$1')
     .replace(/(?<!!)\[([^\]\n]+)\]\((?!https?:)(<[^>\n]+>|[^)\s]+\.md)\)/g, '$1')
 
-/** An article's body for the playbook: no title, abstract, See Also or Sources. */
-export function articleContent(a: ExistingArticle, levels: number): string {
+/** Sections the playbook places itself, or leaves out. */
+const SKIPPED = ['See Also', 'Sources', TAKEAWAYS_HEADING, GAP_HEADING].map((h) => h.toLowerCase())
+
+/** An article's body for the playbook: no title, abstract, See Also, Sources, takeaways or gap. */
+export function articleContent(a: ExistingArticle, levels: number, only?: string[]): string {
   const { head, sections } = splitSections(a.body)
   // The head is "# Title", the abstract quote and, for competitors, the category term line.
   const intro = head
@@ -61,9 +73,11 @@ export function articleContent(a: ExistingArticle, levels: number): string {
     .replace(/^\*\*Category term:\*\*.*\n?/m, '')
     .trim()
   const kept = sections
-    .filter((s) => !['See Also', 'Sources'].includes(s.heading))
+    .filter((s) => !SKIPPED.includes(s.heading.toLowerCase()))
+    .filter((s) => !only || only.includes(s.heading.toLowerCase()))
     .map((s) => s.text)
-  return demote(plainLinks([intro, ...kept].filter(Boolean).join('\n\n')), levels).trim()
+  const parts = only ? kept : [intro, ...kept]
+  return demote(plainLinks(parts.filter(Boolean).join('\n\n')), levels).trim()
 }
 
 /** Competitor name (and aliases) to its category term, from each competitor article. */
@@ -121,42 +135,96 @@ export interface Assembled {
   missingTerms: string[]
 }
 
+/** Takeaways and a gap for a step with no article of its own (Distinct Advantages, REQUIREMENTS-v4 7.1). */
+export type PlaybookExtras = Partial<
+  Record<StepId, { takeaways: string[] | null; gap: Gap | null }>
+>
+
+const WIN_SECTION = 'when we win and lose'
+
+/** A competitor's win story, the line its card shows collapsed. */
+const winStory = (a: ExistingArticle): string =>
+  plainLinks(/\*\*Win story:\*\*\s*(.+)/i.exec(a.body)?.[1]?.trim() ?? '')
+
+const firstSection = (a: ExistingArticle): string =>
+  splitSections(a.body)
+    .sections.map((s) => s.heading.toLowerCase())
+    .find((h) => !SKIPPED.includes(h)) ?? ''
+
+/** The cards for a step: one per article, or one per category term for competitors. */
+function cards(
+  step: PlaybookStep,
+  main: ExistingArticle | undefined,
+  articles: Map<string, ExistingArticle>,
+  terms: { names: string[]; term: string }[]
+): { sources: string[]; text: string[] } {
+  if (!step.cards) return { sources: [], text: [] }
+  const children = [...articles.values()]
+    .filter((a) => a.slug.startsWith(step.cards!))
+    .sort((a, b) => order(main, a, b))
+  const competitor = step.cards === 'competitor-'
+  // Competitors that share a category term share one card (decided 2026-10-19).
+  const groups = new Map<string, ExistingArticle[]>()
+  for (const c of children) {
+    const key = competitor
+      ? (terms.find((t) => t.names.includes(c.title))?.term ?? c.title)
+      : stripPrefix(c.title, step.cardLabel)
+    groups.set(key, [...(groups.get(key) ?? []), c])
+  }
+  const text: string[] = []
+  for (const [title, members] of groups) {
+    text.push(`### ${step.cardLabel}: ${title}`)
+    const wins = members.map(winStory).filter(Boolean)
+    const lines =
+      competitor && wins.length ? wins : members.map((m) => plainLinks(stringField(m.data.summary)))
+    const line = [...new Set(lines.filter(Boolean))].join(' ')
+    if (line) text.push(line)
+    for (const m of members) {
+      const body = competitor
+        ? articleContent(m, 2, [WIN_SECTION]) ||
+          articleContent(m, 2, ['executive summary']) ||
+          articleContent(m, 2, [firstSection(m)])
+        : articleContent(m, 2)
+      if (body) text.push(body)
+    }
+  }
+  return { sources: children.map((c) => c.path), text }
+}
+
 /** The playbook text, from the articles. Pure: same articles in, same text out. */
 export function assemblePlaybookText(
   articles: Map<string, ExistingArticle>,
-  o: { company: string; version: number; date: string }
+  o: { company: string; version: number; date: string },
+  extras: PlaybookExtras = {}
 ): Assembled {
   const sources: string[] = []
   const missingSections: string[] = []
   const parts: string[] = []
-  for (const s of PLAYBOOK_SECTIONS) {
+  const { terms, missing } = categoryTerms(articles)
+  for (const s of PLAYBOOK_STEPS) {
     const heading = sectionHeading(s)
     parts.push(`## ${heading}`)
     const main = s.slug ? articles.get(s.slug) : undefined
-    const children = s.pattern
-      ? [...articles.values()]
-          .filter((a) => a.slug.startsWith(s.pattern!))
-          .sort((a, b) => order(main, a, b))
-      : []
-    if (!main && !children.length) {
+    const card = cards(s, main, articles, terms)
+    if (!main && !card.text.length) {
       missingSections.push(heading)
       parts.push('Not written yet. Run the playbook research to fill this section.')
       continue
     }
+    const own = main
+      ? { takeaways: readTakeaways(main.body), gap: readGap(main.body) }
+      : (extras[s.id] ?? { takeaways: null, gap: null })
+    const top = renderTakeawaysAndGap(own.takeaways, own.gap, 3)
+    if (top) parts.push(top)
     if (main) {
       sources.push(main.path)
-      parts.push(articleContent(main, 1))
+      const content = articleContent(main, 1)
+      if (content) parts.push(content)
     }
-    for (const c of children) {
-      sources.push(c.path)
-      const label = s.n === 3 ? `Value Driver: ${c.title}` : c.title
-      parts.push(`### ${label}`, articleContent(c, 2))
-    }
+    sources.push(...card.sources)
+    parts.push(...card.text)
   }
-  const { terms, missing } = categoryTerms(articles)
-  const toc = PLAYBOOK_SECTIONS.map(
-    (s, i) => `${i + 1}. [${s.title}](#${anchor(sectionHeading(s))})`
-  )
+  const toc = PLAYBOOK_STEPS.map((s, i) => `${i + 1}. [${s.title}](#${anchor(sectionHeading(s))})`)
   const body = [
     `# Positioning Playbook: ${o.company}`,
     '',
@@ -201,7 +269,8 @@ export async function assemblePlaybook(
 ): Promise<{ output: string; version: number; note: string; sources: string[] }> {
   const articles = await loadArticles(wikiRoot)
   const version = await nextOutputVersion(wikiRoot, PLAYBOOK_KIND)
-  const out = assemblePlaybookText(articles, { company, version, date })
+  const extras = await readPlaybookExtras(wikiRoot).catch(() => ({}))
+  const out = assemblePlaybookText(articles, { company, version, date }, extras)
   const rel = outputRel(PLAYBOOK_KIND, version, date)
   await writeFile(safeJoin(wikiRoot, rel), out.text, { flag: 'wx' })
   await appendLog(wikiRoot, 'output', `positioning playbook v${version} -> ${rel}`, date)

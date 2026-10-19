@@ -23,6 +23,7 @@ import {
   ChangeSchema,
   RegenerationSchema
 } from './changes'
+import { PlaybookViewSchema } from './playbook'
 import { ProfileSchema } from './profile'
 import { RunViewSchema, type RunView } from './research'
 import {
@@ -318,6 +319,11 @@ export const channels = {
     res: z.array(z.object({ path: z.string(), title: z.string() }))
   },
   'wiki:setNavState': { req: NavStateSchema, res: z.null() },
+  /** The playbook page for a version (null: the newest), or null with no playbook (REQUIREMENTS-v4). */
+  'playbook:view': {
+    req: z.object({ path: z.string().min(1).max(512).nullable() }),
+    res: PlaybookViewSchema.nullable()
+  },
   'wiki:outputs': {
     req: z.object({ kind: z.enum(['positioning-playbook', 'messaging-analysis']) }),
     res: z.array(OutputVersionSchema)
@@ -455,6 +461,7 @@ export interface Api {
   changeHistory(id: string): Promise<Result<Res<'regen:changeHistory'>>>
   setNavState(state: Req<'wiki:setNavState'>): Promise<Result<null>>
   listOutputs(kind: Req<'wiki:outputs'>['kind']): Promise<Result<Res<'wiki:outputs'>>>
+  playbookView(path: string | null): Promise<Result<Res<'playbook:view'>>>
   reassemble(): Promise<Result<Res<'wiki:reassemble'>>>
   lastCheck(): Promise<Result<Res<'wiki:lastCheck'>>>
   exportFile(includePrivate: boolean): Promise<Result<Res<'wiki:exportFile'>>>

@@ -314,6 +314,26 @@ See Also links are reciprocal: if A lists B, B lists A (llm-wiki C4). Generators
 
 Section templates come from the skill pack's existing asset files (company-research steps and playbook sections), unchanged in substance. The skill pack's tone and format rules apply.
 
+**Key takeaways and Gap to close (addition, PositioningHQ Desktop v4; format version unchanged).** The six playbook section articles (`market-overview`, `ideal-customer-profile`, `value-drivers`, `positioning-statement`, `competitive-landscape`, `proof-points`) may carry two optional sections, placed right after the abstract:
+
+```markdown
+## Key takeaways
+
+1. <one line, at most 12 words>
+2. <one line>
+3. <one line>
+
+## Gap to close
+
+**Problem:** <one or two sentences grounded in this article's sources>
+**Next step:** <one concrete action that would move this up one level>
+```
+
+- Exactly three takeaways when present, each supported by the article body. No Gap to close section when the evidence shows no clear weakness. No invented scores or figures.
+- Distinct Advantages has no parent article, so its takeaways and gap appear only in the assembled playbook.
+- The assembled playbook copies both sections under each section's H2 (as `###`). Card headings use one prefix: `### Value Driver: <name>`, `### Moat: <name>`, and `### Competitor: <category term>` (competitors sharing a term share one card).
+- Readers must tolerate their absence: older wikis and outputs don't have them.
+
 ## 7. `schema.md` (PositioningHQ topic guide)
 
 Created once with the wiki, `schema_state: advisory`, human-owned. Tools may propose changes in `output/schema-proposal-*.md` but never rewrite it.

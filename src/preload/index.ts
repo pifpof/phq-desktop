@@ -94,6 +94,7 @@ const api: Api = {
     return () => ipcRenderer.removeListener(EVENT_WIKI_TREE, listener)
   },
   listOutputs: (kind) => invoke('wiki:outputs', { kind }),
+  playbookView: (path) => invoke('playbook:view', { path }),
   reassemble: () => invoke('wiki:reassemble'),
   lastCheck: () => invoke('wiki:lastCheck'),
   exportFile: (includePrivate) => invoke('wiki:exportFile', { includePrivate }),
