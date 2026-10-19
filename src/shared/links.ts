@@ -7,6 +7,10 @@ export const links = {
   signupFormUrl: 'https://parallel79.com/positioninghq/updates',
   communityUrl: 'https://parallel79.com/positioninghq/community',
   parallel79: 'https://parallel79.com',
+  /** Expert help request form (REQUIREMENTS-v4 9). Always https. */
+  helpRequestUrl: 'https://positioninghq.com/expert-help',
+  /** The PDF footer and cover link (REQUIREMENTS-v4 8). */
+  pdfSiteUrl: 'https://positioninghq.com/?utm_source=phq-desktop&utm_medium=pdf',
   anthropicConsole: 'https://console.anthropic.com/'
 } as const
 
@@ -15,6 +19,7 @@ const FIXED_HOSTS = [
   'docs.anthropic.com',
   'docs.claude.com',
   'parallel79.com',
+  'positioninghq.com',
   'github.com'
 ]
 

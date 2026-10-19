@@ -1,5 +1,6 @@
 import { readFile } from 'fs/promises'
 import { join } from 'path'
+import { HelpPlanSchema, type HelpPlan } from '@shared/help'
 import { PlaybookNavSchema } from '@shared/playbook'
 import type { AppContext } from '../context'
 import { PLAYBOOK_TASKS } from '../research/service'
@@ -41,6 +42,43 @@ export function registerPlaybook(handle: Handle, ctx: AppContext): void {
       visited: Object.fromEntries(keep.map((k) => [k, nav.visited[k]]))
     })
     return null
+  })
+
+  // The Help plan (REQUIREMENTS-v4 9): app state, never the wiki. Nothing is sent from here.
+  const helpFile = async (): Promise<string> =>
+    join(await stateDir(workspaceRoot(ctx)), 'help-plan.json')
+  const readHelp = async (): Promise<HelpPlan> => {
+    try {
+      const parsed = HelpPlanSchema.safeParse(JSON.parse(await readFile(await helpFile(), 'utf8')))
+      if (parsed.success) return parsed.data
+    } catch {
+      // nothing chosen yet
+    }
+    return { items: [], helpRequested: [] }
+  }
+  const writeHelp = async (plan: HelpPlan): Promise<HelpPlan> => {
+    await writeJsonAtomic(await helpFile(), plan)
+    return plan
+  }
+  handle('help:get', readHelp)
+  handle('help:add', async (item) => {
+    const plan = await readHelp()
+    if (plan.items.some((i) => i.id === item.id)) return plan
+    return writeHelp({
+      ...plan,
+      items: [...plan.items, { ...item, addedAt: new Date().toISOString() }].slice(-50)
+    })
+  })
+  handle('help:remove', async ({ id }) => {
+    const plan = await readHelp()
+    return writeHelp({ ...plan, items: plan.items.filter((i) => i.id !== id) })
+  })
+  handle('help:markRequested', async () => {
+    const plan = await readHelp()
+    return writeHelp({
+      ...plan,
+      helpRequested: [...plan.helpRequested, new Date().toISOString()].slice(-100)
+    })
   })
 
   // Regenerate playbook: what runs and roughly what it costs. Reads only.

@@ -129,6 +129,7 @@ code — stays
 ### Gap to close
 
 **Problem:** No named customer backs section.
+
 **Next step:** Ask one customer for a quote.
 
 ### Moat: Alpha
@@ -218,6 +219,7 @@ code — stays
 ### Gap to close
 
 **Problem:** No named customer backs proof-points.
+
 **Next step:** Ask one customer for a quote.
 
 ### Details

@@ -136,7 +136,7 @@ describe('playbook assembly (no model call)', () => {
     const out = assemblePlaybookText(ARTICLES, { company: 'Acme', version: 1, date: '2026-10-17' })
     const icp = out.text.slice(out.text.indexOf('## Section 2'), out.text.indexOf('## Section 3'))
     expect(icp).toMatch(
-      /^## Section 2: Target Customers\n\n### Key takeaways\n\n1\. RevOps leaders buy, not CFOs\.\n2\. .+\n3\. .+\n\n### Gap to close\n\n\*\*Problem:\*\* Only two call notes back the size band\.\n\*\*Next step:\*\* Ask five recent buyers their headcount\.\n\n### ICP Formula/
+      /^## Section 2: Target Customers\n\n### Key takeaways\n\n1\. RevOps leaders buy, not CFOs\.\n2\. .+\n3\. .+\n\n### Gap to close\n\n\*\*Problem:\*\* Only two call notes back the size band\.\n\n\*\*Next step:\*\* Ask five recent buyers their headcount\.\n\n### ICP Formula/
     )
     // Without extras, no other section has takeaways: their boxes stay hidden.
     expect(out.text.match(/### Key takeaways/g)).toHaveLength(1)

@@ -27,6 +27,7 @@ summary: "About proof-points, in one line."
 ## Gap to close
 
 **Problem:** No named customer backs proof-points.
+
 **Next step:** Ask one customer for a quote.
 
 ## Details

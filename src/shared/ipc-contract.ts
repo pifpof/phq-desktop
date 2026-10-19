@@ -26,6 +26,7 @@ import {
   RegenerationSchema
 } from './changes'
 import { PlaybookNavSchema, PlaybookViewSchema } from './playbook'
+import { HelpItemSchema, HelpPlanSchema } from './help'
 import { ProfileSchema } from './profile'
 import { RunViewSchema, type RunView } from './research'
 import {
@@ -332,6 +333,11 @@ export const channels = {
   'playbook:regenPlan': { req: z.undefined(), res: PlaybookRegenPlanSchema },
   'playbook:getNav': { req: z.undefined(), res: PlaybookNavSchema },
   'playbook:setNav': { req: PlaybookNavSchema, res: z.null() },
+  /** The Help plan (REQUIREMENTS-v4 9): app state only. */
+  'help:get': { req: z.undefined(), res: HelpPlanSchema },
+  'help:add': { req: HelpItemSchema.omit({ addedAt: true }), res: HelpPlanSchema },
+  'help:remove': { req: z.object({ id: z.string().min(1).max(80) }), res: HelpPlanSchema },
+  'help:markRequested': { req: z.undefined(), res: HelpPlanSchema },
   'playbook:takeawaysPlan': { req: z.undefined(), res: TakeawaysPlanSchema.nullable() },
   'playbook:addTakeaways': { req: z.undefined(), res: RunViewSchema },
   'wiki:outputs': {
@@ -473,6 +479,10 @@ export interface Api {
   listOutputs(kind: Req<'wiki:outputs'>['kind']): Promise<Result<Res<'wiki:outputs'>>>
   playbookView(path: string | null): Promise<Result<Res<'playbook:view'>>>
   takeawaysPlan(): Promise<Result<Res<'playbook:takeawaysPlan'>>>
+  helpPlan(): Promise<Result<Res<'help:get'>>>
+  addHelp(item: Req<'help:add'>): Promise<Result<Res<'help:add'>>>
+  removeHelp(id: string): Promise<Result<Res<'help:remove'>>>
+  markHelpRequested(): Promise<Result<Res<'help:markRequested'>>>
   playbookRegenPlan(): Promise<Result<Res<'playbook:regenPlan'>>>
   playbookNav(): Promise<Result<Res<'playbook:getNav'>>>
   setPlaybookNav(nav: Req<'playbook:setNav'>): Promise<Result<null>>

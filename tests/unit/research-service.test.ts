@@ -1115,7 +1115,7 @@ describe('research service: adding key takeaways to an older playbook (REQUIREME
         full,
         text
           .replace(/## Key takeaways\n\n(?:\d\. .*\n)+\n/, '')
-          .replace(/## Gap to close\n\n(?:\*\*.*\n)+\n/, '')
+          .replace(/## Gap to close\n\n(?:\*\*.*\n\n?)+/, '')
       )
     }
     rmSync(join(await stateDir(ws), 'playbook-extras.json'), { force: true })
@@ -1170,7 +1170,7 @@ describe('research service: adding key takeaways to an older playbook (REQUIREME
       t
         .replace(/^updated: .*$/m, '')
         .replace(/## Key takeaways\n\n(?:\d\. .*\n)+\n/, '')
-        .replace(/## Gap to close\n\n(?:\*\*.*\n)+\n/, '')
+        .replace(/## Gap to close\n\n(?:\*\*.*\n\n?)+/, '')
     expect(strip(icpAfter)).toBe(strip(icpBefore))
     const v = await view()
     expect(v.needsTakeaways).toBe(false)

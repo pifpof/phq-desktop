@@ -17,4 +17,4 @@ PositioningHQ Wiki Format, version 1 (llm-wiki topic wiki). Article slugs are fi
 
 ## PositioningHQ
 
-Workspace ID: 46e04670-50d0-4668-b8f2-ac53cd6d4028
+Workspace ID: 70cec2ca-0798-4554-8e74-a79eb625a8ca

@@ -53,6 +53,7 @@ Forecasting moved to RevOps. legacy finance suites still sells to CFOs.
 ### Gap to close
 
 **Problem:** Only two call notes back the size band.
+
 **Next step:** Ask five recent buyers their headcount.
 
 ### ICP Formula

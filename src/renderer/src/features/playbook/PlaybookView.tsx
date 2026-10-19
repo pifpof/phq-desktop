@@ -17,6 +17,8 @@ import { PlaybookOverview } from './PlaybookOverview'
 import { PlaybookSection } from './PlaybookSection'
 import { RegeneratePlaybookDialog, TakeawaysDialog } from './PlaybookDialogs'
 import { usePlaybookNav, usePlaybookView, useVersions } from './usePlaybook'
+import { GapActions, HelpChip, HelpSheet } from './HelpSheet'
+import { useHelp } from '@/store/help'
 
 /**
  * The Positioning Playbook page (REQUIREMENTS-v4 3): a header with step tabs, the At a glance
@@ -122,6 +124,8 @@ export function PlaybookView() {
   const [dialog, setDialog] = useState<'regenerate' | 'takeaways' | null>(null)
   const [copied, setCopied] = useState(false)
   const stale = useOutOfDate(view?.current ? view.path : null)
+  // The Help plan belongs to the workspace: load it when the page opens.
+  useEffect(() => void useHelp.getState().load(), [])
 
   // Sent here from another view (REQUIREMENTS-v4 4.1, `playbook?step=value`): show that step.
   useEffect(() => {
@@ -176,6 +180,7 @@ export function PlaybookView() {
             <p className="text-muted-foreground mt-0.5 text-[13px]">{meta}</p>
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-2">
+            <HelpChip />
             {versions.length > 1 && (
               <div className="w-[250px]">
                 <Select value={selected} onValueChange={setSelected}>
@@ -184,8 +189,7 @@ export function PlaybookView() {
                     {versions.map((v, i) => (
                       <SelectItem key={v.path} value={i === 0 ? CURRENT : v.path}>
                         Version {v.version}
-                        {v.date ? `, ${formatDay(v.date)}` : ''}
-                        {i === 0 ? ' (Current)' : ''}
+                        {i === 0 ? ' · Current' : v.date ? ` · ${formatDay(v.date)}` : ''}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -319,11 +323,13 @@ export function PlaybookView() {
               focus={focus}
               onGo={go}
               onGenerate={() => setDialog('regenerate')}
+              gapActions={(s) => <GapActions section={s} />}
             />
           )}
         </div>
       </div>
 
+      <HelpSheet company={view.company} />
       {dialog === 'regenerate' && <RegeneratePlaybookDialog onClose={() => setDialog(null)} />}
       {dialog === 'takeaways' && <TakeawaysDialog onClose={() => setDialog(null)} />}
     </div>
