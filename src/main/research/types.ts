@@ -66,6 +66,11 @@ export interface TaskDef {
   writes?:
     | { kind: 'articles'; targets: ArticleTargets; socialNotes?: boolean }
     | { kind: 'output'; name: string; title: string }
+    /** Key takeaways and gaps merged into the playbook section articles (REQUIREMENTS-v4 7.3). */
+    | { kind: 'takeaways' }
+
+  /** Runs only when asked for by ID (a scoped run), never as part of a full run. */
+  onDemand?: boolean
 
   /** Raw sources with any of these tags are shown too (never private ones). */
   rawTags?: string[]

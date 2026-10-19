@@ -10,13 +10,19 @@ import { writeIndexes } from '../wiki/index-gen'
 import { appendLog } from '../wiki/log'
 import { isoDay, safeJoin } from '../wiki/paths'
 import { addBacklinks, sha256, type PreparedFile } from './article-output'
+import { assemblePlaybook, type PlaybookExtras } from './assemble-playbook'
+import { readPlaybookExtras, writePlaybookExtras } from '../state/playbook-extras'
+import { renderTakeawaysAndGap } from '../wiki/sections'
+import { readProfile } from '../workspace/profile'
+import { TAKEAWAYS_TASK } from './takeaways'
 
 /**
  * A regeneration in progress or waiting for review (REQUIREMENTS-v3.1 4.3, 5). Its articles are
  * staged in app state; the wiki changes only when the founder keeps the result. One at a time.
  */
 
-const jobPath = async (root: string): Promise<string> => join(await stateDir(root), 'regen-job.json')
+const jobPath = async (root: string): Promise<string> =>
+  join(await stateDir(root), 'regen-job.json')
 const stagingDir = async (root: string, runId: string): Promise<string> =>
   join(await stateDir(root), 'staging', runId)
 
@@ -24,6 +30,8 @@ interface Manifest {
   files: { rel: string; task: string }[]
   createdRaw: string[]
   inputs: string[]
+  /** Takeaways for playbook steps with no article (REQUIREMENTS-v4 7.1), written on keep. */
+  extras?: PlaybookExtras
 }
 
 export async function readJob(root: string): Promise<RegenJob | null> {
@@ -59,6 +67,7 @@ export async function stageFiles(
     report: { id: string; applied: 'yes' | 'partly' | 'no'; note?: string }[]
     createdRaw: string[]
     inputs: string[]
+    extras?: PlaybookExtras
   }
 ): Promise<void> {
   const dir = await stagingDir(root, runId)
@@ -67,10 +76,14 @@ export async function stageFiles(
     const path = join(dir, 'files', ...f.path.split('/'))
     await mkdir(dirname(path), { recursive: true })
     await writeFile(path, f.text)
-    manifest.files = [...manifest.files.filter((x) => x.rel !== f.path), { rel: f.path, task: r.task }]
+    manifest.files = [
+      ...manifest.files.filter((x) => x.rel !== f.path),
+      { rel: f.path, task: r.task }
+    ]
   }
   manifest.createdRaw.push(...r.createdRaw)
   manifest.inputs = [...new Set([...manifest.inputs, ...r.inputs])]
+  if (r.extras) manifest.extras = { ...manifest.extras, ...r.extras }
   await mkdir(dir, { recursive: true })
   await writeJsonAtomic(join(dir, 'manifest.json'), manifest)
   const job = await readJob(root)
@@ -80,7 +93,8 @@ export async function stageFiles(
     ...job,
     files: manifest.files.map((x) => ({
       rel: x.rel,
-      title: stringField(parseDoc(r.files.find((f) => f.path === x.rel)?.text ?? '')?.data.title) ||
+      title:
+        stringField(parseDoc(r.files.find((f) => f.path === x.rel)?.text ?? '')?.data.title) ||
         job.files.find((j) => j.rel === x.rel)?.title ||
         x.rel.split('/').pop()!.replace(/\.md$/, '')
     })),
@@ -95,6 +109,12 @@ export async function stageFiles(
   })
 }
 
+/** The review entry for takeaways that live only in the playbook; never a file in the wiki. */
+export const EXTRAS_REL = 'playbook-only/distinct-advantages'
+
+const hasExtras = async (root: string, runId: string): Promise<boolean> =>
+  Object.keys((await readManifest(root, runId)).extras ?? {}).length > 0
+
 /** The run ended: ready for review when something was staged. */
 export async function finishRun(
   root: string,
@@ -106,7 +126,7 @@ export async function finishRun(
   const next: RegenJob = {
     ...job,
     costUsd: outcome.costUsd,
-    status: outcome.ok && job.files.length ? 'review' : 'failed'
+    status: outcome.ok && (job.files.length || (await hasExtras(root, runId))) ? 'review' : 'failed'
   }
   await saveJob(root, next)
   return next
@@ -123,6 +143,19 @@ export async function reviewJob(root: string): Promise<RegenReview | null> {
     if (after === null) continue
     const before = await readFile(safeJoin(root, f.rel), 'utf8').catch(() => null)
     files.push({ rel: f.rel, title: f.title, before, after })
+  }
+  // Distinct Advantages has no article: show its takeaways as a playbook-only entry.
+  const extra = (await readManifest(root, job.runId)).extras?.advantages
+  if (extra) {
+    const now = (await readPlaybookExtras(root)).advantages
+    const md = (x: typeof extra): string =>
+      `# Distinct Advantages\n\n${renderTakeawaysAndGap(x.takeaways, x.gap, 2)}\n`
+    files.push({
+      rel: EXTRAS_REL,
+      title: 'Distinct Advantages (playbook only)',
+      before: now ? md(now) : null,
+      after: md(extra)
+    })
   }
   return { job, files }
 }
@@ -142,6 +175,7 @@ export async function keepJob(root: string, d: KeepDeps): Promise<KeepResult> {
   const written: string[] = []
   const entries: Record<string, ProvenanceEntry> = {}
   for (const f of files) {
+    if (f.rel === EXTRAS_REL) continue
     await mkdir(dirname(safeJoin(root, f.rel)), { recursive: true })
     await writeFile(safeJoin(root, f.rel), f.after)
     written.push(f.rel)
@@ -156,13 +190,16 @@ export async function keepJob(root: string, d: KeepDeps): Promise<KeepResult> {
     }
     await saveGenerated(root, f.rel, f.after)
   }
+  if (manifest.extras) await writePlaybookExtras(root, manifest.extras)
   await recordProvenance(root, entries)
   await addBacklinks(root, written)
   await recordHistory(root, {
     runId: job.runId,
     page: job.page,
     at: new Date().toISOString(),
-    files: files.map((f) => ({ rel: f.rel, before: f.before, after: f.after })),
+    files: files
+      .filter((f) => f.rel !== EXTRAS_REL)
+      .map((f) => ({ rel: f.rel, before: f.before, after: f.after })),
     changes: job.report.filter((r) => r.applied !== 'no').map((r) => r.id)
   })
 
@@ -182,12 +219,34 @@ export async function keepJob(root: string, d: KeepDeps): Promise<KeepResult> {
     for (const id of job.replaces)
       await setChangeStatus(root, id, 'replaced', replacedBy, date).catch(() => undefined)
 
-  await appendLog(
-    root,
-    'regenerate',
-    `${job.pageTitle} applying ${applied.length} ${applied.length === 1 ? 'change' : 'changes'}`,
-    date
-  )
+  if (job.taskId === TAKEAWAYS_TASK) {
+    await appendLog(
+      root,
+      'regenerate',
+      `key takeaways and gaps added to ${written.length} ${written.length === 1 ? 'page' : 'pages'}`,
+      date
+    )
+    // The page renders from the playbook output, so the takeaways appear in a new version.
+    const company = (await readProfile(root))?.company.name || 'Company'
+    const out = await assemblePlaybook(root, company, date)
+    await recordProvenance(root, {
+      [out.output]: {
+        task: 'reassemble',
+        runId: job.runId,
+        model: 'none',
+        at: new Date().toISOString(),
+        inputs: out.sources
+      }
+    })
+    written.push(out.output)
+  } else {
+    await appendLog(
+      root,
+      'regenerate',
+      `${job.pageTitle} applying ${applied.length} ${applied.length === 1 ? 'change' : 'changes'}`,
+      date
+    )
+  }
   await writeIndexes(root)
   await rm(await stagingDir(root, job.runId), { recursive: true, force: true })
   await saveJob(root, { ...job, status: 'kept' })

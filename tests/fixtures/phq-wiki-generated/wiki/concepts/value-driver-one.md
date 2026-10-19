@@ -3,15 +3,15 @@ title: "Value Driver One"
 category: concept
 sources:
   - raw/articles/2026-10-17-acme-example-home.md
-  - raw/articles/2026-10-17-source-example-b.md
-  - raw/papers/2026-10-17-board.md
-created: 2026-10-17
-updated: 2026-10-17
+  - raw/articles/2026-10-19-source-example-b.md
+  - raw/papers/2026-10-19-board.md
+created: 2026-10-19
+updated: 2026-10-19
 tags: [positioning, value, private]
 aliases: ["value-driver-one alias"]
 confidence: high
 volatility: cold
-verified: 2026-10-17
+verified: 2026-10-19
 compiled-from: sources
 summary: "About value-driver-one, in one line."
 ---
@@ -37,5 +37,5 @@ code — stays
 ## Sources
 
 - [Acme Rockets](../../raw/articles/2026-10-17-acme-example-home.md)
-- [Source B](../../raw/articles/2026-10-17-source-example-b.md)
-- [board](../../raw/papers/2026-10-17-board.md)
+- [Source B](../../raw/articles/2026-10-19-source-example-b.md)
+- [board](../../raw/papers/2026-10-19-board.md)

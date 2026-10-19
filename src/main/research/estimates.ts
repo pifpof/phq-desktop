@@ -12,6 +12,7 @@ export type TaskKind =
   | 'synthesis-large'
   | 'playbook-section'
   | 'messaging-analysis'
+  | 'playbook-takeaways'
   | 'local'
 
 export interface Range {
@@ -60,6 +61,12 @@ export const ESTIMATES: Record<TaskKind, KindEstimate> = {
     outputTokens: r(2_000, 5_000),
     searches: r(0, 0),
     seconds: r(30, 100)
+  },
+  'playbook-takeaways': {
+    inputTokens: r(12_000, 30_000),
+    outputTokens: r(600, 1_500),
+    searches: r(0, 0),
+    seconds: r(15, 45)
   },
   'messaging-analysis': {
     inputTokens: r(40_000, 95_000),

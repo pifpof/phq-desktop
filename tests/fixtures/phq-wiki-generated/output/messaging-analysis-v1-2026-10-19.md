@@ -1,8 +1,8 @@
 ---
 title: "Messaging Analysis: Acme Rockets (v1)"
 type: report
-created: 2026-10-17
-updated: 2026-10-17
+created: 2026-10-19
+updated: 2026-10-19
 summary: "Messaging Analysis of Acme Rockets's current messaging, scored against the positioning in the wiki."
 sources:
   - wiki/topics/current-messaging.md

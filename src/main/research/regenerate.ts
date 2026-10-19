@@ -1,14 +1,17 @@
 import { readFile } from 'fs/promises'
 import type { Change } from '@shared/changes'
 import { describeEdits } from '@shared/diff'
-import { regenWarnings, type KeepResult } from '@shared/regen'
+import { regenWarnings, type KeepResult, type TakeawaysPlan } from '@shared/regen'
 import { readGenerated } from '../state/history'
 import { createChange, listChanges } from '../wiki/changes'
 import { safeJoin } from '../wiki/paths'
 import { scanWiki } from '../wiki/scan'
 import type { RegenDeps } from './executor'
 import { keepJob, readJob, saveJob, stageFiles } from './regen-job'
-import { planRegeneration } from './regen-plan'
+import { planRegeneration, type PlanDeps } from './regen-plan'
+import { loadArticles } from './article-output'
+import { stringList } from '../wiki/frontmatter'
+import { takeawayArticles, TAKEAWAYS_TASK } from './takeaways'
 import type { ResearchService } from './service'
 import { TASKS } from './tasks'
 
@@ -107,6 +110,56 @@ export async function startRegeneration(
         })),
         basedOn: [...new Set(included.flatMap((c) => c.basedOn.map((b) => b.path)))],
         refreshWeb,
+        stage: (x) => stageFiles(r, runId, x)
+      }
+    }
+  })
+}
+
+/** The preview for adding key takeaways and gaps (REQUIREMENTS-v4 7.3). Reads only. */
+export async function takeawaysPlan(r: string, d: PlanDeps): Promise<TakeawaysPlan | null> {
+  const { sections, moats } = takeawayArticles(await loadArticles(r))
+  if (!sections.length && !moats.length) return null
+  const all = [...sections, ...moats]
+  return {
+    pages: sections.map((a) => ({ slug: a.slug, title: a.title, path: a.path })),
+    advantages: moats.length > 0,
+    estimate: d.estimate(['playbook-takeaways']),
+    budgetCapUsd: d.budgetCapUsd,
+    model: d.model,
+    private: all.some((a) => stringList(a.data.tags).includes('private'))
+  }
+}
+
+/** Runs the takeaways task as a regeneration: staged, then reviewed (REQUIREMENTS-v4 7.3). */
+export async function startTakeaways(research: ResearchService, r: string) {
+  if (research.isActive()) throw new RegenError('research_running')
+  if ((await readJob(r))?.status === 'review') throw new RegenError('review_pending')
+  const { sections } = takeawayArticles(await loadArticles(r))
+  return research.start({
+    only: [TAKEAWAYS_TASK],
+    regen: async (runId): Promise<RegenDeps> => {
+      await saveJob(r, {
+        runId,
+        page: TAKEAWAYS_TASK,
+        pageTitle: 'Key takeaways and gaps',
+        taskId: TAKEAWAYS_TASK,
+        changes: [],
+        refreshWeb: false,
+        queue: [],
+        status: 'running',
+        files: [],
+        report: [],
+        replaces: [],
+        costUsd: 0,
+        startedAt: new Date().toISOString()
+      })
+      return {
+        taskId: TAKEAWAYS_TASK,
+        slugs: sections.map((a) => a.slug),
+        changes: [],
+        basedOn: [],
+        refreshWeb: false,
         stage: (x) => stageFiles(r, runId, x)
       }
     }

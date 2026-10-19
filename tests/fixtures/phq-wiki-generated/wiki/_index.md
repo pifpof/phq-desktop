@@ -2,7 +2,7 @@
 
 > Compiled knowledge. Every article cites its sources in raw/.
 
-Last updated: 2026-10-17
+Last updated: 2026-10-19
 
 ## Concepts
 See [concepts/_index.md](concepts/_index.md)

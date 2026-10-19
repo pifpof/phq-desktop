@@ -13,6 +13,7 @@ import {
   KeepResultSchema,
   RegenJobSchema,
   RegenPlanSchema,
+  TakeawaysPlanSchema,
   RegenReviewSchema,
   RegenStartSchema
 } from './regen'
@@ -324,6 +325,9 @@ export const channels = {
     req: z.object({ path: z.string().min(1).max(512).nullable() }),
     res: PlaybookViewSchema.nullable()
   },
+  /** Add key takeaways and gaps (REQUIREMENTS-v4 7.3): the preview reads only; start runs and stages. */
+  'playbook:takeawaysPlan': { req: z.undefined(), res: TakeawaysPlanSchema.nullable() },
+  'playbook:addTakeaways': { req: z.undefined(), res: RunViewSchema },
   'wiki:outputs': {
     req: z.object({ kind: z.enum(['positioning-playbook', 'messaging-analysis']) }),
     res: z.array(OutputVersionSchema)
@@ -462,6 +466,8 @@ export interface Api {
   setNavState(state: Req<'wiki:setNavState'>): Promise<Result<null>>
   listOutputs(kind: Req<'wiki:outputs'>['kind']): Promise<Result<Res<'wiki:outputs'>>>
   playbookView(path: string | null): Promise<Result<Res<'playbook:view'>>>
+  takeawaysPlan(): Promise<Result<Res<'playbook:takeawaysPlan'>>>
+  addTakeaways(): Promise<Result<Res<'playbook:addTakeaways'>>>
   reassemble(): Promise<Result<Res<'wiki:reassemble'>>>
   lastCheck(): Promise<Result<Res<'wiki:lastCheck'>>>
   exportFile(includePrivate: boolean): Promise<Result<Res<'wiki:exportFile'>>>

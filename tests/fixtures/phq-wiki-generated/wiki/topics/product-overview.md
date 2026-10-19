@@ -2,14 +2,14 @@
 title: "Product Overview"
 category: topic
 sources:
-  - raw/articles/2026-10-17-source-example-b.md
-created: 2026-10-17
-updated: 2026-10-17
+  - raw/articles/2026-10-19-source-example-b.md
+created: 2026-10-19
+updated: 2026-10-19
 tags: [positioning, product]
 aliases: ["product", "offering", "product-overview alias"]
 confidence: low
 volatility: warm
-verified: 2026-10-17
+verified: 2026-10-19
 compiled-from: sources
 summary: "About product-overview, in one line."
 ---
@@ -32,4 +32,4 @@ code — stays
 
 ## Sources
 
-- [Source B](../../raw/articles/2026-10-17-source-example-b.md)
+- [Source B](../../raw/articles/2026-10-19-source-example-b.md)

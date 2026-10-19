@@ -315,7 +315,11 @@ describe('out of date', () => {
     const ws = await copyOf(GENERATED)
     const files = await scanWiki(ws)
     const icpFile = files.find((f) => f.name === 'ideal-customer-profile')!
-    const src = (icpFile.data!.sources as string[]).find((s) => s.startsWith('raw/'))!
+    // A source ingested the same day the article was written (the fixture's crawl is older).
+    const day = String(icpFile.data!.updated).slice(0, 10)
+    const src = (icpFile.data!.sources as string[]).find(
+      (s) => s.startsWith('raw/') && s.includes(day)
+    )!
     const generated = { [icpFile.rel]: { at: Date.now(), runId: 'r' } }
     expect(marked(buildArticleTree({ files, generated }), 'Ideal Customer Profile')).toBe(false)
     const later = new Date(Date.now() + 3_600_000)

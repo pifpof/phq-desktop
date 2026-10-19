@@ -47,7 +47,12 @@ export function registerDocs(handle: Handle, ctx: AppContext): void {
     // When the output was really written: provenance, else its file time. A `created` date is a
     // whole day, so anything written later that same day (the run itself) looked newer.
     const at = Date.parse((await readProvenance(r))[path]?.at ?? '')
-    const t = Number.isNaN(at) ? await stat(full).then((s) => s.mtimeMs, () => NaN) : at
+    const t = Number.isNaN(at)
+      ? await stat(full).then(
+          (s) => s.mtimeMs,
+          () => NaN
+        )
+      : at
     if (Number.isNaN(t)) return { profile: false, inputs: false }
     const newer = async (p: string): Promise<boolean> => {
       try {

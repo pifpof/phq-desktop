@@ -290,9 +290,11 @@ export function createResearchService(d: ServiceDeps) {
     async estimate(): Promise<Estimate> {
       const { model, key, profile } = await need()
       const competitors = Math.min(5, profile.company.competitors.length || 4)
-      const kinds: TaskKind[] = tasks.flatMap((t) =>
-        t.fanOut ? (Array(competitors).fill('web-profile') as TaskKind[]) : [t.kind]
-      )
+      const kinds: TaskKind[] = tasks
+        .filter((t) => !t.onDemand)
+        .flatMap((t) =>
+          t.fanOut ? (Array(competitors).fill('web-profile') as TaskKind[]) : [t.kind]
+        )
       const pricing = d.pricing()
       const e = estimateRun(kinds, model, pricing, DEFAULT_CONCURRENCY)
       return {
@@ -366,12 +368,14 @@ export function createResearchService(d: ServiceDeps) {
         company,
         tasks
       })
-      const entries: CatalogEntry[] = tasks.map((t) => ({
-        taskId: t.id,
-        title: t.title,
-        path: t.output(ctx),
-        stage: t.stage
-      }))
+      const entries: CatalogEntry[] = tasks
+        .filter((t) => !t.onDemand)
+        .map((t) => ({
+          taskId: t.id,
+          title: t.title,
+          path: t.output(ctx),
+          stage: t.stage
+        }))
       entries.push({
         taskId: 'research-09-synthesis',
         title: 'Full company research',

@@ -50,6 +50,21 @@ export interface PromptSpec {
   articles?: ArticleBrief
   /** A regeneration: the founder's changes to apply, labelled C1, C2... (REQUIREMENTS-v3.1 4.3). */
   mustApply?: { label: string; text: string }[]
+  /** A playbook section: key takeaways and a gap for this article, or for the whole section (REQUIREMENTS-v4 7.3). */
+  takeaways?: { slug: string | null; section: string }
+}
+
+/** Takeaways and gap rules (REQUIREMENTS-v4 7.3). App prompt additions, not skill-pack edits. */
+export function takeawayRules(t: { slug: string | null; section: string }): string {
+  const where = t.slug
+    ? `In the ${t.slug} article, fill takeaways and, only if justified, gap.`
+    : `Fill the top-level section field for ${t.section} as a whole: takeaways and, only if justified, gap.`
+  return [
+    `Key takeaways and gap to close for the ${t.section} section of the playbook. ${where}`,
+    '- takeaways: exactly three lines, each at most 12 words. Each must be supported by what the article says. Do not restate the title or repeat the abstract.',
+    '- gap: only where the sources show a clear weakness, such as low confidence, missing proof, an over-broad ideal customer, or unclear differentiation. problem: one or two sentences grounded in the sources. next_step: one concrete action the founder can take that would move this up one level, and that works without buying anything. Leave gap out when there is no clear weakness.',
+    '- Never invent scores, figures or facts. No em dashes. Plain, direct words.'
+  ].join('\n')
 }
 
 /** The founder's changes, after the article rules: they decide what this version must say. */
@@ -196,6 +211,7 @@ export function buildPrompt(
   // In the user message, after the cached documents: the list of articles changes during a run.
   if (spec.articles) user.push({ text: articleRules(spec.articles, spec.web) })
   if (spec.mustApply?.length) user.push({ text: mustApplyRules(spec.mustApply) })
+  if (spec.takeaways) user.push({ text: takeawayRules(spec.takeaways) })
   user.push({ text: spec.instruction })
   return { system, user }
 }

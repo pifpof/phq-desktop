@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { CONFIDENCE, type ArticleFrontMatter, type Confidence } from '@shared/wiki-types'
 import type { OutputTool } from '../providers/types'
 import { renderArticleBody, type SeeAlso, type SourceRef } from '../wiki/article'
-import { specFor, type ArticleSpec } from '../wiki/article-map'
+import { PLAYBOOK_STEPS, specFor, type ArticleSpec } from '../wiki/article-map'
 import { clampConfidence, type SourceInfo } from '../wiki/confidence'
 import {
   parseDoc,
@@ -16,6 +16,7 @@ import {
 import { link, parseLinks, rawLink } from '../wiki/links'
 import { linkDest, relLink, safeJoin, slugify } from '../wiki/paths'
 import { scanWiki } from '../wiki/scan'
+import { GAP_HEADING, renderTakeawaysAndGap, TAKEAWAYS_HEADING } from '../wiki/sections'
 import { replaceEmDashes, stripOuterFence } from './postprocess'
 
 /**
@@ -37,6 +38,19 @@ const SOURCE = {
     quote: { type: 'string', description: 'A short exact quote from it that supports a claim.' }
   },
   required: ['ref']
+}
+
+const GAP = {
+  type: 'object',
+  description: 'Only where the sources show a clear weakness. Leave it out when there is none.',
+  properties: {
+    problem: { type: 'string', description: 'One or two sentences grounded in the sources.' },
+    next_step: {
+      type: 'string',
+      description: 'One concrete action that would move this up one level.'
+    }
+  },
+  required: ['problem', 'next_step']
 }
 
 export const ARTICLE_TOOL: OutputTool = {
@@ -75,6 +89,13 @@ export const ARTICLE_TOOL: OutputTool = {
               description:
                 'Competitor articles only: the generic term for them, e.g. "legacy forecasting suites".'
             },
+            takeaways: {
+              type: 'array',
+              items: { type: 'string' },
+              description:
+                'Playbook section articles only, when the task asks: exactly three lines, each at most 12 words.'
+            },
+            gap: GAP,
             sources: { type: 'array', items: SOURCE, minItems: 1 },
             see_also: {
               type: 'array',
@@ -115,6 +136,16 @@ export const ARTICLE_TOOL: OutputTool = {
           required: ['change', 'applied', 'note']
         }
       },
+      section: {
+        type: 'object',
+        description:
+          'Only when the task asks: key takeaways and a gap for a playbook section that has no article of its own.',
+        properties: {
+          takeaways: { type: 'array', items: { type: 'string' } },
+          gap: GAP
+        },
+        required: ['takeaways']
+      },
       patches: {
         type: 'array',
         description: 'Sections to add to existing articles, when the task says to.',
@@ -144,6 +175,11 @@ export const ARTICLE_TOOL_WITH_REPORT: OutputTool = {
 
 const str = z.string()
 const SourceSchema = z.object({ ref: str, quote: str.optional() })
+const GapOutSchema = z.object({ problem: str, next_step: str })
+const SectionOutSchema = z.object({
+  takeaways: z.array(str),
+  gap: GapOutSchema.optional().catch(undefined)
+})
 const ArticleOutSchema = z.object({
   slug: str,
   category: str,
@@ -155,6 +191,8 @@ const ArticleOutSchema = z.object({
   abstract: str,
   body: str,
   category_term: str.optional(),
+  takeaways: z.array(str).optional(),
+  gap: GapOutSchema.optional().catch(undefined),
   sources: z.array(SourceSchema).optional().default([]),
   see_also: z
     .array(z.object({ slug: str, note: str.optional() }))
@@ -174,7 +212,8 @@ const ChangeReportSchema = z.object({
 export const ToolOutputSchema = z.object({
   articles: z.array(ArticleOutSchema).optional().default([]),
   patches: z.array(PatchOutSchema).optional().default([]),
-  change_report: z.array(ChangeReportSchema).optional().default([])
+  change_report: z.array(ChangeReportSchema).optional().default([]),
+  section: SectionOutSchema.optional().catch(undefined)
 })
 export type ChangeReportEntry = z.infer<typeof ChangeReportSchema>
 
@@ -398,6 +437,39 @@ export function splitSections(body: string): {
   }
 }
 
+/** The playbook section articles that carry Key takeaways and Gap to close (REQUIREMENTS-v4 7.1). */
+export const TAKEAWAY_SLUGS = new Set(
+  PLAYBOOK_STEPS.filter((s) => s.takeaways && s.slug).map((s) => s.slug)
+)
+
+/** Model-written takeaways and gap as article sections; only well-formed ones are written. */
+export function takeawaysMarkdown(
+  takeaways: string[] | undefined,
+  gap: { problem: string; next_step: string } | undefined
+): string {
+  const lines = takeaways?.map((t) => oneLine(replaceEmDashes(t))).filter(Boolean)
+  const g =
+    gap && gap.problem.trim() && gap.next_step.trim()
+      ? {
+          problem: oneLine(replaceEmDashes(gap.problem)),
+          nextStep: oneLine(replaceEmDashes(gap.next_step))
+        }
+      : null
+  return renderTakeawaysAndGap(lines?.length === 3 ? lines : null, g, 2)
+}
+
+/** A body without the named ## sections. */
+export function withoutSections(body: string, headings: string[]): string {
+  const skip = headings.map((h) => h.toLowerCase())
+  const { head, sections } = splitSections(body)
+  return [
+    head.trim(),
+    ...sections.filter((x) => !skip.includes(x.heading.toLowerCase())).map((x) => x.text)
+  ]
+    .filter(Boolean)
+    .join('\n\n')
+}
+
 /**
  * Validates a task's tool output and renders the files to write (REQUIREMENTS-v2 3.2 steps 1 to 7).
  * Never throws for bad model output: problems come back as errors (retry) or warnings.
@@ -474,6 +546,13 @@ export function validateOutput(raw: unknown, ctx: ValidationContext): Validation
     )
     // 5 and 6. Body shape, links, See Also and Sources written by the app.
     let sections = normalizeLinks(path, cleanBody(a.body), linkable, missing)
+    // Key takeaways and Gap to close sit right after the abstract (spec 6.6 addition).
+    if (TAKEAWAY_SLUGS.has(a.slug)) {
+      const top = takeawaysMarkdown(a.takeaways, a.gap)
+      sections = [top, withoutSections(sections, [TAKEAWAYS_HEADING, GAP_HEADING])]
+        .filter(Boolean)
+        .join('\n\n')
+    }
     if (a.category_term?.trim())
       sections = `**Category term:** ${oneLine(a.category_term)}\n\n${sections}`
     const seeAlso: SeeAlso[] = []

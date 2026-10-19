@@ -41,8 +41,23 @@ import {
   type SkillReader
 } from './prompt-builder'
 import type { LocalHandler, TaskContext, TaskDef, TaskOutcome } from './types'
-import { specFor } from '../wiki/article-map'
+import { specFor, takeawayTarget } from '../wiki/article-map'
+import { checkTakeaways } from '../wiki/sections'
+import type { PlaybookExtras } from './assemble-playbook'
+import {
+  readTakeawaysOutput,
+  takeawayArticles,
+  takeawayDocuments,
+  takeawaysInstruction,
+  TAKEAWAYS_TOOL,
+  withTakeaways
+} from './takeaways'
+import { extrasFrom, writePlaybookExtras } from '../state/playbook-extras'
 import { linkedSlugs } from '../wiki/links'
+
+/** The output tool's gap (snake_case) as the takeaways check reads it. */
+const modelGap = (g: { problem: string; next_step: string } | undefined) =>
+  g ? { problem: g.problem, nextStep: g.next_step } : undefined
 
 /** Most document text one task is shown, as characters (about 4 per token). Keeps a task inside the context window. */
 export const MAX_DOCUMENT_CHARS = 600_000
@@ -105,6 +120,8 @@ export interface RegenDeps {
     report: (ChangeReportEntry & { id: string })[]
     createdRaw: string[]
     inputs: string[]
+    /** Takeaways for steps with no article of their own, written on keep. */
+    extras?: PlaybookExtras
   }): Promise<void>
 }
 
@@ -570,7 +587,11 @@ export function createExecutor(
         docs.push({ path: f.rel, content: f.body.trim(), rawSources: [f.rel] })
       }
     }
-    if (regen) docs.push(...(await regenDocuments(d.wikiRoot, regen, !!web)))
+    // Key takeaways read the section articles themselves, not every source behind them.
+    const takeawayInputs =
+      task.writes?.kind === 'takeaways' ? takeawayArticles(await loadArticles(d.wikiRoot)) : null
+    if (takeawayInputs) docs.push(...takeawayDocuments(takeawayInputs))
+    else if (regen) docs.push(...(await regenDocuments(d.wikiRoot, regen, !!web)))
     const documents = fitDocuments(docs)
 
     // The private tag is the isolation boundary (REQUIREMENTS-v2 3.3): a web task may not be shown
@@ -599,6 +620,12 @@ export function createExecutor(
         return { costUsd: 0, output: task.output(ctx), note }
       }
     }
+    // Playbook sections write key takeaways and a gap (REQUIREMENTS-v4 7.3). A regeneration of a
+    // section-level target (Distinct Advantages) keeps the stored ones.
+    const takeaway =
+      writes?.kind === 'articles'
+        ? ((t) => (t && (t.slug || !regen) ? t : null))(takeawayTarget(task.id))
+        : null
     const { system, user } = buildPrompt(
       {
         skill: task.skill!,
@@ -606,13 +633,14 @@ export function createExecutor(
         asset: task.asset,
         profile: d.profile,
         documents,
-        instruction: task.instruction!,
+        instruction: takeawayInputs ? takeawaysInstruction(takeawayInputs) : task.instruction!,
         web: !!web,
         cacheDocuments: task.cacheDocuments,
         ...(writes?.kind === 'articles' ? { articles: brief(writes.targets, existing) } : {}),
         ...(regen?.changes.length
           ? { mustApply: regen.changes.map((c) => ({ label: c.label, text: c.text })) }
-          : {})
+          : {}),
+        ...(takeaway ? { takeaways: { slug: takeaway.slug, section: takeaway.step.title } } : {})
       },
       d.readSkill
     )
@@ -621,9 +649,11 @@ export function createExecutor(
       ...(web ? { webSearch: web.search, ...(web.fetch ? { webFetch: web.fetch } : {}) } : {}),
       ...(writes?.kind === 'articles'
         ? { output: regen?.changes.length ? ARTICLE_TOOL_WITH_REPORT : ARTICLE_TOOL }
-        : {})
+        : {}),
+      ...(writes?.kind === 'takeaways' ? { output: TAKEAWAYS_TOOL } : {})
     }
-    const maxTokens = writes?.kind === 'articles' ? ARTICLE_MAX_TOKENS : undefined
+    const maxTokens =
+      writes?.kind === 'articles' || writes?.kind === 'takeaways' ? ARTICLE_MAX_TOKENS : undefined
     const call = (extra?: string) =>
       d.provider.runTask({
         key,
@@ -792,6 +822,21 @@ export function createExecutor(
         const problem = task.validate && body !== undefined ? task.validate(body) : null
         if (problem) v.errors.push(problem)
         if (r.output === undefined) v.errors.push(`No ${ARTICLE_TOOL.name} call was made.`)
+        if (takeaway) {
+          const parsedOut = ToolOutputSchema.safeParse(output ?? {})
+          const own = !parsedOut.success
+            ? undefined
+            : takeaway.slug
+              ? parsedOut.data.articles.find((a) => a.slug.trim() === takeaway.slug)
+              : parsedOut.data.section
+          // A missing section article is already an error; only check what was written.
+          if (own || !takeaway.slug)
+            v.errors.push(
+              ...checkTakeaways(own?.takeaways, modelGap(own?.gap)).map((e) =>
+                takeaway.slug ? `${takeaway.slug}: ${e}` : `section: ${e}`
+              )
+            )
+        }
         if (regen?.changes.length)
           v.errors.push(
             ...checkChangeReport(
@@ -853,6 +898,14 @@ export function createExecutor(
       }
       const written = await writePrepared(d.wikiRoot, v.files)
       await addBacklinks(d.wikiRoot, written)
+      if (takeaway && !takeaway.slug) {
+        const sec = ToolOutputSchema.safeParse(result.output ?? {})
+        const own = sec.success ? sec.data.section : undefined
+        if (own && !checkTakeaways(own.takeaways, modelGap(own.gap)).length)
+          await writePlaybookExtras(d.wikiRoot, {
+            [takeaway.step.id]: extrasFrom(own.takeaways, own.gap)
+          })
+      }
       await provenance(written, task, inputPaths)
       await writeReceipt(d.root, task.output(ctx), {
         task: task.id,
@@ -862,6 +915,47 @@ export function createExecutor(
         warnings: [...v.errors, ...v.warnings]
       })
       await writeIndexes(d.wikiRoot)
+      return { costUsd, usage: result.usage, output: task.output(ctx), note }
+    }
+
+    // Key takeaways and gaps (REQUIREMENTS-v4 7.3): merged into the articles, staged for review.
+    if (writes?.kind === 'takeaways' && takeawayInputs) {
+      if (!regen) throw new Error('Key takeaways are added only through a review.')
+      let out = readTakeawaysOutput(result.output, takeawayInputs)
+      if (out.errors.length) {
+        const again = await call(
+          `Your previous ${TAKEAWAYS_TOOL.name} call had problems:\n${out.errors.map((e) => `- ${e}`).join('\n')}\n\nCall ${TAKEAWAYS_TOOL.name} again with every article, fixed.`
+        )
+        costUsd += costOf(d.pricing, d.model, again.usage).usd
+        const out2 = readTakeawaysOutput(again.output, takeawayInputs)
+        if (out2.entries.size >= out.entries.size) {
+          out = out2
+          result = again
+        }
+        if (out.errors.length) note = 'Done with warnings: some sections got no takeaways.'
+      }
+      const files = takeawayInputs.sections
+        .filter((a) => out.entries.has(a.slug))
+        .map((a) => {
+          const e = out.entries.get(a.slug)!
+          return withTakeaways(a, e.takeaways, e.gap, today())
+        })
+      if (!files.length && !out.section) throw new Error('No valid takeaways were returned.')
+      await regen.stage({
+        task: task.id,
+        files,
+        report: [],
+        createdRaw: [],
+        inputs: inputPaths,
+        ...(out.section ? { extras: { advantages: out.section } } : {})
+      })
+      await writeReceipt(d.root, task.output(ctx), {
+        task: task.id,
+        runId: d.runId,
+        written: [],
+        note: note ?? 'Staged for review.',
+        warnings: out.errors
+      })
       return { costUsd, usage: result.usage, output: task.output(ctx), note }
     }
 

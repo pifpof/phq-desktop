@@ -126,7 +126,7 @@ export class ResearchEngine {
     this.localLimit = opts.localConcurrency ?? 2
     this.startedAt = this.now()
     const only = opts.only ? new Set(opts.only) : null
-    for (const def of deps.tasks) if (!only || only.has(def.id)) this.add(def, null)
+    for (const def of deps.tasks) if (only ? only.has(def.id) : !def.onDemand) this.add(def, null)
   }
 
   // ---------------------------------------------------------------- public API

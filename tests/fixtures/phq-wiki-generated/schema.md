@@ -1,8 +1,8 @@
 ---
 title: "Acme Rockets Topic Guide"
 schema_state: advisory
-created: 2026-10-17
-updated: 2026-10-17
+created: 2026-10-19
+updated: 2026-10-19
 summary: "PositioningHQ topic guide: entity types, relationship verbs and source conventions for a positioning wiki."
 ---
 

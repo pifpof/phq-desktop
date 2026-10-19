@@ -487,6 +487,20 @@ function step(
   }
 }
 
+/**
+ * What a playbook section task writes takeaways for (REQUIREMENTS-v4 7.3): the section's own
+ * article, or, for Distinct Advantages, the section as a whole. Null for every other task.
+ */
+export function takeawayTarget(taskId: string): { step: PlaybookStep; slug: string | null } | null {
+  for (const step of PLAYBOOK_STEPS) {
+    const owner = step.slug
+      ? ARTICLE_MAP.find((a) => !a.pattern && a.slug === step.slug)?.task
+      : ARTICLE_MAP.find((a) => a.pattern && a.slug === step.cards)?.task
+    if (owner === taskId) return { step, slug: step.slug || null }
+  }
+  return null
+}
+
 /** The five "Start here" articles for the master index, in order (spec section 5). */
 export const START_HERE = [
   'positioning-statement',

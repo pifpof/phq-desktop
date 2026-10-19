@@ -125,6 +125,15 @@ describe('isolation rule', () => {
     expect(findIsolationViolations([...TASKS, ...children])).toEqual([])
   })
 
+  it('adds key takeaways with no web tools, and only when asked (REQUIREMENTS-v4 7.3)', () => {
+    const t = byId.get('playbook-takeaways')!
+    expect(t.web).toBe(false)
+    expect(t.onDemand).toBe(true)
+    expect(t.writes).toEqual({ kind: 'takeaways' })
+    // It reads the section articles (private ones included), so it must never get web tools.
+    expect(t.inputs?.inputCategories).toEqual([])
+  })
+
   it('no web task sees user files, and no user-file task has web tools', () => {
     for (const t of TASKS) {
       if (t.web) expect(t.inputs?.inputCategories ?? [], t.id).toEqual([])

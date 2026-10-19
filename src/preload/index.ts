@@ -95,6 +95,8 @@ const api: Api = {
   },
   listOutputs: (kind) => invoke('wiki:outputs', { kind }),
   playbookView: (path) => invoke('playbook:view', { path }),
+  takeawaysPlan: () => invoke('playbook:takeawaysPlan'),
+  addTakeaways: () => invoke('playbook:addTakeaways'),
   reassemble: () => invoke('wiki:reassemble'),
   lastCheck: () => invoke('wiki:lastCheck'),
   exportFile: (includePrivate) => invoke('wiki:exportFile', { includePrivate }),

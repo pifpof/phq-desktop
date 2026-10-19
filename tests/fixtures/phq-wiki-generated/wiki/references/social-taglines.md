@@ -2,15 +2,15 @@
 title: "Social Taglines"
 category: reference
 sources:
-  - raw/articles/2026-10-17-source-example-b.md
-  - raw/notes/2026-10-17-social-linkedin.md
-created: 2026-10-17
-updated: 2026-10-17
+  - raw/articles/2026-10-19-source-example-b.md
+  - raw/notes/2026-10-19-social-linkedin.md
+created: 2026-10-19
+updated: 2026-10-19
 tags: [positioning, social]
 aliases: ["social bios", "social-taglines alias"]
 confidence: medium
 volatility: hot
-verified: 2026-10-17
+verified: 2026-10-19
 compiled-from: sources
 summary: "About social-taglines, in one line."
 ---
@@ -32,5 +32,5 @@ summary: "About social-taglines, in one line."
 
 ## Sources
 
-- [Source B](../../raw/articles/2026-10-17-source-example-b.md)
-- [LinkedIn profile](../../raw/notes/2026-10-17-social-linkedin.md)
+- [Source B](../../raw/articles/2026-10-19-source-example-b.md)
+- [LinkedIn profile](../../raw/notes/2026-10-19-social-linkedin.md)

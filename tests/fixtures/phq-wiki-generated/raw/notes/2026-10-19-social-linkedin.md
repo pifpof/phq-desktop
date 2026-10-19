@@ -2,7 +2,7 @@
 title: "LinkedIn profile"
 source: "https://linkedin.com/company/acme"
 type: notes
-ingested: 2026-10-17
+ingested: 2026-10-19
 tags: [social, linkedin]
 summary: "The company's LinkedIn tagline or bio, as found during research."
 ---

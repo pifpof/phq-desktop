@@ -41,17 +41,22 @@ import { addInputs } from '../../src/main/workspace/inputs'
 import { writeProfile } from '../../src/main/workspace/profile'
 import { emptyProfile } from '../../src/shared/profile'
 import { parseScorecard } from '../../src/shared/scorecard'
-import { fakeArticleOutput, GOOD_ANALYSIS } from './fixtures'
+import { fakeArticleOutput, fakeTakeawaysOutput, GOOD_ANALYSIS } from './fixtures'
 import type { RunView } from '../../src/shared/research'
 import { createChange, findChange, listChanges } from '../../src/main/wiki/changes'
 import { planRegeneration } from '../../src/main/research/regen-plan'
 import {
   editsToChange,
   keepRegeneration,
-  startRegeneration
+  startRegeneration,
+  startTakeaways,
+  takeawaysPlan
 } from '../../src/main/research/regenerate'
+import { assemblePlaybook } from '../../src/main/research/assemble-playbook'
 import { discardJob, readJob, reviewJob } from '../../src/main/research/regen-job'
 import { listHistory } from '../../src/main/state/history'
+import { loadArticles } from '../../src/main/research/article-output'
+import { buildPlaybookView, playbookView } from '../../src/main/wiki/playbook-view'
 
 const root = join(__dirname, '../..')
 // Skills written in later phases. Until they exist, the test stands in a stub so the whole graph can run.
@@ -114,7 +119,11 @@ function fakeProvider(
         if (opts.failWeb && call.web) throw new ProviderError('web_search_disabled')
         await opts.onCall?.(call, a.signal)
         if (a.signal.aborted) throw new Error('aborted')
-        let output = a.tools.output ? fakeArticleOutput(text, call.web) : undefined
+        let output = !a.tools.output
+          ? undefined
+          : a.tools.output.name === 'write_takeaways'
+            ? fakeTakeawaysOutput(text)
+            : fakeArticleOutput(text, call.web)
         if (opts.noSources && output) {
           const o = output as {
             articles: { sources: unknown[] }[]
@@ -599,6 +608,26 @@ describe('research service: playbook versions', () => {
     expect(current.body).toContain('### Value Driver: One')
     expect(current.data.sources).toContain('wiki/concepts/positioning-statement.md')
     expect(s.last().tasks.find((t) => t.id === 'playbook-assemble')?.note).toBe('Version 1')
+    // Key takeaways for all seven sections, gaps only where the model found a weakness
+    // (REQUIREMENTS-v4 7.3), with no em dashes.
+    const view = buildPlaybookView({
+      path: `output/${v1Name}`,
+      text: v1,
+      articles: await loadArticles(ws),
+      changes: [],
+      scores: null,
+      current: true,
+      company: 'Acme Rockets'
+    })
+    expect(view.sections.map((x) => x.takeaways?.length)).toEqual([3, 3, 3, 3, 3, 3, 3])
+    expect(view.sections.filter((x) => x.gap).map((x) => x.id)).toEqual(['advantages', 'proof'])
+    expect(view.needsTakeaways).toBe(false)
+    expect(view.sections[0].takeaways?.[0]).toBe('market-overview buyers want speed, not suites.')
+    const icp = readFileSync(join(ws, 'wiki/topics/ideal-customer-profile.md'), 'utf8')
+    expect(icp).toMatch(/> The point of[^\n]*\n\n## Key takeaways\n\n1\. /)
+    expect(icp).toContain('1. ideal-customer-profile buyers want speed, not suites.')
+    const lint = officialLint(ws)
+    if (lint) expect(lint.status, lint.out).toBe(0)
 
     await s.service.start()
     await s.until(() => s.finished.length === 2, 'second run')
@@ -1070,5 +1099,103 @@ describe('regeneration with changes (REQUIREMENTS-v3.1 4, 5)', () => {
     const c = await editsToChange(ws, 'ideal-customer-profile')
     expect(c.status).toBe('pending')
     expect(c.changeTo).toContain('Added: Our own sentence.')
+  })
+})
+
+describe('research service: adding key takeaways to an older playbook (REQUIREMENTS-v4 7.3)', () => {
+  /** A wiki from before v4: a full run, then the takeaways and gaps taken out again. */
+  async function olderWiki(s: ReturnType<typeof makeService>): Promise<void> {
+    await s.service.start()
+    await s.until(() => s.finished.length === 1, 'first run')
+    for (const f of await scanWiki(ws)) {
+      if (f.kind !== 'article') continue
+      const full = join(ws, f.rel)
+      const text = readFileSync(full, 'utf8')
+      writeFileSync(
+        full,
+        text
+          .replace(/## Key takeaways\n\n(?:\d\. .*\n)+\n/, '')
+          .replace(/## Gap to close\n\n(?:\*\*.*\n)+\n/, '')
+      )
+    }
+    rmSync(join(await stateDir(ws), 'playbook-extras.json'), { force: true })
+    await assemblePlaybook(ws, 'Acme Rockets', '2026-10-19')
+  }
+
+  const view = async () => (await playbookView(ws, null, 'Acme Rockets'))!
+
+  it('previews for free, stages the takeaways for review, and keeps them without touching other text', async () => {
+    const f = fakeProvider()
+    const s = makeService(f.provider)
+    await olderWiki(s)
+    expect((await view()).needsTakeaways).toBe(true)
+    const icpBefore = readFileSync(join(ws, 'wiki/topics/ideal-customer-profile.md'), 'utf8')
+    expect(icpBefore).not.toContain('## Key takeaways')
+
+    const calls = f.calls.length
+    const plan = (await takeawaysPlan(ws, s.service.planDeps()))!
+    expect(f.calls.length).toBe(calls)
+    expect(plan.pages.map((p) => p.slug)).toEqual([
+      'market-overview',
+      'ideal-customer-profile',
+      'value-drivers',
+      'positioning-statement',
+      'competitive-landscape',
+      'proof-points'
+    ])
+    expect(plan.advantages).toBe(true)
+    expect(plan.estimate.costUsd.high).toBeGreaterThan(0)
+
+    await startTakeaways(s.service, ws)
+    await s.until(() => s.finished.length === 2, 'takeaways run')
+    // One call, no web tools, nothing written to the wiki yet.
+    const call = f.calls.slice(calls)
+    expect(call).toHaveLength(1)
+    expect(call[0].web).toBe(false)
+    expect(call[0].tools.output?.name).toBe('write_takeaways')
+    expect(readFileSync(join(ws, 'wiki/topics/ideal-customer-profile.md'), 'utf8')).toBe(icpBefore)
+    await s.until(() => s.service.isActive() === false, 'idle')
+    const review = (await reviewJob(ws))!
+    expect(review.files.map((x) => x.title)).toContain('Distinct Advantages (playbook only)')
+    expect(review.files).toHaveLength(7)
+
+    const kept = await keepRegeneration(s.service, ws, 'claude-sonnet-5-5')
+    expect(kept.written.some((p) => p.startsWith('output/positioning-playbook-v'))).toBe(true)
+    const icpAfter = readFileSync(join(ws, 'wiki/topics/ideal-customer-profile.md'), 'utf8')
+    expect(icpAfter).toContain(
+      '## Key takeaways\n\n1. Backfilled ideal-customer-profile line one.\n2. Backfilled line two, short.\n3. Backfilled line three.'
+    )
+    // Only the two sections (and the updated date) change.
+    const strip = (t: string) =>
+      t
+        .replace(/^updated: .*$/m, '')
+        .replace(/## Key takeaways\n\n(?:\d\. .*\n)+\n/, '')
+        .replace(/## Gap to close\n\n(?:\*\*.*\n)+\n/, '')
+    expect(strip(icpAfter)).toBe(strip(icpBefore))
+    const v = await view()
+    expect(v.needsTakeaways).toBe(false)
+    expect(v.sections.map((x) => x.takeaways?.length)).toEqual([3, 3, 3, 3, 3, 3, 3])
+    expect(v.sections.filter((x) => x.gap).map((x) => x.id)).toEqual(['proof'])
+    expect(readFileSync(join(ws, 'log.md'), 'utf8')).toContain(
+      'regenerate | key takeaways and gaps added to 6 pages'
+    )
+    const lint = officialLint(ws)
+    if (lint) expect(lint.status, lint.out).toBe(0)
+  })
+
+  it('discard leaves the wiki and the stored takeaways as they were', async () => {
+    const f = fakeProvider()
+    const s = makeService(f.provider)
+    await olderWiki(s)
+    const before = new Map(
+      (await scanWiki(ws)).map((x) => [x.rel, readFileSync(join(ws, x.rel), 'utf8')])
+    )
+    await startTakeaways(s.service, ws)
+    await s.until(() => s.finished.length === 2, 'takeaways run')
+    await s.until(() => s.service.isActive() === false, 'idle')
+    await discardJob(ws)
+    for (const [rel, text] of before) expect(readFileSync(join(ws, rel), 'utf8'), rel).toBe(text)
+    expect(existsSync(join(await stateDir(ws), 'playbook-extras.json'))).toBe(false)
+    expect((await view()).needsTakeaways).toBe(true)
   })
 })

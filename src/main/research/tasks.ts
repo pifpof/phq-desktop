@@ -482,6 +482,24 @@ export const TASKS: TaskDef[] = [
     output: () => receipt('playbook-assemble')
   },
 
+  // On demand: key takeaways and gaps for a playbook written before v4 (REQUIREMENTS-v4 7.3).
+  // Runs only as a regeneration, so the founder reviews it before the wiki changes.
+  {
+    id: 'playbook-takeaways',
+    title: 'Add key takeaways and gaps',
+    stage: 4,
+    kind: 'playbook-takeaways',
+    dependsOn: [],
+    onDemand: true,
+    skill: 'positioning-playbook',
+    rules: ['references/tone-style.md'],
+    instruction: 'Add key takeaways and gaps to the playbook section articles.',
+    inputs: { outputs: [], inputCategories: [] },
+    web: false,
+    writes: { kind: 'takeaways' },
+    output: () => receipt('playbook-takeaways')
+  },
+
   // Stage 5
   {
     id: 'messaging-analysis',

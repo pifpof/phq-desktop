@@ -1,13 +1,13 @@
 ---
 title: "Company Profile"
 category: reference
-created: 2026-10-17
-updated: 2026-10-17
+created: 2026-10-19
+updated: 2026-10-19
 tags: [company, profile]
 aliases: ["Acme Rockets profile", "company facts"]
 confidence: high
 volatility: cold
-verified: 2026-10-17
+verified: 2026-10-19
 compiled-from: conversation
 summary: "Facts Acme Rockets supplied during onboarding: company, product, website, competitors, role and goals."
 ---

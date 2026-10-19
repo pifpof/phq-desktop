@@ -2,7 +2,7 @@
 
 > Your spreadsheets and CSV exports.
 
-Last updated: 2026-10-17
+Last updated: 2026-10-19
 
 ## Contents
 

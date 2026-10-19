@@ -77,7 +77,6 @@ export function registerWiki(handle: Handle, ctx: AppContext): void {
     return { path: out.output, version: out.version }
   })
 
-
   handle('wiki:exportFile', async ({ includePrivate }) =>
     exportSingleFile(await idleRoot(), { includePrivate })
   )

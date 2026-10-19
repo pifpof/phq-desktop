@@ -3,13 +3,13 @@ title: "Current Messaging"
 category: topic
 sources:
   - raw/articles/2026-10-17-acme-example-home.md
-created: 2026-10-17
-updated: 2026-10-17
+created: 2026-10-19
+updated: 2026-10-19
 tags: [positioning, current]
 aliases: ["website messaging", "current positioning", "current-messaging alias"]
 confidence: medium
 volatility: hot
-verified: 2026-10-17
+verified: 2026-10-19
 compiled-from: sources
 summary: "About current-messaging, in one line."
 ---

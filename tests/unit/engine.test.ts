@@ -183,6 +183,18 @@ describe('scheduling', () => {
     expect(h.peak()).toBeLessThanOrEqual(5)
   })
 
+  it('leaves on-demand tasks out of a full run, and runs them when asked by ID', async () => {
+    const tasks = [ai('a'), { ...ai('extra'), onDemand: true }]
+    const full = setup(tasks, async () => undefined)
+    full.engine.start()
+    await full.finished()
+    expect(full.started).toEqual(['a'])
+    const scoped = setup(tasks, async () => undefined, { only: ['extra'] })
+    scoped.engine.start()
+    await scoped.finished()
+    expect(scoped.started).toEqual(['extra'])
+  })
+
   it('orders ready tasks by stage', async () => {
     const g = gates()
     const tasks = [

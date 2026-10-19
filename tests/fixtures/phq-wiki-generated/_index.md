@@ -2,14 +2,14 @@
 
 > PositioningHQ positioning wiki for Acme Rockets. Read README.md for how to use this wiki.
 
-Last updated: 2026-10-17
+Last updated: 2026-10-19
 
 ## Statistics
 
 - Sources: 5
 - Articles: 24
 - Outputs: 2
-- Last compiled: 2026-10-17
+- Last compiled: 2026-10-19
 - Last lint: not yet
 
 ## Start here

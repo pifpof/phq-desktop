@@ -1,7 +1,7 @@
 ---
 title: "Acme Rockets"
 description: "PositioningHQ positioning wiki for Acme Rockets"
-created: 2026-10-17
+created: 2026-10-19
 format_version: 1
 ---
 
@@ -17,4 +17,4 @@ PositioningHQ Wiki Format, version 1 (llm-wiki topic wiki). Article slugs are fi
 
 ## PositioningHQ
 
-Workspace ID: 4da71895-b905-4e82-acfe-2277a4f25d28
+Workspace ID: 46e04670-50d0-4668-b8f2-ac53cd6d4028

@@ -48,6 +48,19 @@ export const RegenPlanSchema = z.object({
 })
 export type RegenPlan = z.infer<typeof RegenPlanSchema>
 
+/** Adding key takeaways and gaps to an existing playbook (REQUIREMENTS-v4 7.3): the preview. */
+export const TakeawaysPlanSchema = z.object({
+  pages: z.array(z.object({ slug: z.string(), title: z.string(), path: z.string() })),
+  /** Distinct Advantages gets takeaways too (from the moat articles). */
+  advantages: z.boolean(),
+  estimate: RegenEstimateSchema,
+  budgetCapUsd: z.number(),
+  model: z.string(),
+  /** Some section is private: its takeaways may draw on private material. */
+  private: z.boolean()
+})
+export type TakeawaysPlan = z.infer<typeof TakeawaysPlanSchema>
+
 export const RegenStartSchema = z.object({
   page: z.string().min(1).max(80),
   /** Changes to apply: this page's and any included from other pages. */

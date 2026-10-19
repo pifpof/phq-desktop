@@ -2,7 +2,7 @@
 
 > Sources, never edited after ingest.
 
-Last updated: 2026-10-17
+Last updated: 2026-10-19
 
 ## Articles
 See [articles/_index.md](articles/_index.md)
@@ -21,4 +21,4 @@ See [data/_index.md](data/_index.md)
 
 ## Stats
 - Total sources: 5
-- Last updated: 2026-10-17
+- Last updated: 2026-10-19

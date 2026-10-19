@@ -90,7 +90,7 @@ export function checkTakeaways(takeaways: unknown, gap: unknown): string[] {
   if (gap !== undefined && gap !== null) {
     const g = gap as Partial<Gap>
     if (!g.problem?.trim() || !g.nextStep?.trim())
-      errors.push('gap needs both problem and nextStep, or leave gap out.')
+      errors.push('gap needs both problem and next_step, or leave gap out.')
   }
   return errors
 }

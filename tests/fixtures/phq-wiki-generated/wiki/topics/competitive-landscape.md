@@ -2,14 +2,14 @@
 title: "Competitive Landscape"
 category: topic
 sources:
-  - raw/articles/2026-10-17-source-example-b.md
-created: 2026-10-17
-updated: 2026-10-17
+  - raw/articles/2026-10-19-source-example-b.md
+created: 2026-10-19
+updated: 2026-10-19
 tags: [positioning, competitive]
 aliases: ["competition", "market map", "competitive-landscape alias"]
 confidence: low
 volatility: hot
-verified: 2026-10-17
+verified: 2026-10-19
 compiled-from: sources
 summary: "About competitive-landscape, in one line."
 ---
@@ -17,6 +17,12 @@ summary: "About competitive-landscape, in one line."
 # Competitive Landscape
 
 > The point of competitive-landscape, in one paragraph, with a dash.
+
+## Key takeaways
+
+1. competitive-landscape buyers want speed, not suites.
+2. Evidence is mostly first party.
+3. Lead with the forecast win.
 
 ## Details
 
@@ -32,4 +38,4 @@ code — stays
 
 ## Sources
 
-- [Source B](../../raw/articles/2026-10-17-source-example-b.md)
+- [Source B](../../raw/articles/2026-10-19-source-example-b.md)

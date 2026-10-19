@@ -130,7 +130,7 @@ describe('takeaways and gap sections (REQUIREMENTS-v4 7.1)', () => {
       )[0]
     ).toMatch(/more than 12 words/)
     expect(checkTakeaways(['a', 'b', 'c'], { problem: 'p' })[0]).toMatch(
-      /both problem and nextStep/
+      /both problem and next_step/
     )
   })
 })
