@@ -92,3 +92,10 @@ Public GitHub repo `phq-desktop`, MIT. Separate from the skill-pack repo `github
 24. **Changes are decision articles with a Status line** (`wiki/changes.ts`, spec 6.4 addition). The UI always says "change". Normal runs and chat respect only Applied changes and v2 decisions; Pending ones apply only when a regeneration includes them.
 25. **Nothing regenerates without the preview.** A page's Regenerate opens the preview, which only reads (no model call, no cost) until Start.
 26. **A regeneration writes to staging, never the wiki,** until the founder keeps it. Its run is never resumed after a restart. Private evidence never goes to a web call (no web refresh with it).
+
+## v4 rules (do not break)
+
+27. **The playbook page renders from an output version** (`wiki/playbook-view.ts`, IPC `playbook:view`), with no model call, so older versions render as written. The right panel and the overview read the live articles. Steps, short labels, cards and the scorecard mapping live in `PLAYBOOK_STEPS` in the article map, not in components.
+28. **Key takeaways and Gap to close** are optional sections on the six playbook section articles (spec 6.6 addition). Distinct Advantages has no article: its pair lives in app state (`playbook-extras.json`) and assembly copies it into each output. Adding them to an older playbook runs only as a regeneration (staged, reviewed, kept or discarded).
+29. **Expert help requests send nothing from the app.** The browser opens the hosted form; personal details and gaps go in the URL fragment, attribution in the query. A private section's text never goes in the link or the copied details.
+30. **Export PDF** prints a hidden, sandboxed window of the app's own print view; the PDF is never saved inside the wiki. Private material off omits private sections and the overview pieces built from them.
