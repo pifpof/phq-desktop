@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Lock, PencilLine, RefreshCw } from 'lucide-react'
-import type { ArticleDetail } from '@shared/wiki-views'
+import { BookOpen, Lock, PencilLine, RefreshCw } from 'lucide-react'
+import { STEP_IDS } from '@shared/playbook'
+import { playbookStepFor, type ArticleDetail } from '@shared/wiki-views'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Markdown } from '@/components/Markdown'
@@ -9,6 +10,7 @@ import { cn } from '@/lib/utils'
 import { isActive } from '@/lib/research'
 import { useApp } from '@/store/app'
 import { useResearch } from '@/store/research'
+import { useDocs } from '@/store/docs'
 import { regenerating, useRegen } from '@/store/regen'
 import { DocHeader, FileActions } from '@/features/documents/DocParts'
 import { MakeChangeDialog } from '@/features/changes/MakeChangeDialog'
@@ -49,6 +51,7 @@ export function useArticle(path: string): {
 export function ArticleView({ path }: { path: string }) {
   const { detail } = useArticle(path)
   const run = useResearch((s) => s.run)
+  const hasPlaybook = useDocs((s) => !!s.playbookPath)
   const job = useRegen((s) => s.job)
   // The section the change dialog opens on: '' for the whole page, null when closed.
   const [changing, setChanging] = useState<string | null>(null)
@@ -67,6 +70,7 @@ export function ArticleView({ path }: { path: string }) {
     )
   const a = detail.article
   const busy = regenerating(job, isActive(run), a.slug, detail.taskId)
+  const step = hasPlaybook ? playbookStepFor(a.slug) : null
   const confidence = a.confidence
     ? `${a.confidence[0].toUpperCase()}${a.confidence.slice(1)} confidence`
     : null
@@ -122,6 +126,21 @@ export function ArticleView({ path }: { path: string }) {
           <Button variant="ghost" size="sm" onClick={() => setChanging('')}>
             <PencilLine strokeWidth={1.8} />
             Make a change
+          </Button>
+        )}
+        {step && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() =>
+              useApp.getState().openPlaybook({
+                step: STEP_IDS[step - 1],
+                ...(a.slug.startsWith('value-driver-') ? { card: a.slug } : {})
+              })
+            }
+          >
+            <BookOpen strokeWidth={1.8} />
+            Open in playbook
           </Button>
         )}
         <FileActions path={path} />

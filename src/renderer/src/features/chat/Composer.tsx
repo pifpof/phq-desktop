@@ -12,12 +12,13 @@ export interface ComposerHandle {
 
 interface Props {
   streaming: boolean
+  placeholder?: string
   onSend: (text: string) => void
   onStop: () => void
 }
 
 export const Composer = forwardRef<ComposerHandle, Props>(function Composer(
-  { streaming, onSend, onStop },
+  { streaming, onSend, onStop, placeholder = 'Write a message' },
   handle
 ) {
   const [value, setValue] = useState('')
@@ -53,7 +54,7 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer(
           autoFocus
           value={value}
           aria-label="Message"
-          placeholder="Write a message"
+          placeholder={placeholder}
           className="max-h-48 flex-1 py-2"
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={(e) => {

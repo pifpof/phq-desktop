@@ -57,6 +57,8 @@ export const SectionMetaSchema = z.object({
   article: z.string().nullable(),
   /** Slugs "Make a change" offers. */
   pages: z.array(z.string()),
+  /** Article paths Ask Chat loads: the section's article, or its moat articles. */
+  articles: z.array(z.string()),
   private: z.boolean(),
   scoreChip: ScoreChipSchema.nullable()
 })

@@ -81,6 +81,18 @@ describe('workspace chat mode (index-first)', () => {
     )
   })
 
+  it('loads pinned articles for every question, and ignores paths that are not articles', async () => {
+    const ctx = await workspaceContext({
+      root: FIXTURE,
+      messages: ask('Hello'),
+      pinned: ['wiki/concepts/moat-alpha.md', 'raw/papers/secret.md', '../../etc/passwd']
+    })
+    expect(ctx.sources.map((s) => s.path)).toContain('wiki/concepts/moat-alpha.md')
+    expect(ctx.sources.map((s) => s.path)).not.toContain('raw/papers/secret.md')
+    const loaded = (ctx.system as { text: string }[]).map((b) => b.text).join('\n')
+    expect(loaded).toContain('<document path="wiki/concepts/moat-alpha.md">')
+  })
+
   it('always loads the README rules, the master index and the Start here articles, cached', async () => {
     const ctx = await workspaceContext({ root: FIXTURE, messages: ask('Hello') })
     const blocks = ctx.system as { text: string; cache?: boolean }[]

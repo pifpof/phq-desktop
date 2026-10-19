@@ -57,6 +57,8 @@ export function ReviewResult() {
   }, [runStatus])
 
   const page = review?.job.page ?? null
+  // Key takeaways and gaps (REQUIREMENTS-v4 7.3) cover the whole playbook, not one page.
+  const takeaways = review?.job.taskId === 'playbook-takeaways'
   const done = async (): Promise<void> => {
     await useChanges.getState().load()
     await useWikiNav.getState().reloadTrees()
@@ -113,7 +115,9 @@ export function ReviewResult() {
                   Kept
                 </DialogTitle>
                 <DialogDescription className="mt-2 text-[15px]">
-                  {review.job.pageTitle} is updated.{' '}
+                  {takeaways
+                    ? 'Your playbook pages have key takeaways now, and a new playbook version shows them.'
+                    : `${review.job.pageTitle} is updated.`}{' '}
                   {kept.applied.length
                     ? `${kept.applied.length} ${kept.applied.length === 1 ? 'change is' : 'changes are'} now applied, and future regenerations keep to ${kept.applied.length === 1 ? 'it' : 'them'}.`
                     : ''}
@@ -141,10 +145,11 @@ export function ReviewResult() {
                     variant="outline"
                     onClick={() => {
                       close()
-                      useApp.getState().openWikiFile(review.files[0]?.rel ?? '')
+                      if (takeaways) useApp.getState().openPlaybook({ step: 'overview' })
+                      else useApp.getState().openWikiFile(review.files[0]?.rel ?? '')
                     }}
                   >
-                    Open the page
+                    {takeaways ? 'Open the playbook' : 'Open the page'}
                   </Button>
                   <Button onClick={close}>Done</Button>
                 </div>
@@ -196,9 +201,11 @@ export function ReviewResult() {
                   <Button variant="outline" disabled={busy} onClick={() => void discard()}>
                     Discard
                   </Button>
-                  <Button variant="outline" disabled={busy} onClick={() => void keep(true)}>
-                    Keep, and make another change
-                  </Button>
+                  {!takeaways && (
+                    <Button variant="outline" disabled={busy} onClick={() => void keep(true)}>
+                      Keep, and make another change
+                    </Button>
+                  )}
                   <Button disabled={busy} onClick={() => void keep(false)}>
                     Keep this version
                   </Button>

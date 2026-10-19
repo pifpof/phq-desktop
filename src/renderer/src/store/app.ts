@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import type { StepId } from '@shared/playbook'
 import type { AppState } from '@shared/types'
 import type { Detection } from '@shared/workspace'
 import { emptyProfile, type Profile } from '@shared/profile'
@@ -13,10 +14,24 @@ export type Step = 'welcome' | WizardStep | 'home' | 'progress'
 export type Flow = 'wizard' | 'replaceKey' | 'changeFolder' | 'research'
 export type HomeView = 'chat' | 'wiki' | 'playbook' | 'messaging' | 'use-wiki'
 
+/**
+ * Where the playbook page opens when another part of the app sends someone there
+ * (REQUIREMENTS-v4 4.1, `playbook?step=value`): a step, optionally a value driver card or the gap box.
+ */
+export interface PlaybookTarget {
+  step: StepId | 'overview'
+  card?: string
+  gap?: boolean
+}
+
 /** What the Wiki pane shows when another view sends someone there. */
 export interface WikiTarget {
   tab: 'articles' | 'sources' | 'changes'
   path: string
+  /** Show only these sources, under this label (a playbook section's sources). */
+  sources?: { label: string; paths: string[] }
+  /** Changes tab: only this page's changes. */
+  page?: { slug: string; title: string }
 }
 
 interface AppStore {
@@ -33,6 +48,9 @@ interface AppStore {
   homeView: HomeView
   setHomeView(view: HomeView): void
   wikiTarget: WikiTarget | null
+  playbookTarget: PlaybookTarget | null
+  /** Opens the playbook page on a step. */
+  openPlaybook(target: PlaybookTarget): void
   /** Opens a wiki file where it belongs: articles and sources in the Wiki pane, outputs in their view. */
   openWikiFile(path: string): void
   sidebarCollapsed: boolean
@@ -80,6 +98,8 @@ export const useApp = create<AppStore>((set, get) => ({
   homeView: 'chat',
   setHomeView: (homeView) => set({ homeView }),
   wikiTarget: null,
+  playbookTarget: null,
+  openPlaybook: (playbookTarget) => set({ homeView: 'playbook', playbookTarget }),
   openWikiFile(path) {
     if (path.startsWith('output/positioning-playbook-')) return set({ homeView: 'playbook' })
     if (path.startsWith('output/messaging-analysis-')) return set({ homeView: 'messaging' })

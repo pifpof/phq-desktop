@@ -6,7 +6,7 @@ import { getProvider } from '../providers/registry'
 import { HandlerError, type Handle } from './register'
 
 export function registerChat(handle: Handle, ctx: AppContext): void {
-  handle('chat:start', async ({ modeId, messages }, event) => {
+  handle('chat:start', async ({ modeId, messages, pinned }, event) => {
     const key = ctx.secrets.loadKey()
     if (!key) throw new HandlerError('no_key')
     const { model, provider } = ctx.settings.get()
@@ -14,7 +14,8 @@ export function registerChat(handle: Handle, ctx: AppContext): void {
 
     const { system, sources, stats } = await modes[modeId].context({
       root: ctx.settings.get().workspacePath,
-      messages
+      messages,
+      pinned
     })
     // Sizes only: never the question or the articles (rule 15).
     if (stats)

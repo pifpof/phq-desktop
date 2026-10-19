@@ -29,6 +29,11 @@ interface ChatStore {
   chatId: string | null
   createdAt: number
   modeId: ModeId
+  /** Articles loaded for every question in this chat (Ask Chat about a playbook section). */
+  focus: { label: string; paths: string[] } | null
+  /** A new chat about a playbook section, with its articles loaded (REQUIREMENTS-v4 6.2). */
+  startAbout(label: string, paths: string[]): void
+  clearFocus(): void
   send(modeId: ModeId, text: string): Promise<void>
   /** Opens a saved chat. */
   open(id: string): Promise<void>
@@ -109,7 +114,12 @@ export const useChat = create<ChatStore>((set, get) => {
   const run = async (modeId: ModeId): Promise<void> => {
     set({ starting: true, early: [], streamId: null })
     try {
-      const res = await api.startChat({ modeId, messages: history(get().messages.slice(0, -1)) })
+      const focus = get().focus
+      const res = await api.startChat({
+        modeId,
+        messages: history(get().messages.slice(0, -1)),
+        ...(focus ? { pinned: focus.paths } : {})
+      })
       if (!res.ok) {
         patchLast({ status: 'error', error: res.error })
         return
@@ -142,6 +152,13 @@ export const useChat = create<ChatStore>((set, get) => {
     chatId: null,
     createdAt: 0,
     modeId: 'general',
+    focus: null,
+
+    startAbout(label, paths) {
+      get().reset()
+      set({ focus: { label, paths } })
+    },
+    clearFocus: () => set({ focus: null }),
 
     async send(modeId, text) {
       const content = text.trim()
@@ -203,7 +220,15 @@ export const useChat = create<ChatStore>((set, get) => {
     reset() {
       const { streamId } = get()
       if (streamId) void api.cancelChat(streamId)
-      set({ messages: [], streamId: null, early: [], starting: false, chatId: null, createdAt: 0 })
+      set({
+        messages: [],
+        streamId: null,
+        early: [],
+        starting: false,
+        chatId: null,
+        createdAt: 0,
+        focus: null
+      })
     },
 
     handleEvent(env) {

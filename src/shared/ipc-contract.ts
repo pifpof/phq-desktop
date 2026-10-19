@@ -14,6 +14,7 @@ import {
   RegenJobSchema,
   RegenPlanSchema,
   TakeawaysPlanSchema,
+  PlaybookRegenPlanSchema,
   RegenReviewSchema,
   RegenStartSchema
 } from './regen'
@@ -24,7 +25,7 @@ import {
   ChangeSchema,
   RegenerationSchema
 } from './changes'
-import { PlaybookViewSchema } from './playbook'
+import { PlaybookNavSchema, PlaybookViewSchema } from './playbook'
 import { ProfileSchema } from './profile'
 import { RunViewSchema, type RunView } from './research'
 import {
@@ -241,7 +242,9 @@ export const channels = {
   'chat:start': {
     req: z.object({
       modeId: z.enum(['general', 'workspace']),
-      messages: z.array(ChatMessageSchema).min(1).max(500)
+      messages: z.array(ChatMessageSchema).min(1).max(500),
+      /** Wiki articles to load for every question, such as a playbook section's (REQUIREMENTS-v4 6.2). */
+      pinned: z.array(z.string().min(1).max(512)).max(20).optional()
     }),
     res: z.object({
       streamId: z.string(),
@@ -326,6 +329,9 @@ export const channels = {
     res: PlaybookViewSchema.nullable()
   },
   /** Add key takeaways and gaps (REQUIREMENTS-v4 7.3): the preview reads only; start runs and stages. */
+  'playbook:regenPlan': { req: z.undefined(), res: PlaybookRegenPlanSchema },
+  'playbook:getNav': { req: z.undefined(), res: PlaybookNavSchema },
+  'playbook:setNav': { req: PlaybookNavSchema, res: z.null() },
   'playbook:takeawaysPlan': { req: z.undefined(), res: TakeawaysPlanSchema.nullable() },
   'playbook:addTakeaways': { req: z.undefined(), res: RunViewSchema },
   'wiki:outputs': {
@@ -467,6 +473,9 @@ export interface Api {
   listOutputs(kind: Req<'wiki:outputs'>['kind']): Promise<Result<Res<'wiki:outputs'>>>
   playbookView(path: string | null): Promise<Result<Res<'playbook:view'>>>
   takeawaysPlan(): Promise<Result<Res<'playbook:takeawaysPlan'>>>
+  playbookRegenPlan(): Promise<Result<Res<'playbook:regenPlan'>>>
+  playbookNav(): Promise<Result<Res<'playbook:getNav'>>>
+  setPlaybookNav(nav: Req<'playbook:setNav'>): Promise<Result<null>>
   addTakeaways(): Promise<Result<Res<'playbook:addTakeaways'>>>
   reassemble(): Promise<Result<Res<'wiki:reassemble'>>>
   lastCheck(): Promise<Result<Res<'wiki:lastCheck'>>>

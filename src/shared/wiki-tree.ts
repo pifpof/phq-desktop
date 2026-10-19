@@ -201,6 +201,27 @@ export type SourceSection = z.infer<typeof SourceSectionSchema>
 export const SourcesTreeSchema = z.object({ sections: z.array(SourceSectionSchema) })
 export type SourcesTree = z.infer<typeof SourcesTreeSchema>
 
+/** Only these sources, keeping their sections and groups (the playbook's Sources link, REQUIREMENTS-v4 6.2). */
+export function onlySources(tree: SourcesTree, paths: Set<string>): SourcesTree {
+  const keep = <T extends { path: string }>(list: T[]): T[] => list.filter((s) => paths.has(s.path))
+  return {
+    sections: tree.sections
+      .map((s) => {
+        const groups = s.groups
+          .map((g) => ({ ...g, sources: keep(g.sources) }))
+          .filter((g) => g.sources.length)
+        const sources = keep(s.sources)
+        return {
+          ...s,
+          sources,
+          groups,
+          count: sources.length + groups.reduce((n, g) => n + g.sources.length, 0)
+        }
+      })
+      .filter((s) => s.count > 0)
+  }
+}
+
 /**
  * Which parts of the Wiki pane are open, per workspace (REQUIREMENTS-v3 3.3). Sections and
  * parents start expanded, so they are listed when collapsed; source lists start collapsed, so

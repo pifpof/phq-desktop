@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { Ellipsis, Search, X } from 'lucide-react'
-import type { TreeNode, WikiTree } from '@shared/wiki-tree'
+import { onlySources, type TreeNode, type WikiTree } from '@shared/wiki-tree'
 import { Button } from '@/components/ui/button'
 import { ApiError, api } from '@/lib/api'
 import { isActive } from '@/lib/research'
@@ -193,6 +193,7 @@ export function WikiView() {
   const [selected, setSelected] = useState<string | null>(target?.path ?? null)
   const [query, setQuery] = useState('')
   const [changesPage, setChangesPage] = useState<{ slug: string; title: string } | null>(null)
+  const [sourcesOnly, setSourcesOnly] = useState<{ label: string; paths: string[] } | null>(null)
   const waiting = useChanges((s) => waitingCount(s.changes))
   const [width, setWidth] = useState(readWidth)
   const [error, setError] = useState<string | null>(null)
@@ -209,9 +210,23 @@ export function WikiView() {
     if (!target) return
     // eslint-disable-next-line react-hooks/set-state-in-effect -- following a navigation request
     setTab(target.tab)
-    setSelected(target.path)
+    setSelected(target.path || null)
+    setSourcesOnly(target.sources ?? null)
+    if (target.page) setChangesPage(target.page)
     useApp.setState({ wikiTarget: null })
   }, [target])
+
+  // A filtered source list opens its sections and groups, so the sources show at once.
+  useEffect(() => {
+    if (!sourcesOnly || !sources) return
+    const keys = onlySources(sources, new Set(sourcesOnly.paths)).sections.flatMap((s) => [
+      sourceSectionKey(s.id),
+      ...s.groups.map((g) => sourceGroupKey(s.id, g.id))
+    ])
+    const nav = useWikiNav.getState()
+    const closed = keys.filter((k) => !nav.isExpanded(k))
+    if (closed.length) nav.setManyExpanded(closed, true)
+  }, [sources, sourcesOnly])
 
   // Make sure the opened file is visible: expand its section and parents.
   useEffect(() => {
@@ -371,7 +386,26 @@ export function WikiView() {
               onPendingMarker={showPageChanges}
             />
           ) : tab === 'sources' ? (
-            <SourcesTree tree={sources!} selectedId={selected} query={query} onOpen={open} />
+            <>
+              {sourcesOnly && (
+                <p className="bg-accent text-primary mb-2 flex items-center justify-between gap-2 rounded-[8px] px-2 py-1 text-[12px]">
+                  <span className="truncate">Only {sourcesOnly.label}</span>
+                  <button
+                    type="button"
+                    aria-label="Show every source"
+                    onClick={() => setSourcesOnly(null)}
+                  >
+                    <X className="size-3.5" strokeWidth={2} />
+                  </button>
+                </p>
+              )}
+              <SourcesTree
+                tree={sourcesOnly ? onlySources(sources!, new Set(sourcesOnly.paths)) : sources!}
+                selectedId={selected}
+                query={query}
+                onOpen={open}
+              />
+            </>
           ) : (
             <ChangesTab
               query={query}

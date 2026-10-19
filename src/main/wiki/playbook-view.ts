@@ -287,6 +287,7 @@ function sectionMeta(
     waiting,
     article: (main ?? list[0])?.path ?? null,
     pages,
+    articles: main ? [main.path] : list.map((a) => a.path),
     private: list.some((a) => stringList(a.data.tags).includes('private')),
     scoreChip: score ? { dimension: score.dimension, score: score.score, max: 5 } : null
   }

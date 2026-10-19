@@ -62,6 +62,13 @@ export const DecisionInputSchema = z.object({
 export type DecisionInput = z.infer<typeof DecisionInputSchema>
 
 /** Playbook section number to the article slugs it is built from (REQUIREMENTS-v2 3.4). */
+/** The playbook step an article belongs to, for "Open in playbook" (REQUIREMENTS-v4 4.1). */
+export function playbookStepFor(slug: string): number | null {
+  for (const [n, m] of Object.entries(PLAYBOOK_SECTION_ARTICLES))
+    if (m.slug === slug || (m.prefix && slug.startsWith(m.prefix))) return Number(n)
+  return null
+}
+
 export const PLAYBOOK_SECTION_ARTICLES: Record<number, { slug?: string; prefix?: string }> = {
   1: { slug: 'market-overview' },
   2: { slug: 'ideal-customer-profile' },

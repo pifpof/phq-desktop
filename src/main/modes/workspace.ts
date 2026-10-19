@@ -23,6 +23,8 @@ export interface WorkspaceModeDeps {
   root: string | null
   /** The conversation so far; the last user message is the question. */
   messages?: ChatMessage[]
+  /** Article paths loaded for every question in this chat (Ask Chat about a playbook section). */
+  pinned?: string[]
 }
 
 export interface ModeContext {
@@ -119,7 +121,8 @@ const questionOf = (messages: ChatMessage[] = []): string =>
 
 export async function workspaceContext({
   root,
-  messages
+  messages,
+  pinned = []
 }: WorkspaceModeDeps): Promise<ModeContext> {
   const general: ModeContext = { system: generalPrompt, sources: [] }
   if (!root) return general
@@ -145,13 +148,17 @@ export async function workspaceContext({
 
   const question = questionOf(messages)
   const loaded = new Set(start.map((f) => f.rel))
-  const picked = articles
+  // Pinned articles first (only real articles in this wiki), then the best matches.
+  const pins = articles.filter((a) => pinned.includes(a.rel) && !loaded.has(a.rel))
+  for (const p of pins) loaded.add(p.rel)
+  const matched = articles
     .filter((a) => !loaded.has(a.rel) && a.name !== 'company-profile')
     .map((a) => ({ a, score: scoreArticle(question, a) }))
     .filter((x) => x.score > 0)
     .sort((x, y) => y.score - x.score || x.a.name.localeCompare(y.a.name))
     .slice(0, MAX_QUESTION_ARTICLES)
     .map((x) => x.a)
+  const picked = [...pins, ...matched]
 
   const docs: PromptDocument[] = picked.map((f) => ({ path: f.rel, content: f.body.trim() }))
   if (EVIDENCE.test(question)) {

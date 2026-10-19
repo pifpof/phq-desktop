@@ -61,6 +61,17 @@ export const TakeawaysPlanSchema = z.object({
 })
 export type TakeawaysPlan = z.infer<typeof TakeawaysPlanSchema>
 
+/** Regenerate playbook (REQUIREMENTS-v4 4): what runs again and roughly what it costs. Reads only. */
+export const PlaybookRegenPlanSchema = z.object({
+  tasks: z.array(z.object({ id: z.string(), title: z.string() })),
+  estimate: RegenEstimateSchema,
+  budgetCapUsd: z.number(),
+  model: z.string(),
+  /** Changes waiting on playbook pages: a full re-run respects only applied ones. */
+  waiting: z.number()
+})
+export type PlaybookRegenPlan = z.infer<typeof PlaybookRegenPlanSchema>
+
 export const RegenStartSchema = z.object({
   page: z.string().min(1).max(80),
   /** Changes to apply: this page's and any included from other pages. */
