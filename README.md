@@ -14,6 +14,13 @@ npm run dev
 
 Other commands: `npm run typecheck`, `npm run lint`, `npm test`, `npm run build:mac` (also `:win`, `:linux`).
 
+## Release
+
+1. Bump `version` in `package.json` and write the notes in `docs/releases/v<version>.md`.
+2. Commit, then tag and push: `git tag -a v<version> -m "v<version>" && git push origin v<version>`.
+
+The Release workflow builds macOS, Windows and Linux and publishes the GitHub release with the installers and those notes. It stops if the tag and `package.json` disagree or the notes are missing.
+
 ## What it does
 
 1. Connect your own Anthropic key (stored encrypted on this computer) and choose a folder.
