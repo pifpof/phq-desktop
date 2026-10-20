@@ -49,5 +49,6 @@ Haiku found a gap in all seven sections. For this wiki that is fair (thin eviden
 1. The expert help page at `https://positioninghq.com/expert-help` must read the fragment fields (`company`, `name`, `email`, `sections`, `gaps`, `v`).
 2. Confirm the scorecard mapping for the gap chip (Proof, Customer focus, Differentiation).
 3. A VoiceOver pass on the tabs, cards and help sheet (keyboard checked; screen reader not run).
-4. Tell the skill pack about the spec 6.6 addition (Key takeaways and Gap to close); the skill-pack repo was not touched.
-5. Carried over: the v3.1 skill-pack change format, the v2 plugin and non-Anthropic model checks, the v1 sign-up and community URLs.
+4. Carried over: the v2 plugin and non-Anthropic model checks, the v1 sign-up and community URLs.
+
+**Skill pack (deferred to a future epic, decided 2026-10-19).** The skill-pack repo will be brought up to date with all the format changes in one go: the v3.1 change articles and Status line, the v4 Key takeaways and Gap to close sections (spec 6.6 addition) with single-prefix card headings, and the earlier v2 skill-pack change.
