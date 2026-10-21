@@ -62,17 +62,22 @@ export function useVersions(): OutputVersion[] {
 /** Visited steps per version and the last step, in app state (REQUIREMENTS-v4 4.1). */
 export function usePlaybookNav(): {
   nav: PlaybookNav | null
-  save: (nav: PlaybookNav) => void
+  /** Saves a change to the latest state, so two changes in one render both stick. */
+  save: (change: (nav: PlaybookNav) => PlaybookNav) => void
 } {
   const [nav, setNav] = useState<PlaybookNav | null>(null)
   useEffect(() => {
     void unwrap(api.playbookNav())
-      .catch(() => ({ visited: {}, last: null }))
+      .catch(() => ({ visited: {}, last: null, firstLook: false }))
       .then(setNav)
   }, [])
-  const save = useCallback((next: PlaybookNav) => {
-    setNav(next)
-    void api.setPlaybookNav(next)
+  const save = useCallback((change: (nav: PlaybookNav) => PlaybookNav) => {
+    setNav((prev) => {
+      if (!prev) return prev
+      const next = change(prev)
+      void api.setPlaybookNav(next)
+      return next
+    })
   }, [])
   return { nav, save }
 }

@@ -22,6 +22,10 @@ export interface PlaybookTarget {
   step: StepId | 'overview'
   card?: string
   gap?: boolean
+  /** Arrived from a finished run (first-look banner) or an update (REQUIREMENTS-v4.4 3.4). */
+  from?: 'run' | 'update'
+  /** For an update: the sections that changed. */
+  updated?: StepId[]
 }
 
 /** What the Wiki pane shows when another view sends someone there. */

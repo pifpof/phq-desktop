@@ -30,6 +30,8 @@ import { useNow } from '@/lib/useNow'
 import { useApp } from '@/store/app'
 import { useResearch } from '@/store/research'
 import { CostMeter } from './CostMeter'
+import { DoneScreen } from './DoneScreen'
+import { ProblemsScreen, finishedWithProblems } from './ProblemsScreen'
 import { StepRow } from './StepRow'
 
 /**
@@ -39,6 +41,8 @@ import { StepRow } from './StepRow'
 export function ResearchView() {
   const run = useResearch((s) => s.run)
   const steps = useResearch((s) => s.steps)
+  const doneShown = useResearch((s) => s.doneShown)
+  const [, setProblemsSeen] = useState<string | null>(null)
   const stepsError = useResearch((s) => s.stepsError)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [budgetText, setBudgetText] = useState<string | null>(null)
@@ -70,9 +74,32 @@ export function ResearchView() {
     return keep
   }, [selected, byId, list, running])
 
+  // Ticked steps make it unsafe to move the founder elsewhere (REQUIREMENTS-v4.4 3.2).
+  useEffect(() => {
+    useResearch.getState().setTicking(ticked.size > 0)
+    return () => useResearch.getState().setTicking(false)
+  }, [ticked.size])
+
   const defaultBudget = run?.budgetCapUsd ?? DEFAULT_BUDGET_USD
   const budget = budgetText === null ? defaultBudget : Number(budgetText)
   const budgetValid = Number.isFinite(budget) && budget >= 1 && budget <= 1000
+
+  if (doneShown) {
+    return (
+      <div className="bg-background relative h-full">
+        <DragRegion />
+        <DoneScreen runId={doneShown} />
+      </div>
+    )
+  }
+  if (run && finishedWithProblems(run)) {
+    return (
+      <div className="bg-background relative h-full">
+        <DragRegion />
+        <ProblemsScreen run={run} onDetails={() => setProblemsSeen(run.id)} />
+      </div>
+    )
+  }
 
   if (!steps) {
     return (
@@ -115,10 +142,10 @@ export function ResearchView() {
     ? run!.status === 'paused'
       ? pauseText(run!)
       : `${done} of ${total} steps done in this run`
-    : run?.status === 'done' && published
-      ? 'Your playbook is ready.'
-      : withOutput === 0
-        ? 'Nothing has run yet. Start with one step, or run everything.'
+    : withOutput === 0
+      ? 'Nothing has run yet. Start with one step, or run everything.'
+      : withOutput === list.length
+        ? 'Every step has output. Use Regenerate on a step to update it.'
         : `${withOutput} of ${list.length} steps have output. Run one, a few, or all.`
 
   const selectedSteps = [...ticked].map((id) => byId.get(id)!).filter(Boolean)

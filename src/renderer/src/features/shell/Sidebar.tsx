@@ -17,6 +17,7 @@ import { api } from '@/lib/api'
 import { useChanges, waitingCount } from '@/store/changes'
 import { cn } from '@/lib/utils'
 import { useApp, type HomeView } from '@/store/app'
+import { doneScreenFor, useResearch } from '@/store/research'
 import { RecentChats } from './RecentChats'
 import { ResearchPill } from './ResearchPill'
 
@@ -35,6 +36,11 @@ export function Sidebar() {
   const isMac = useApp((s) => s.state?.platform === 'mac')
   const company = useApp((s) => s.profile?.company.name)
   const waiting = useChanges((s) => waitingCount(s.changes))
+  // The playbook is ready and the founder hasn't seen it (REQUIREMENTS-v4.4 3.2).
+  const ready = useResearch((s) => {
+    const id = doneScreenFor(s.run)
+    return !!id && s.doneShown !== id
+  })
   const workspace = useApp((s) => s.state?.workspacePath ?? '')
   const revealLabel = useApp((s) => s.state?.revealLabel ?? 'Show in Finder')
   const folder = workspace.split(/[\\/]/).filter(Boolean).pop() ?? workspace
@@ -81,11 +87,17 @@ export function Sidebar() {
             >
               <span className="relative">
                 <Icon className="size-[18px] shrink-0" strokeWidth={1.8} />
-                {v === 'wiki' && waiting > 0 && collapsed && (
+                {((v === 'wiki' && waiting > 0) || (v === 'playbook' && ready)) && collapsed && (
                   <span className="bg-primary absolute -top-1 -right-1.5 size-2 rounded-full" />
                 )}
               </span>
               {!collapsed && label}
+              {!collapsed && v === 'playbook' && ready && (
+                <span className="text-primary ml-auto flex items-center gap-1.5 text-[12px] font-semibold">
+                  <span className="bg-primary size-2 rounded-full" aria-hidden />
+                  Ready
+                </span>
+              )}
               {!collapsed && v === 'wiki' && waiting > 0 && (
                 <span
                   className="bg-primary text-primary-foreground ml-auto rounded-full px-1.5 text-[11px] leading-[18px] font-semibold tabular-nums"

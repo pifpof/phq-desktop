@@ -30,7 +30,26 @@ interface ResearchStore {
   loadSteps(): Promise<void>
   /** Runs these steps: a new run, or added to the one that is going. */
   runTasks(taskIds: string[], budgetCapUsd?: number): Promise<void>
+  /** The run whose done screen is showing on the Research page (REQUIREMENTS-v4.4 3.3). */
+  doneShown: string | null
+  showDone(runId: string): void
+  /** Leaves the done screen and records that it was seen. */
+  closeDone(): void
+  /** The founder has steps ticked on the Research page: not safe to navigate. */
+  ticking: boolean
+  setTicking(ticking: boolean): void
 }
+
+/** Records that the done screen (or the playbook it led to) was seen. */
+export async function markSeen(runId: string): Promise<void> {
+  await unwrap(api.markDoneSeen(runId)).catch(() => undefined)
+}
+
+/** A run whose playbook is ready and whose done screen the founder hasn't seen (REQUIREMENTS-v4.4 3.1). */
+export const doneScreenFor = (run: RunView | null): string | null =>
+  run?.playbookReadyAt && !run.doneSeenAt && (run.kind === 'full' || run.kind === 'selected')
+    ? run.id
+    : null
 
 /** Identifies one pause, so a closed dialog stays closed until something changes. */
 export const pauseKey = (run: RunView | null): string | null =>
@@ -102,6 +121,20 @@ export const useResearch = create<ResearchStore>((set, get) => ({
     } catch (err) {
       set({ stepsError: err instanceof Error ? err.message : 'Could not read the research steps.' })
     }
+  },
+
+  doneShown: null,
+  showDone(runId) {
+    set({ doneShown: runId })
+  },
+  closeDone() {
+    const id = get().doneShown
+    set({ doneShown: null })
+    if (id) void markSeen(id)
+  },
+  ticking: false,
+  setTicking(ticking) {
+    if (get().ticking !== ticking) set({ ticking })
   },
 
   async runTasks(taskIds, budgetCapUsd) {

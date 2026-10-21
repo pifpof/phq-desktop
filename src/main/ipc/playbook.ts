@@ -35,7 +35,7 @@ export function registerPlaybook(handle: Handle, ctx: AppContext): void {
     } catch {
       // first visit, or an unreadable file: start fresh
     }
-    return { visited: {}, last: null }
+    return { visited: {}, last: null, firstLook: false }
   })
   handle('playbook:setNav', async (nav) => {
     // Only the newest few versions keep their visited steps.

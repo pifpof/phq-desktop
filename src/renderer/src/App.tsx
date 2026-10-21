@@ -14,6 +14,7 @@ import { Workspace } from '@/features/onboarding/Workspace'
 import { PauseDialog } from '@/features/research/PauseDialog'
 import { SettingsSheet } from '@/features/settings/SettingsSheet'
 import { HomeShell } from '@/features/shell/HomeShell'
+import { Toaster } from '@/components/Toaster'
 
 export default function App() {
   const step = useApp((s) => s.step)
@@ -59,6 +60,7 @@ export default function App() {
       {step === 'home' && <HomeShell />}
       <SettingsSheet />
       <PauseDialog />
+      <Toaster />
     </>
   )
 }

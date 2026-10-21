@@ -1,3 +1,5 @@
+import { StepIdSchema } from '@shared/playbook'
+import { playbookStepFor } from '@shared/wiki-views'
 import { useEffect, useState } from 'react'
 import { Check, CircleAlert } from 'lucide-react'
 import type { KeepResult, RegenReview } from '@shared/regen'
@@ -145,8 +147,25 @@ export function ReviewResult() {
                     variant="outline"
                     onClick={() => {
                       close()
-                      if (takeaways) useApp.getState().openPlaybook({ step: 'overview' })
-                      else useApp.getState().openWikiFile(review.files[0]?.rel ?? '')
+                      if (takeaways) {
+                        // Land on the first changed step with the Updated banner (REQUIREMENTS-v4.4 3.4).
+                        const updated = [
+                          ...new Set(
+                            review.files
+                              .map((f) =>
+                                /distinct-advantages/.test(f.rel)
+                                  ? 4
+                                  : playbookStepFor(f.rel.replace(/^.*\//, '').replace(/\.md$/, ''))
+                              )
+                              .filter((n): n is number => !!n)
+                              .sort((a, b) => a - b)
+                              .map((n) => StepIdSchema.options[n - 1])
+                          )
+                        ]
+                        useApp
+                          .getState()
+                          .openPlaybook({ step: updated[0] ?? 'overview', from: 'update', updated })
+                      } else useApp.getState().openWikiFile(review.files[0]?.rel ?? '')
                     }}
                   >
                     {takeaways ? 'Open the playbook' : 'Open the page'}

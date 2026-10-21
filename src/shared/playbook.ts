@@ -113,7 +113,9 @@ export type PlaybookView = z.infer<typeof PlaybookViewSchema>
 export const PlaybookNavSchema = z.object({
   /** Version path to the steps visited in it. */
   visited: z.record(z.string(), z.array(z.string())).default({}),
-  last: z.string().nullable().default(null)
+  last: z.string().nullable().default(null),
+  /** The first-look banner was shown in this workspace (REQUIREMENTS-v4.4 3.4). */
+  firstLook: z.boolean().default(false)
 })
 export type PlaybookNav = z.infer<typeof PlaybookNavSchema>
 

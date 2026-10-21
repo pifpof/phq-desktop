@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   BookOpen,
   Copy,
@@ -137,6 +137,9 @@ export function PlaybookView() {
   const [focus, setFocus] = useState<{ card?: string; gap?: boolean } | null>(null)
   const [dialog, setDialog] = useState<'regenerate' | 'takeaways' | 'pdf' | null>(null)
   const [copied, setCopied] = useState(false)
+  /** How the founder arrived (REQUIREMENTS-v4.4 3.4): from a finished run, or an update. */
+  const [landing, setLanding] = useState<{ from: 'run' | 'update'; updated: StepId[] } | null>(null)
+  const title = useRef<HTMLHeadingElement>(null)
   const stale = useOutOfDate(view?.current ? view.path : null)
   // The Help plan belongs to the workspace: load it when the page opens.
   useEffect(() => void useHelp.getState().load(), [])
@@ -148,8 +151,24 @@ export function PlaybookView() {
     setSelected(CURRENT)
     setStep(target.step)
     setFocus(target.card || target.gap ? { card: target.card, gap: target.gap } : null)
+    setLanding(target.from ? { from: target.from, updated: target.updated ?? [] } : null)
     useApp.setState({ playbookTarget: null })
   }, [target])
+
+  // Arriving from a run or an update: focus the page heading so screen readers announce it.
+  useEffect(() => {
+    if (landing && view) title.current?.focus()
+  }, [landing, view])
+
+  // The first-look banner shows once per workspace: remember it as soon as it shows.
+  const firstLook = landing?.from === 'run' && nav !== null && !nav.firstLook
+  const [showFirstLook, setShowFirstLook] = useState(false)
+  useEffect(() => {
+    if (!firstLook || !nav) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- shown once, then remembered
+    setShowFirstLook(true)
+    save((n) => ({ ...n, firstLook: true }))
+  }, [firstLook, nav, save])
 
   const visited = useMemo(
     () => new Set<StepKey>((view && nav?.visited[view.path]) as StepKey[] | undefined),
@@ -163,10 +182,11 @@ export function PlaybookView() {
     if (!view || !nav || !step) return
     const seen = nav.visited[view.path] ?? []
     if (seen.includes(step) && nav.last === step) return
-    save({
-      visited: { ...nav.visited, [view.path]: [...new Set([...seen, step])] },
+    save((n) => ({
+      ...n,
+      visited: { ...n.visited, [view.path]: [...new Set([...(n.visited[view.path] ?? []), step])] },
       last: step
-    })
+    }))
   }, [view, nav, shown, save])
 
   const go = (to: StepKey, opts?: { card?: string; gap?: boolean }): void => {
@@ -190,7 +210,13 @@ export function PlaybookView() {
       <header className="shrink-0 border-b px-6 pt-4 pb-3">
         <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
           <div className="min-w-0">
-            <h1 className="font-serif text-[26px] leading-tight font-bold">Positioning Playbook</h1>
+            <h1
+              ref={title}
+              tabIndex={-1}
+              className="font-serif text-[26px] leading-tight font-bold outline-none"
+            >
+              Positioning Playbook
+            </h1>
             <p className="text-muted-foreground mt-0.5 text-[13px]">{meta}</p>
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-2">
@@ -283,6 +309,43 @@ export function PlaybookView() {
           <Button variant="outline" size="sm" onClick={() => setSelected(CURRENT)}>
             View current
           </Button>
+        </Banner>
+      )}
+      {!old && showFirstLook && (
+        <Banner>
+          <p className="text-sm">
+            Start with At a glance, then work through the seven steps. Gaps show what to fix first.
+          </p>
+          <Button variant="outline" size="sm" onClick={() => setShowFirstLook(false)}>
+            Dismiss
+          </Button>
+        </Banner>
+      )}
+      {!old && landing?.from === 'update' && landing.updated.length > 0 && (
+        <Banner>
+          <p className="text-sm">
+            Updated:{' '}
+            {landing.updated.length >= view.sections.length
+              ? 'all seven sections'
+              : landing.updated
+                  .map((id) => view.sections.find((s) => s.id === id)?.title ?? id)
+                  .join(', ')}
+            . Version {view.version}.
+          </p>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                useApp.setState({ homeView: 'wiki', wikiTarget: { tab: 'changes', path: '' } })
+              }
+            >
+              What changed
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setLanding(null)}>
+              Dismiss
+            </Button>
+          </div>
         </Banner>
       )}
       {!old && view.needsTakeaways && (

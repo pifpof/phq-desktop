@@ -12,6 +12,7 @@ import { WikiView } from '@/features/wiki/WikiView'
 import { UseWikiView } from '@/features/use-wiki/UseWikiView'
 import { MigrationWizard } from '@/features/migrate/MigrationWizard'
 import { ResearchBanner } from './ResearchBanner'
+import { useRunMoments } from '@/features/research/useRunMoments'
 import { Sidebar } from './Sidebar'
 import { WorkspaceBanner } from './WorkspaceBanner'
 import { RegeneratePreview } from '@/features/regenerate/RegeneratePreview'
@@ -21,6 +22,8 @@ export function HomeShell() {
   const view = useApp((s) => s.homeView)
   const runStatus = useResearch((s) => s.run?.status)
   const needsMigration = useApp((s) => s.state?.workspaceStatus === 'needs-migration')
+  // The done screen, toasts and the sidebar Ready mark at the end of a run (REQUIREMENTS-v4.4 3).
+  useRunMoments()
 
   // The playbook and analysis can appear from a run finishing or from a file change on disk.
   useEffect(() => {
