@@ -42,7 +42,7 @@ import { writeProfile } from '../../src/main/workspace/profile'
 import { emptyProfile } from '../../src/shared/profile'
 import { parseScorecard } from '../../src/shared/scorecard'
 import { fakeArticleOutput, fakeTakeawaysOutput, GOOD_ANALYSIS } from './fixtures'
-import type { RunView } from '../../src/shared/research'
+import { RunViewSchema, type RunView } from '../../src/shared/research'
 import { createChange, findChange, listChanges } from '../../src/main/wiki/changes'
 import { planRegeneration } from '../../src/main/research/regen-plan'
 import {
@@ -795,6 +795,91 @@ describe('research service: choosing steps (REQUIREMENTS-v4.4 4A)', () => {
     expect(failed.note).toBeTruthy()
     // A failed step can be run again.
     await expect(failing.service.runTasks(['research-06-weaknesses'])).resolves.toBeTruthy()
+  })
+})
+
+describe('research service: playbook ready (REQUIREMENTS-v4.4 3.1)', () => {
+  it('fires once when the playbook is published, before the messaging analysis finishes', async () => {
+    const ready: RunView[] = []
+    const s = makeService(fakeProvider().provider, { onPlaybookReady: (r) => void ready.push(r) })
+    await s.service.start()
+    await s.until(() => s.finished.length === 1, 'full run')
+    expect(ready).toHaveLength(1)
+    expect(ready[0].kind).toBe('full')
+    const at = ready[0].playbookReadyAt!
+    expect(at).toBeGreaterThan(0)
+    expect(ready[0].tasks.find((t) => t.id === 'messaging-analysis')!.status).not.toBe('done')
+    const end = s.last()
+    expect(end.playbookReadyAt).toBe(at)
+    expect(end.tasks.find((t) => t.id === 'messaging-analysis')!.endedAt!).toBeGreaterThanOrEqual(
+      at
+    )
+    expect(end.doneSeenAt).toBeNull()
+
+    const stats = (await s.service.doneStats(end.id))!
+    expect(stats).toMatchObject({
+      company: 'Acme Rockets',
+      version: 1,
+      sections: 7,
+      competitors: 2,
+      unfinished: [],
+      messagingRunning: false
+    })
+    expect(stats.sources).toBeGreaterThan(0)
+    expect(stats.minutes).toBeGreaterThanOrEqual(1)
+
+    // Seen, saved, and still seen after a restart.
+    await s.service.markDoneSeen(end.id)
+    await s.service.flush()
+    expect((await latestRun(ws))!.doneSeenAt).toBeGreaterThan(0)
+    const again = makeService(fakeProvider().provider)
+    expect((await again.service.getRun())!.doneSeenAt).toBeGreaterThan(0)
+  })
+
+  it('a run of chosen steps without publishing never fires; the playbook preset does', async () => {
+    const ready: RunView[] = []
+    const s = makeService(fakeProvider().provider, { onPlaybookReady: (r) => void ready.push(r) })
+    const run = await s.service.runTasks(['research-05-strengths'])
+    expect(run.kind).toBe('selected')
+    await s.until(() => s.finished.length === 1, 'one step')
+    expect(ready).toHaveLength(0)
+    expect(s.last().playbookReadyAt).toBeNull()
+    // No playbook yet: the stats say so instead of failing.
+    expect(await s.service.doneStats(run.id)).toMatchObject({
+      version: null,
+      sections: 0,
+      sources: 0,
+      biggestGap: null
+    })
+
+    await s.service.start()
+    await s.until(() => s.finished.length === 2, 'full run')
+    const playbook = await s.service.rerun({ preset: 'playbook' })
+    expect(playbook.kind).toBe('playbook')
+    await s.until(() => s.finished.length === 3, 'playbook preset')
+    expect(ready.map((r) => r.kind)).toEqual(['full', 'playbook'])
+  })
+
+  it('reads run files written before v4.4', () => {
+    const old = {
+      id: 'r',
+      status: 'done',
+      pause: null,
+      model: 'm',
+      concurrency: 3,
+      budgetCapUsd: 5,
+      spentUsd: 1,
+      skipWeb: false,
+      startedAt: 1,
+      endedAt: 2,
+      tasks: []
+    }
+    expect(RunViewSchema.parse(old)).toMatchObject({
+      kind: 'full',
+      playbookReadyAt: null,
+      doneSeenAt: null,
+      scope: null
+    })
   })
 })
 

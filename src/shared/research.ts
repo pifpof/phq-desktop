@@ -47,6 +47,9 @@ export const TaskViewSchema = z.object({
 })
 export type TaskView = z.infer<typeof TaskViewSchema>
 
+export const RunKindSchema = z.enum(['full', 'selected', 'playbook', 'regen'])
+export type RunKind = z.infer<typeof RunKindSchema>
+
 export const RunViewSchema = z.object({
   id: z.string(),
   status: RunStatusSchema,
@@ -61,7 +64,16 @@ export const RunViewSchema = z.object({
   endedAt: z.number().nullable(),
   tasks: z.array(TaskViewSchema),
   /** The task IDs this run was limited to (a single re-run, or the playbook), or null for a full run. */
-  scope: z.array(z.string()).nullable().default(null)
+  scope: z.array(z.string()).nullable().default(null),
+  /**
+   * What started it (REQUIREMENTS-v4.4 3.1): everything, steps the founder chose, the Regenerate
+   * playbook preset, or a page regeneration (reviewed before the wiki changes).
+   */
+  kind: RunKindSchema.default('full'),
+  /** When "Publish the playbook" finished in this run: the done screen's trigger. */
+  playbookReadyAt: z.number().nullable().default(null),
+  /** When the founder saw the done screen, or the playbook it led to. */
+  doneSeenAt: z.number().nullable().default(null)
 })
 export type RunView = z.infer<typeof RunViewSchema>
 
@@ -118,3 +130,22 @@ export function missingDeps(
     return !alongside.has(d) && s?.status !== 'done' && s?.status !== 'skipped'
   })
 }
+
+/** What the done screen shows (REQUIREMENTS-v4.4 3.3), built in main from disk with no model call. */
+export const DoneStatsSchema = z.object({
+  runId: z.string(),
+  company: z.string(),
+  version: z.number().nullable(),
+  /** Sections with content in the new version. */
+  sections: z.number(),
+  /** Distinct raw sources behind the sections. */
+  sources: z.number(),
+  competitors: z.number(),
+  minutes: z.number(),
+  costUsd: z.number(),
+  biggestGap: z.object({ step: z.string(), label: z.string(), problem: z.string() }).nullable(),
+  /** Steps in this run that failed, were blocked or were skipped (not by stopping). */
+  unfinished: z.array(z.object({ id: z.string(), title: z.string() })),
+  messagingRunning: z.boolean()
+})
+export type DoneStats = z.infer<typeof DoneStatsSchema>

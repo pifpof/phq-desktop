@@ -36,6 +36,9 @@ const run = (tasks: TaskView[], over: Partial<RunView> = {}): RunView => ({
   startedAt: 0,
   endedAt: null,
   scope: null,
+  kind: 'full',
+  playbookReadyAt: null,
+  doneSeenAt: null,
   tasks,
   ...over
 })

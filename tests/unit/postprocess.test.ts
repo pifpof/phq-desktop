@@ -112,6 +112,9 @@ describe('run store', () => {
     startedAt,
     endedAt: null,
     scope: null,
+    kind: 'full',
+    playbookReadyAt: null,
+    doneSeenAt: null,
     tasks: [
       {
         id: 'a',

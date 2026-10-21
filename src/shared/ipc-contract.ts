@@ -28,7 +28,7 @@ import {
 import { PdfOptionsSchema, PlaybookNavSchema, PlaybookViewSchema } from './playbook'
 import { HelpItemSchema, HelpPlanSchema } from './help'
 import { ProfileSchema } from './profile'
-import { RunViewSchema, StepStateSchema, type RunView } from './research'
+import { DoneStatsSchema, RunViewSchema, StepStateSchema, type RunView } from './research'
 import {
   AddResultSchema,
   DetectionSchema,
@@ -199,6 +199,12 @@ export const channels = {
     }),
     res: RunViewSchema
   },
+  /** The done screen's numbers (REQUIREMENTS-v4.4 3.3). */
+  'research:doneStats': {
+    req: z.object({ runId: z.string().min(1).max(100) }),
+    res: DoneStatsSchema.nullable()
+  },
+  'research:markDoneSeen': { req: z.object({ runId: z.string().min(1).max(100) }), res: z.null() },
   'research:catalog': {
     req: z.undefined(),
     res: z.array(
@@ -407,6 +413,8 @@ export const EVENT_CHAT = 'chat:event'
 export const EVENT_OPEN_SETTINGS = 'menu:openSettings'
 export const EVENT_WORKSPACE_CHANGED = 'workspace:changed'
 export const EVENT_RESEARCH = 'research:event'
+/** The OS notification for a ready playbook was clicked: show the done screen (REQUIREMENTS-v4.4 3.2). */
+export const EVENT_SHOW_DONE = 'research:showDone'
 export const EVENT_MIGRATE = 'migrate:event'
 /** The Wiki pane's trees changed; fetch them again (REQUIREMENTS-v3 5). */
 export const EVENT_WIKI_TREE = 'wiki:treeChanged'
@@ -442,6 +450,8 @@ export interface Api {
   rerunResearch(target: Req<'research:rerun'>): Promise<Result<Res<'research:rerun'>>>
   researchCatalog(): Promise<Result<Res<'research:catalog'>>>
   researchTaskStates(): Promise<Result<Res<'research:taskStates'>>>
+  doneStats(runId: string): Promise<Result<Res<'research:doneStats'>>>
+  markDoneSeen(runId: string): Promise<Result<null>>
   runResearchTasks(options: Req<'research:runTasks'>): Promise<Result<Res<'research:runTasks'>>>
   listInputs(): Promise<Result<Res<'inputs:list'>>>
   addInputs(
@@ -529,4 +539,5 @@ export interface Api {
   onOpenSettings(cb: () => void): () => void
   onWorkspaceChanged(cb: (e: WorkspaceChanged) => void): () => void
   onResearchEvent(cb: (run: RunView) => void): () => void
+  onShowDone(cb: () => void): () => void
 }

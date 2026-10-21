@@ -2,6 +2,7 @@ import { app, BrowserWindow, Notification, safeStorage } from 'electron'
 import {
   EVENT_OPEN_SETTINGS,
   EVENT_RESEARCH,
+  EVENT_SHOW_DONE,
   EVENT_WIKI_TREE,
   EVENT_WORKSPACE_CHANGED
 } from '@shared/ipc-contract'
@@ -55,6 +56,16 @@ if (!app.requestSingleInstanceLock()) {
       if (wikiTree.invalidate(paths)) win?.webContents.send(EVENT_WIKI_TREE)
     })
 
+    const notify = (body: string, showDone = false): void => {
+      const n = new Notification({ title: 'PositioningHQ', body })
+      n.on('click', () => {
+        if (win?.isMinimized()) win.restore()
+        win?.focus()
+        if (showDone) win?.webContents.send(EVENT_SHOW_DONE)
+      })
+      n.show()
+    }
+
     let pricing: ReturnType<typeof loadPricing> | null = null
     const research = createResearchService({
       appVersion: app.getVersion(),
@@ -68,19 +79,17 @@ if (!app.requestSingleInstanceLock()) {
       send: (run) => win?.webContents.send(EVENT_RESEARCH, run),
       onFinished: (run) => {
         // Tell the person when they are looking at something else (REQUIREMENTS-v1 3.5).
+        // A published playbook was announced when it was ready (onPlaybookReady).
         if (win?.isFocused() || !Notification.isSupported() || run.status === 'cancelled') return
-        const published = run.tasks.some((t) => t.id === 'playbook-assemble' && t.status === 'done')
-        const body = published
-          ? 'Your positioning playbook is ready.'
-          : run.scope
-            ? 'Research finished.'
-            : 'Research stopped before the playbook was finished.'
-        const n = new Notification({ title: 'PositioningHQ', body })
-        n.on('click', () => {
-          if (win?.isMinimized()) win.restore()
-          win?.focus()
-        })
-        n.show()
+        if (run.playbookReadyAt && run.kind !== 'regen') return
+        notify(
+          run.scope ? 'Research finished.' : 'Research stopped before the playbook was finished.'
+        )
+      },
+      // The done screen fires at playbook ready, not at the end of the run (REQUIREMENTS-v4.4 3.1, 3.2).
+      onPlaybookReady: () => {
+        if (win?.isFocused() || !Notification.isSupported()) return
+        notify('Your positioning playbook is ready.', true)
       },
       log
     })

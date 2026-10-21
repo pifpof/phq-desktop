@@ -36,6 +36,10 @@ export function registerResearch(handle: Handle, ctx: AppContext): void {
   })
   handle('research:catalog', () => run(() => ctx.research.catalog()))
   handle('research:taskStates', () => run(() => ctx.research.taskStates()))
+  handle('research:doneStats', ({ runId }) => run(() => ctx.research.doneStats(runId)))
+  handle('research:markDoneSeen', ({ runId }) =>
+    run(async () => (await ctx.research.markDoneSeen(runId), null))
+  )
   handle('research:runTasks', async ({ taskIds, budgetCapUsd }) => {
     await writableRoot(ctx)
     return run(() => ctx.research.runTasks(taskIds, { budgetCapUsd }))

@@ -1,5 +1,12 @@
 import { ERROR_COPY, errorMessage, type ErrorCode } from '@shared/errors'
-import type { PauseReason, RunStatus, RunView, TaskStatus, TaskView } from '@shared/research'
+import type {
+  PauseReason,
+  RunKind,
+  RunStatus,
+  RunView,
+  TaskStatus,
+  TaskView
+} from '@shared/research'
 import { ProviderError, TaskAbortedError } from '../providers/types'
 import { findIsolationViolations } from './isolation'
 import type { TaskContext, TaskDef, TaskOutcome } from './types'
@@ -52,6 +59,8 @@ export interface EngineOptions {
    * from earlier runs are on disk. Used to re-run one task, or to regenerate the playbook.
    */
   only?: string[] | null
+  /** What started the run (REQUIREMENTS-v4.4 3.1). */
+  kind?: RunKind
 }
 
 interface Rt {
@@ -109,6 +118,8 @@ export class ResearchEngine {
   private wakeTimer: AbortController | null = null
   /** The task IDs this run is limited to, or null for a full run. Grows when steps are added. */
   private scope: string[] | null
+  private playbookReadyAt: number | null = null
+  private doneSeenAt: number | null = null
 
   private readonly now: () => number
   private readonly sleep: (ms: number, signal: AbortSignal) => Promise<void>
@@ -179,7 +190,10 @@ export class ResearchEngine {
       startedAt: this.startedAt,
       endedAt: this.endedAt,
       tasks,
-      scope: this.scope
+      scope: this.scope,
+      kind: this.opts.kind ?? 'full',
+      playbookReadyAt: this.playbookReadyAt,
+      doneSeenAt: this.doneSeenAt
     }
   }
 
@@ -239,6 +253,13 @@ export class ResearchEngine {
     this.changed()
     this.pump()
     return added
+  }
+
+  /** The founder saw the done screen (REQUIREMENTS-v4.4 3.1). */
+  markDoneSeen(): void {
+    if (this.doneSeenAt) return
+    this.doneSeenAt = this.now()
+    this.changed()
   }
 
   /** Is this task part of the run? */
@@ -301,6 +322,7 @@ export class ResearchEngine {
     const engine = new ResearchEngine(deps, {
       ...opts,
       only: saved.scope,
+      kind: saved.kind,
       runId: saved.id,
       concurrency: saved.concurrency,
       budgetCapUsd: saved.budgetCapUsd,
@@ -308,6 +330,8 @@ export class ResearchEngine {
     })
     engine.spentUsd = saved.spentUsd
     engine.startedAt = saved.startedAt
+    engine.playbookReadyAt = saved.playbookReadyAt
+    engine.doneSeenAt = saved.doneSeenAt
     const byId = new Map(saved.tasks.map((t) => [t.id, t]))
 
     // Children of group tasks are made again from what the group's dependencies wrote.
@@ -631,6 +655,8 @@ export class ResearchEngine {
           t.note = outcome.note ?? null
           t.status = 'done'
           t.endedAt = this.now()
+          // The playbook is ready: the done screen fires now, not when the run ends.
+          if (t.def.local === 'assemble-playbook') this.playbookReadyAt ??= t.endedAt
           return
         } catch (err) {
           const verdict = this.classify(t, err, controller.signal)

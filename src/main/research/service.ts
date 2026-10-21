@@ -6,6 +6,8 @@ import {
   DEFAULT_CONCURRENCY,
   MAX_CONCURRENCY,
   missingDeps,
+  type DoneStats,
+  type RunKind,
   type RunView,
   type StepState
 } from '@shared/research'
@@ -30,7 +32,8 @@ import { finishRun, readJob } from './regen-job'
 import { createExecutor, makeContext, outputVerifier, type LocalRunner } from './executor'
 import { priceFor, type Pricing } from './pricing'
 import type { SkillReader } from './prompt-builder'
-import { isUnfinished, latestRun, listRuns, saveRun } from './run-store'
+import { isUnfinished, latestRun, listRuns, loadRun, saveRun } from './run-store'
+import { buildDoneStats } from './done-stats'
 import { stepStates } from './task-states'
 import { TASKS } from './tasks'
 import type { LocalHandler, TaskDef } from './types'
@@ -57,6 +60,8 @@ export interface ServiceDeps {
   send(run: RunView): void
   /** Called once when a run reaches done, failed or cancelled. */
   onFinished?(run: RunView): void
+  /** Called once when a run publishes the playbook (REQUIREMENTS-v4.4 3.1). Not for regenerations. */
+  onPlaybookReady?(run: RunView): void
   log: Pick<Logger, 'info' | 'warn' | 'error'>
   /** For the compile line in log.md. */
   appVersion?: string
@@ -86,6 +91,8 @@ export interface StartOptions {
   only?: string[]
   /** A regeneration: built once the run ID is known (REQUIREMENTS-v3.1 4.3). */
   regen?: (runId: string) => Promise<RegenDeps>
+  /** What started it. Defaults from `only` and `regen`. */
+  kind?: RunKind
 }
 
 /** What "Regenerate playbook" runs: read the files again, the seven sections, publishing, and the messaging analysis. */
@@ -121,6 +128,7 @@ export function createResearchService(d: ServiceDeps) {
   let engine: ResearchEngine | null = null
   let loaded = false
   let notified = false
+  let readyNotified = false
 
   const need = async (): Promise<{
     root: string
@@ -199,6 +207,10 @@ export function createResearchService(d: ServiceDeps) {
       save: (run) => saveRun(root, run),
       emit: (run) => {
         d.send(run)
+        if (!readyNotified && run.playbookReadyAt && run.kind !== 'regen') {
+          readyNotified = true
+          d.onPlaybookReady?.(run)
+        }
         if (
           !notified &&
           (run.status === 'done' || run.status === 'failed' || run.status === 'cancelled')
@@ -277,6 +289,7 @@ export function createResearchService(d: ServiceDeps) {
         saved
       )
       notified = false
+      readyNotified = !!saved.playbookReadyAt
     } catch (err) {
       d.log.warn(
         `Could not restore research run: ${err instanceof Error ? err.message : 'unknown'}`
@@ -324,6 +337,7 @@ export function createResearchService(d: ServiceDeps) {
       const regen = options.regen ? await options.regen(runId) : undefined
       const { deps } = await engineDeps(runId, regen)
       notified = false
+      readyNotified = false
       engine = new ResearchEngine(deps, {
         runId,
         model,
@@ -333,7 +347,8 @@ export function createResearchService(d: ServiceDeps) {
         ),
         budgetCapUsd: Math.max(0.01, options.budgetCapUsd ?? DEFAULT_BUDGET_USD),
         skipWeb,
-        only: options.only ?? null
+        only: options.only ?? null,
+        kind: regen ? 'regen' : (options.kind ?? (options.only ? 'selected' : 'full'))
       })
       d.log.info(
         `Research run ${runId} started${skipWeb ? ' (web search unavailable, web tasks skipped)' : ''}`
@@ -355,7 +370,10 @@ export function createResearchService(d: ServiceDeps) {
       if (unique.length === 0 || unique.some((id) => !tasks.some((t) => t.id === id))) {
         throw new ResearchError('invalid_payload', 'There is nothing to run again.')
       }
-      return this.start({ only: unique })
+      return this.start({
+        only: unique,
+        kind: target.preset === 'playbook' ? 'playbook' : 'selected'
+      })
     },
 
     /** Each step's status from disk, across runs (REQUIREMENTS-v4.4 4A.2). Reads only. */
@@ -457,6 +475,23 @@ export function createResearchService(d: ServiceDeps) {
         stage: 3
       })
       return entries
+    },
+
+    /** The done screen was seen, or the playbook it led to was opened (REQUIREMENTS-v4.4 3.1). */
+    async markDoneSeen(runId: string): Promise<void> {
+      if (engine?.runId === runId) return engine.markDoneSeen()
+      const root = d.getRoot()
+      const run = root ? await loadRun(root, runId) : null
+      if (root && run && !run.doneSeenAt) await saveRun(root, { ...run, doneSeenAt: Date.now() })
+    },
+
+    /** What the done screen shows (REQUIREMENTS-v4.4 3.3). Reads only. */
+    async doneStats(runId: string): Promise<DoneStats | null> {
+      const root = d.getRoot()
+      if (!root) throw new ResearchError('no_workspace', 'Choose a workspace folder first.')
+      const run = engine?.runId === runId ? engine.view() : await loadRun(root, runId)
+      if (!run) return null
+      return buildDoneStats(root, run, (await readProfile(root))?.company.name ?? '')
     },
 
     async getRun(): Promise<RunView | null> {

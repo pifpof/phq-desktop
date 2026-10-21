@@ -5,6 +5,7 @@ import {
   EVENT_CHAT,
   EVENT_OPEN_SETTINGS,
   EVENT_RESEARCH,
+  EVENT_SHOW_DONE,
   EVENT_MIGRATE,
   EVENT_WIKI_TREE,
   EVENT_WORKSPACE_CHANGED,
@@ -40,6 +41,8 @@ const api: Api = {
   rerunResearch: (target) => invoke('research:rerun', target),
   researchCatalog: () => invoke('research:catalog'),
   researchTaskStates: () => invoke('research:taskStates'),
+  doneStats: (runId) => invoke('research:doneStats', { runId }),
+  markDoneSeen: (runId) => invoke('research:markDoneSeen', { runId }),
   runResearchTasks: (options) => invoke('research:runTasks', options),
   listInputs: () => invoke('inputs:list'),
   addInputs: (category, paths) => invoke('inputs:add', { category, paths }),
@@ -152,6 +155,11 @@ const api: Api = {
     }
     ipcRenderer.on(EVENT_WORKSPACE_CHANGED, listener)
     return () => ipcRenderer.removeListener(EVENT_WORKSPACE_CHANGED, listener)
+  },
+  onShowDone: (cb) => {
+    const listener = (): void => cb()
+    ipcRenderer.on(EVENT_SHOW_DONE, listener)
+    return () => ipcRenderer.removeListener(EVENT_SHOW_DONE, listener)
   },
   onOpenSettings: (cb) => {
     const listener = (): void => cb()
