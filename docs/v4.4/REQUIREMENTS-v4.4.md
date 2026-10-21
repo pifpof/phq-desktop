@@ -179,13 +179,13 @@ A new sidebar item **Research** (between Wiki and Positioning Playbook). It repl
 
 Status comes from disk, not from one run: a step is **done** when its output passes the existing output check (the receipt is there and every file it lists exists); **skipped** when its last run skipped it for a reason other than stopping (no files added, web search off) and it has no output; **failed** when its last run failed it and it has no output; otherwise **not run**. No model call.
 
-**Open** goes to where the output lives: the first wiki page the step wrote (Wiki pane), the playbook page, or the Messaging Analysis page. Steps that write only app-state drafts (website positioning, competitor discovery) open the wiki page that used them when there is one; otherwise they show no Open.
+**Open** goes to where the output lives: the first wiki page the step wrote (Wiki pane), the playbook page, or the Messaging Analysis page, from the step's receipt. Steps that write only app-state drafts (read your website, find competitors, find social profiles, gather reviews) show no Open; what they found shows in the findings column (4.3) and in the steps that use them.
 
 ### 4A.3 Which steps can be ticked
 
 - A step can be ticked or run only when each step it depends on is done or skipped, or is ticked in the same selection, or is in the run that is going. Otherwise the checkbox and Run are disabled and the row says "Needs: <titles of the missing steps>".
 - Unticking a step unticks every ticked step that needs it.
-- **Done steps that write wiki articles are not ticked or run from here.** Running them again would overwrite pages the founder may have changed, so their row shows **Regenerate**, which opens the v3.1 preview for the first page the step wrote (rule 25). Done steps that write a new dated source, a new output version, or app-state drafts only (read your website, read your files, find competitors, website positioning, publish the playbook, analyse your messaging) can be ticked again and show **Run again**.
+- **Done steps that write wiki articles are not ticked or run from here.** Running them again would overwrite pages the founder may have changed, so their row shows **Regenerate**, which opens the v3.1 preview for the first page the step wrote (rule 25). Done steps that write a new dated source, a new output version, or app-state drafts only (read your website, read your files, find social profiles, find competitors, gather reviews and public proof, publish the playbook, analyse your messaging) can be ticked again and show **Run again**. Competitor profiles count as writing articles (each profile is a wiki page).
 - The selection lives in the page only (not saved). It clears when a run starts.
 
 ### 4A.4 Running

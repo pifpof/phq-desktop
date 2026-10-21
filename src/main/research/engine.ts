@@ -107,6 +107,8 @@ export class ResearchEngine {
   private saveChain: Promise<void> = Promise.resolve()
   private abortWhy = new Map<string, AbortWhy>()
   private wakeTimer: AbortController | null = null
+  /** The task IDs this run is limited to, or null for a full run. Grows when steps are added. */
+  private scope: string[] | null
 
   private readonly now: () => number
   private readonly sleep: (ms: number, signal: AbortSignal) => Promise<void>
@@ -125,7 +127,8 @@ export class ResearchEngine {
     this.skipWeb = opts.skipWeb ?? false
     this.localLimit = opts.localConcurrency ?? 2
     this.startedAt = this.now()
-    const only = opts.only ? new Set(opts.only) : null
+    this.scope = opts.only ? [...opts.only] : null
+    const only = this.scope ? new Set(this.scope) : null
     for (const def of deps.tasks) if (only ? only.has(def.id) : !def.onDemand) this.add(def, null)
   }
 
@@ -176,7 +179,7 @@ export class ResearchEngine {
       startedAt: this.startedAt,
       endedAt: this.endedAt,
       tasks,
-      scope: this.opts.only ?? null
+      scope: this.scope
     }
   }
 
@@ -207,6 +210,40 @@ export class ResearchEngine {
     this.pauseInfo = null
     this.changed()
     this.pump()
+  }
+
+  /**
+   * Adds steps to a run that is going or paused (REQUIREMENTS-v4.4 4A.4). Steps already in the run
+   * are left alone. Returns the IDs added.
+   */
+  addTasks(ids: string[]): string[] {
+    if (this.status !== 'running' && this.status !== 'paused') return []
+    const want = new Set(ids)
+    const added = this.deps.tasks
+      .filter((d) => want.has(d.id) && !this.rts.has(d.id))
+      .map((d) => {
+        this.add(d, null)
+        return d.id
+      })
+    if (!added.length) return []
+    this.scope = this.scope ? [...this.scope, ...added] : null
+    // Keep the list in task order, children right after their group.
+    const index = new Map(this.deps.tasks.map((d, i) => [d.id, i]))
+    const top = this.order
+      .filter((id) => !this.rts.get(id)!.parent)
+      .sort((a, b) => (index.get(a) ?? 0) - (index.get(b) ?? 0))
+    this.order = top.flatMap((id) => [
+      id,
+      ...this.order.filter((c) => this.rts.get(c)!.parent === id)
+    ])
+    this.changed()
+    this.pump()
+    return added
+  }
+
+  /** Is this task part of the run? */
+  has(id: string): boolean {
+    return this.rts.has(id)
   }
 
   setBudget(capUsd: number): void {

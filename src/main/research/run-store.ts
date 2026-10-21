@@ -27,18 +27,24 @@ export async function loadRun(root: string, id: string): Promise<RunView | null>
   }
 }
 
-/** The most recently started run, or null. Corrupt files are ignored. */
-export async function latestRun(root: string): Promise<RunView | null> {
+/** Every run, newest first. Corrupt files are ignored. */
+export async function listRuns(root: string): Promise<RunView[]> {
   let names: string[]
   try {
-    names = (await readdir(await dir(root))).filter((n) => n.endsWith('.json'))
+    // run files only, not <id>.sources.json
+    names = (await readdir(await dir(root))).filter((n) => /^[^.]+\.json$/.test(n))
   } catch {
-    return null
+    return []
   }
   const runs = (
     await Promise.all(names.map((n) => loadRun(root, n.replace(/\.json$/, ''))))
   ).filter((r): r is RunView => r !== null)
-  return runs.sort((a, b) => b.startedAt - a.startedAt)[0] ?? null
+  return runs.sort((a, b) => b.startedAt - a.startedAt)
+}
+
+/** The most recently started run, or null. */
+export async function latestRun(root: string): Promise<RunView | null> {
+  return (await listRuns(root))[0] ?? null
 }
 
 export const isUnfinished = (run: RunView): boolean =>

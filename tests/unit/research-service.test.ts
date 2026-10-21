@@ -691,6 +691,113 @@ describe('research service: re-running', () => {
   })
 })
 
+describe('research service: choosing steps (REQUIREMENTS-v4.4 4A)', () => {
+  const state = async (s: ReturnType<typeof makeService>, id: string) =>
+    (await s.service.taskStates()).find((t) => t.id === id)!
+
+  it('lists every step as not run, with what it needs, and runs one step alone', async () => {
+    const f = fakeProvider()
+    const s = makeService(f.provider)
+    const states = await s.service.taskStates()
+    expect(states.map((t) => t.id)).not.toContain('playbook-takeaways')
+    expect(states.every((t) => t.status === 'not-run' && t.description)).toBe(true)
+    expect(states.find((t) => t.id === 'competitor-profiles')?.dependsOn).toEqual([
+      'competitor-discovery'
+    ])
+    expect(states.find((t) => t.id === 'research-05-strengths')!.costUsd.high).toBeGreaterThan(0)
+
+    await expect(s.service.runTasks(['competitor-profiles'])).rejects.toMatchObject({
+      code: 'invalid_payload',
+      message: 'Profile competitors needs Find competitors first.'
+    })
+
+    const run = await s.service.runTasks(['research-05-strengths'], { budgetCapUsd: 2 })
+    expect(run.scope).toEqual(['research-05-strengths'])
+    expect(run.budgetCapUsd).toBe(2)
+    await s.until(() => s.finished.length === 1, 'one step')
+    expect(f.calls).toHaveLength(1)
+    const done = await state(s, 'research-05-strengths')
+    expect(done.status).toBe('done')
+    expect(done.at).toMatch(/^\d{4}-\d{2}-\d{2}T/)
+    expect(done.open).toMatch(/^wiki\//)
+    // It writes wiki articles: changed only through Regenerate.
+    expect(done.regenerate).toBeTruthy()
+    expect(done.rerunnable).toBe(false)
+    await expect(s.service.runTasks(['research-05-strengths'])).rejects.toMatchObject({
+      message: 'Strengths already has output. Use Regenerate to change it.'
+    })
+    expect((await state(s, 'research-06-weaknesses')).status).toBe('not-run')
+  })
+
+  it('a step and what it needs can run together, and the rest come later', async () => {
+    const s = makeService(fakeProvider().provider)
+    await s.service.runTasks(['competitor-discovery', 'competitor-profiles'])
+    await s.until(() => s.finished.length === 1, 'discovery and profiles')
+    expect(s.last().status).toBe('done')
+    expect((await state(s, 'competitor-discovery')).status).toBe('done')
+    // Drafts only: it can run again.
+    expect((await state(s, 'competitor-discovery')).rerunnable).toBe(true)
+    const profiles = await state(s, 'competitor-profiles')
+    expect(profiles.status).toBe('done')
+    expect(profiles.open).toMatch(/^wiki\/references\/competitor-/)
+    // Its dependency now has output, so the next step can run on its own.
+    const run = await s.service.runTasks(['proof-gathering'])
+    expect(run.scope).toEqual(['proof-gathering'])
+    await s.until(() => s.finished.length === 2, 'proof')
+    expect((await state(s, 'proof-gathering')).status).toBe('done')
+  })
+
+  it('adds steps to the run that is going', async () => {
+    let hold = true
+    const f = fakeProvider({
+      onCall: async () => {
+        while (hold) await new Promise((r) => setTimeout(r, 2))
+      }
+    })
+    const s = makeService(f.provider)
+    const first = await s.service.runTasks(['research-05-strengths'])
+    await s.until(() => s.last().tasks.some((t) => t.status === 'running'), 'running')
+    const joined = await s.service.runTasks(['research-06-weaknesses', 'research-05-strengths'])
+    expect(joined.id).toBe(first.id)
+    expect(joined.scope).toEqual(['research-05-strengths', 'research-06-weaknesses'])
+    expect(joined.tasks.map((t) => t.id)).toEqual([
+      'research-05-strengths',
+      'research-06-weaknesses'
+    ])
+    hold = false
+    await s.until(() => s.finished.length === 1, 'both')
+    expect(s.last().tasks.every((t) => t.status === 'done')).toBe(true)
+    expect(f.calls).toHaveLength(2)
+  })
+
+  it('a step skipped for no web search counts as ready; a failed step says why', async () => {
+    const s = makeService(fakeProvider({ webSearch: false }).provider)
+    await s.service.runTasks(['competitor-discovery'])
+    await s.until(() => s.finished.length === 1, 'skipped')
+    const skipped = await state(s, 'competitor-discovery')
+    expect(skipped.status).toBe('skipped')
+    expect(skipped.note).toMatch(/web search/)
+    expect(
+      (await s.service.taskStates()).find((t) => t.id === 'proof-gathering')!.dependsOn
+    ).toEqual(['competitor-discovery'])
+
+    const failing = makeService(
+      fakeProvider({
+        onCall: () => {
+          throw new ProviderError('unknown')
+        }
+      }).provider
+    )
+    await failing.service.runTasks(['research-06-weaknesses'])
+    await failing.until(() => failing.finished.length === 1, 'failed')
+    const failed = await state(failing, 'research-06-weaknesses')
+    expect(failed.status).toBe('failed')
+    expect(failed.note).toBeTruthy()
+    // A failed step can be run again.
+    await expect(failing.service.runTasks(['research-06-weaknesses'])).resolves.toBeTruthy()
+  })
+})
+
 describe('research service: interruptions', () => {
   it('survives quitting mid-run: the next launch offers resume and skips finished tasks', async () => {
     let hold = true

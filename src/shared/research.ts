@@ -68,3 +68,53 @@ export type RunView = z.infer<typeof RunViewSchema>
 export const DEFAULT_BUDGET_USD = 5
 export const DEFAULT_CONCURRENCY = 3
 export const MAX_CONCURRENCY = 6
+
+/** A research step's status from disk, across runs (REQUIREMENTS-v4.4 4A.2). */
+export const StepStatusSchema = z.enum(['done', 'skipped', 'failed', 'not-run'])
+export type StepStatus = z.infer<typeof StepStatusSchema>
+
+export const StepStateSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  /** One plain line on what the step produces. */
+  description: z.string(),
+  stage: z.number().int(),
+  status: StepStatusSchema,
+  /** When its output was written, or when its last run skipped or failed it (ISO). */
+  at: z.string().nullable(),
+  /** The skip reason or failure message from its last run. */
+  note: z.string().nullable(),
+  /** The steps it needs, in the same list. */
+  dependsOn: z.array(z.string()),
+  /** Where its output opens: a wiki page or an output file. */
+  open: z.string().nullable(),
+  /** Done and writes wiki articles: changed only through Regenerate, on this page. */
+  regenerate: z.string().nullable(),
+  /** Done, but running it again only adds a new source, output version or draft. */
+  rerunnable: z.boolean(),
+  /** Cost of running it once with the current model. */
+  costUsd: z.object({ low: z.number(), high: z.number() })
+})
+export type StepState = z.infer<typeof StepStateSchema>
+
+/** A step that can be run now: its dependencies are done or skipped, or come along with it. */
+export function canRun(
+  step: StepState,
+  byId: Map<string, StepState>,
+  alongside: Set<string>
+): boolean {
+  if (step.status === 'done' && !step.rerunnable) return false
+  return missingDeps(step, byId, alongside).length === 0
+}
+
+/** The dependencies with no output that are not coming along with this step. */
+export function missingDeps(
+  step: StepState,
+  byId: Map<string, StepState>,
+  alongside: Set<string>
+): string[] {
+  return step.dependsOn.filter((d) => {
+    const s = byId.get(d)
+    return !alongside.has(d) && s?.status !== 'done' && s?.status !== 'skipped'
+  })
+}

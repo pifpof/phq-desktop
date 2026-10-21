@@ -28,7 +28,7 @@ import {
 import { PdfOptionsSchema, PlaybookNavSchema, PlaybookViewSchema } from './playbook'
 import { HelpItemSchema, HelpPlanSchema } from './help'
 import { ProfileSchema } from './profile'
-import { RunViewSchema, type RunView } from './research'
+import { RunViewSchema, StepStateSchema, type RunView } from './research'
 import {
   AddResultSchema,
   DetectionSchema,
@@ -186,6 +186,16 @@ export const channels = {
     req: z.object({
       taskIds: z.array(z.string().min(1).max(200)).max(50).optional(),
       preset: z.enum(['playbook']).optional()
+    }),
+    res: RunViewSchema
+  },
+  /** Each step's status from disk, for the Research page (REQUIREMENTS-v4.4 4A). */
+  'research:taskStates': { req: z.undefined(), res: z.array(StepStateSchema) },
+  /** Run these steps: a new scoped run, or added to the run that is going (REQUIREMENTS-v4.4 4A.4). */
+  'research:runTasks': {
+    req: z.object({
+      taskIds: z.array(z.string().min(1).max(200)).min(1).max(50),
+      budgetCapUsd: z.number().min(0.01).max(10_000).optional()
     }),
     res: RunViewSchema
   },
@@ -431,6 +441,8 @@ export interface Api {
   allowResearchLinks(): Promise<Result<null>>
   rerunResearch(target: Req<'research:rerun'>): Promise<Result<Res<'research:rerun'>>>
   researchCatalog(): Promise<Result<Res<'research:catalog'>>>
+  researchTaskStates(): Promise<Result<Res<'research:taskStates'>>>
+  runResearchTasks(options: Req<'research:runTasks'>): Promise<Result<Res<'research:runTasks'>>>
   listInputs(): Promise<Result<Res<'inputs:list'>>>
   addInputs(
     category: Req<'inputs:add'>['category'],

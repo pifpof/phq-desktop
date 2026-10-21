@@ -5,7 +5,9 @@ import {
   DEFAULT_BUDGET_USD,
   DEFAULT_CONCURRENCY,
   MAX_CONCURRENCY,
-  type RunView
+  missingDeps,
+  type RunView,
+  type StepState
 } from '@shared/research'
 import type { Logger } from '../log'
 import { ProviderError, type Provider } from '../providers/types'
@@ -28,7 +30,8 @@ import { finishRun, readJob } from './regen-job'
 import { createExecutor, makeContext, outputVerifier, type LocalRunner } from './executor'
 import { priceFor, type Pricing } from './pricing'
 import type { SkillReader } from './prompt-builder'
-import { isUnfinished, latestRun, saveRun } from './run-store'
+import { isUnfinished, latestRun, listRuns, saveRun } from './run-store'
+import { stepStates } from './task-states'
 import { TASKS } from './tasks'
 import type { LocalHandler, TaskDef } from './types'
 
@@ -353,6 +356,77 @@ export function createResearchService(d: ServiceDeps) {
         throw new ResearchError('invalid_payload', 'There is nothing to run again.')
       }
       return this.start({ only: unique })
+    },
+
+    /** Each step's status from disk, across runs (REQUIREMENTS-v4.4 4A.2). Reads only. */
+    async taskStates(): Promise<StepState[]> {
+      const root = d.getRoot()
+      if (!root) throw new ResearchError('no_workspace', 'Choose a workspace folder first.')
+      const profile = (await readProfile(root)) ?? emptyProfile()
+      const company = safeName(profile.company.name)
+      const drafts = join(await stateDir(root), 'drafts')
+      const ctx = makeContext({ root: drafts, profile, runId: '', company, tasks })
+      const model = d.getModel() ?? ''
+      const pricing = d.pricing()
+      const competitors = Math.min(5, profile.company.competitors.length || 4)
+      return stepStates({
+        tasks,
+        draftsRoot: drafts,
+        wikiRoot: root,
+        ctx,
+        // The run in memory is newer than its file while saves catch up.
+        runs: [
+          ...(engine ? [engine.view()] : []),
+          ...(await listRuns(root)).filter((r) => r.id !== engine?.runId)
+        ],
+        verify: outputVerifier(drafts, ctx, root),
+        cost: (t) =>
+          estimateRun(
+            t.fanOut ? (Array(competitors).fill('web-profile') as TaskKind[]) : [t.kind],
+            model,
+            pricing,
+            1
+          ).costUsd
+      })
+    },
+
+    /**
+     * Runs the chosen steps (REQUIREMENTS-v4.4 4A.3, 4A.4): added to the run that is going, else a new
+     * scoped run. Refuses a step whose dependencies have no output and don't come along, and a done
+     * step that writes wiki articles (that goes through Regenerate).
+     */
+    async runTasks(ids: string[], options: { budgetCapUsd?: number } = {}): Promise<RunView> {
+      await loadInterrupted()
+      const states = await this.taskStates()
+      const byId = new Map(states.map((s) => [s.id, s]))
+      const unique = [...new Set(ids)]
+      if (!unique.length || unique.some((id) => !byId.has(id)))
+        throw new ResearchError('invalid_payload', 'There is nothing to run.')
+      const going = engine && !engine.isFinished ? engine : null
+      const fresh = unique.filter((id) => !going?.has(id))
+      const alongside = new Set([
+        ...fresh,
+        ...tasks.filter((t) => going?.has(t.id)).map((t) => t.id)
+      ])
+      for (const id of fresh) {
+        const s = byId.get(id)!
+        if (s.status === 'done' && !s.rerunnable)
+          throw new ResearchError(
+            'invalid_payload',
+            `${s.title} already has output. Use Regenerate to change it.`
+          )
+        const missing = missingDeps(s, byId, alongside)
+        if (missing.length)
+          throw new ResearchError(
+            'invalid_payload',
+            `${s.title} needs ${missing.map((m) => byId.get(m)?.title ?? m).join(', ')} first.`
+          )
+      }
+      if (going) {
+        going.addTasks(fresh)
+        return going.view()
+      }
+      return this.start({ only: fresh, budgetCapUsd: options.budgetCapUsd })
     },
 
     /** Every output the pipeline writes, for the Wiki pane (missing files show as missing). */
