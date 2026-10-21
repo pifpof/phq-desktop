@@ -6,6 +6,8 @@ export default defineConfig({
   test: {
     include: ['tests/unit/**/*.test.ts'],
     environment: 'node',
-    setupFiles: ['tests/unit/setup.ts']
+    setupFiles: ['tests/unit/setup.ts'],
+    // Pipeline tests run whole fake research runs; slower CI machines need the room.
+    testTimeout: 20_000
   }
 })

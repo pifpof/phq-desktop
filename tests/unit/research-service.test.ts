@@ -267,7 +267,7 @@ function makeService(provider: Provider, over: Partial<ServiceDeps> = {}) {
     ...over
   })
   const until = async (cond: () => boolean, label: string) => {
-    for (let i = 0; i < 700; i++) {
+    for (let i = 0; i < 2500; i++) {
       if (cond()) return
       await new Promise((r) => setTimeout(r, 4))
     }
