@@ -106,7 +106,9 @@ export const PlaybookViewSchema = z.object({
   overview: OverviewSchema,
   /** Some section has no takeaways: offer the backfill (REQUIREMENTS-v4 7.3). */
   needsTakeaways: z.boolean(),
-  private: z.boolean()
+  private: z.boolean(),
+  /** Built from the live articles while research runs, not from a saved version (REQUIREMENTS-v4.4 4.5). */
+  preview: z.boolean().optional()
 })
 export type PlaybookView = z.infer<typeof PlaybookViewSchema>
 

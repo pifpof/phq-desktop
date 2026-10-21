@@ -7,6 +7,7 @@ import {
   MAX_CONCURRENCY,
   missingDeps,
   type DoneStats,
+  type Finding,
   type RunKind,
   type RunView,
   type StepState
@@ -34,6 +35,7 @@ import { priceFor, type Pricing } from './pricing'
 import type { SkillReader } from './prompt-builder'
 import { isUnfinished, latestRun, listRuns, loadRun, saveRun } from './run-store'
 import { buildDoneStats } from './done-stats'
+import { buildFindings } from './findings'
 import { stepStates } from './task-states'
 import { TASKS } from './tasks'
 import type { LocalHandler, TaskDef } from './types'
@@ -475,6 +477,19 @@ export function createResearchService(d: ServiceDeps) {
         stage: 3
       })
       return entries
+    },
+
+    /** "What we've found so far" (REQUIREMENTS-v4.4 4.3), from disk. Reads only. */
+    async findings(): Promise<Finding[]> {
+      const root = d.getRoot()
+      if (!root) throw new ResearchError('no_workspace', 'Choose a workspace folder first.')
+      const profile = (await readProfile(root)) ?? emptyProfile()
+      return buildFindings({
+        wikiRoot: root,
+        draftsRoot: join(await stateDir(root), 'drafts'),
+        company: profile.company.name,
+        website: profile.company.website
+      })
     },
 
     /** The done screen was seen, or the playbook it led to was opened (REQUIREMENTS-v4.4 3.1). */

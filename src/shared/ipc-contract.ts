@@ -28,7 +28,13 @@ import {
 import { PdfOptionsSchema, PlaybookNavSchema, PlaybookViewSchema } from './playbook'
 import { HelpItemSchema, HelpPlanSchema } from './help'
 import { ProfileSchema } from './profile'
-import { DoneStatsSchema, RunViewSchema, StepStateSchema, type RunView } from './research'
+import {
+  DoneStatsSchema,
+  FindingSchema,
+  RunViewSchema,
+  StepStateSchema,
+  type RunView
+} from './research'
 import {
   AddResultSchema,
   DetectionSchema,
@@ -205,6 +211,18 @@ export const channels = {
     res: DoneStatsSchema.nullable()
   },
   'research:markDoneSeen': { req: z.object({ runId: z.string().min(1).max(100) }), res: z.null() },
+  /** "What we've found so far" (REQUIREMENTS-v4.4 4.3). Reads only. */
+  'research:findings': { req: z.undefined(), res: z.array(FindingSchema) },
+  /** Proof added while research runs, held outside the wiki (REQUIREMENTS-v4.4 4.4). */
+  'research:heldFiles': { req: z.undefined(), res: z.object({ names: z.array(z.string()) }) },
+  'research:holdFiles': {
+    req: z.object({ paths: z.array(z.string().min(1).max(4096)).min(1).max(50) }),
+    res: z.object({
+      held: z.array(z.string()),
+      refused: z.array(z.object({ name: z.string(), reason: z.string() }))
+    })
+  },
+  'research:addHeldFiles': { req: z.undefined(), res: z.object({ added: z.number() }) },
   'research:catalog': {
     req: z.undefined(),
     res: z.array(
@@ -345,6 +363,8 @@ export const channels = {
     req: z.object({ path: z.string().min(1).max(512).nullable() }),
     res: PlaybookViewSchema.nullable()
   },
+  /** The playbook from the sections written so far, while research runs (REQUIREMENTS-v4.4 4.5). */
+  'playbook:preview': { req: z.undefined(), res: PlaybookViewSchema },
   /** Add key takeaways and gaps (REQUIREMENTS-v4 7.3): the preview reads only; start runs and stages. */
   'playbook:regenPlan': { req: z.undefined(), res: PlaybookRegenPlanSchema },
   'playbook:getNav': { req: z.undefined(), res: PlaybookNavSchema },
@@ -509,6 +529,11 @@ export interface Api {
   setNavState(state: Req<'wiki:setNavState'>): Promise<Result<null>>
   listOutputs(kind: Req<'wiki:outputs'>['kind']): Promise<Result<Res<'wiki:outputs'>>>
   playbookView(path: string | null): Promise<Result<Res<'playbook:view'>>>
+  playbookPreview(): Promise<Result<Res<'playbook:preview'>>>
+  findings(): Promise<Result<Res<'research:findings'>>>
+  heldFiles(): Promise<Result<Res<'research:heldFiles'>>>
+  holdFiles(paths: string[]): Promise<Result<Res<'research:holdFiles'>>>
+  addHeldFiles(): Promise<Result<Res<'research:addHeldFiles'>>>
   takeawaysPlan(): Promise<Result<Res<'playbook:takeawaysPlan'>>>
   exportPdf(options: Req<'playbook:exportPdf'>): Promise<Result<Res<'playbook:exportPdf'>>>
   printReady(): Promise<Result<null>>

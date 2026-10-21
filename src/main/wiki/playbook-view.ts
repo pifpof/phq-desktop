@@ -16,6 +16,7 @@ import { cleanPlaybookMarkdown, dropDuplicateHeading } from '@shared/headings'
 import { parseScorecard, type Score } from '@shared/scorecard'
 import {
   applyCategoryTerms,
+  assemblePlaybookText,
   categoryTerms,
   PLAYBOOK_KIND,
   plainLinks,
@@ -25,7 +26,8 @@ import { loadArticles, splitSections, type ExistingArticle } from '../research/a
 import { PLAYBOOK_STEPS, type PlaybookStep } from './article-map'
 import { listChanges } from './changes'
 import { parseDoc, stringField, stringList } from './frontmatter'
-import { outputVersions, safeJoin } from './paths'
+import { isoDay, outputVersions, safeJoin } from './paths'
+import { readPlaybookExtras } from '../state/playbook-extras'
 import { GAP_HEADING, readGap, readTakeaways, TAKEAWAYS_HEADING } from './sections'
 
 /**
@@ -457,4 +459,29 @@ export async function playbookView(
     current: rel === newest,
     company
   })
+}
+
+/** Where a preview says it comes from. Never a real file. */
+export const PREVIEW_PATH = 'preview'
+
+/**
+ * The playbook as it stands while research runs (REQUIREMENTS-v4.4 4.5): assembled in memory from
+ * the sections written so far, nothing saved, no model call. Sections not written yet are missing.
+ */
+export async function playbookPreview(root: string, company: string): Promise<PlaybookView> {
+  const articles = await loadArticles(root)
+  const extras = await readPlaybookExtras(root).catch(() => ({}))
+  const { text } = assemblePlaybookText(articles, { company, version: 0, date: isoDay() }, extras)
+  return {
+    ...buildPlaybookView({
+      path: PREVIEW_PATH,
+      text,
+      articles,
+      changes: await listChanges(root).catch(() => []),
+      scores: null,
+      current: true,
+      company
+    }),
+    preview: true
+  }
 }

@@ -6,6 +6,7 @@ import { api, unwrap } from '@/lib/api'
 import { money } from '@/lib/research'
 import { useApp } from '@/store/app'
 import { useResearch } from '@/store/research'
+import { HeldPrompt } from './HeldPrompt'
 
 const COUNTDOWN_S = 5
 
@@ -150,6 +151,7 @@ export function DoneScreen({ runId }: { runId: string }) {
             See research details
           </button>
         </p>
+        <HeldPrompt className="bg-secondary mt-6 flex flex-wrap items-center justify-between gap-2 rounded-[10px] px-4 py-2.5 text-left" />
         {messagingRunning && (
           <p className="text-muted-foreground mt-6 text-[13px]">
             Messaging analysis is still running. We'll let you know.

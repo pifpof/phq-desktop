@@ -1,5 +1,6 @@
 import type { AppContext } from '../context'
 import { ResearchError } from '../research/service'
+import { heldFiles, holdFiles, addHeldFiles } from '../state/held-files'
 import { writableRoot } from './guard'
 import { HandlerError, type Handle } from './register'
 
@@ -36,6 +37,20 @@ export function registerResearch(handle: Handle, ctx: AppContext): void {
   })
   handle('research:catalog', () => run(() => ctx.research.catalog()))
   handle('research:taskStates', () => run(() => ctx.research.taskStates()))
+  handle('research:findings', () => run(() => ctx.research.findings()))
+  handle('research:heldFiles', async () => {
+    const root = ctx.settings.get().workspacePath
+    if (!root) throw new HandlerError('no_workspace')
+    return { names: await heldFiles(root) }
+  })
+  handle('research:holdFiles', async ({ paths }) => {
+    const root = await writableRoot(ctx)
+    return run(() => holdFiles(root, paths))
+  })
+  handle('research:addHeldFiles', async () => {
+    const root = await writableRoot(ctx)
+    return run(async () => ({ added: await addHeldFiles(root) }))
+  })
   handle('research:doneStats', ({ runId }) => run(() => ctx.research.doneStats(runId)))
   handle('research:markDoneSeen', ({ runId }) =>
     run(async () => (await ctx.research.markDoneSeen(runId), null))

@@ -7,7 +7,11 @@ import { useChanges } from '@/store/changes'
 import { useResearch } from '@/store/research'
 
 /** The page model for a version (null: the newest). Reloads when the wiki or a run changes. */
-export function usePlaybookView(path: string | null): {
+/** A saved version, or with `preview` the sections written so far (REQUIREMENTS-v4.4 4.5). */
+export function usePlaybookView(
+  path: string | null,
+  preview = false
+): {
   view: PlaybookView | null | undefined
   reload: () => void
 } {
@@ -15,12 +19,12 @@ export function usePlaybookView(path: string | null): {
   const seq = useRef(0)
   const reload = useCallback(() => {
     const n = ++seq.current
-    void unwrap(api.playbookView(path))
+    void unwrap(preview ? api.playbookPreview() : api.playbookView(path))
       .catch(() => null)
       .then((v) => {
         if (n === seq.current) setView(v)
       })
-  }, [path])
+  }, [path, preview])
   useEffect(() => {
     reload()
     let timer: ReturnType<typeof setTimeout> | null = null

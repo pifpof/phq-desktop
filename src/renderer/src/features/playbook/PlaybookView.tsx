@@ -29,6 +29,7 @@ import { usePlaybookNav, usePlaybookView, useVersions } from './usePlaybook'
 import { GapActions, HelpChip, HelpSheet } from './HelpSheet'
 import { ExportPdfDialog } from './ExportPdfDialog'
 import { useHelp } from '@/store/help'
+import { HeldPrompt } from '@/features/research/HeldPrompt'
 
 /**
  * The Positioning Playbook page (REQUIREMENTS-v4 3): a header with step tabs, the At a glance
@@ -130,7 +131,8 @@ export function PlaybookView() {
   const busyRun = isActive(run)
   const versions = useVersions()
   const [selected, setSelected] = useState(CURRENT)
-  const { view, reload } = usePlaybookView(selected === CURRENT ? null : selected)
+  const [preview, setPreview] = useState(false)
+  const { view, reload } = usePlaybookView(selected === CURRENT ? null : selected, preview)
   const { nav, save } = usePlaybookNav()
   const target = useApp((s) => s.playbookTarget)
   const [step, setStep] = useState<StepKey | null>(null)
@@ -152,6 +154,8 @@ export function PlaybookView() {
     setStep(target.step)
     setFocus(target.card || target.gap ? { card: target.card, gap: target.gap } : null)
     setLanding(target.from ? { from: target.from, updated: target.updated ?? [] } : null)
+    // Reading a section early only makes sense while research is still going.
+    setPreview(!!target.preview && isActive(useResearch.getState().run))
     useApp.setState({ playbookTarget: null })
   }, [target])
 
@@ -179,7 +183,7 @@ export function PlaybookView() {
   // Mark the shown step visited for this version, and remember it as the last step.
   useEffect(() => {
     const step = shown
-    if (!view || !nav || !step) return
+    if (!view || !nav || !step || view.preview) return
     const seen = nav.visited[view.path] ?? []
     if (seen.includes(step) && nav.last === step) return
     save((n) => ({
@@ -202,7 +206,9 @@ export function PlaybookView() {
   const section = view.sections.find((s) => s.id === current)
   const old = !view.current
   const date = formatDay(view.date)
-  const meta = [view.company, `Version ${view.version}`, date, 'Draft'].filter(Boolean).join(' · ')
+  const meta = view.preview
+    ? `${view.company} · Preview`
+    : [view.company, `Version ${view.version}`, date, 'Draft'].filter(Boolean).join(' · ')
   const revealLabel = useApp.getState().state?.revealLabel ?? 'Show in Finder'
 
   return (
@@ -219,79 +225,81 @@ export function PlaybookView() {
             </h1>
             <p className="text-muted-foreground mt-0.5 text-[13px]">{meta}</p>
           </div>
-          <div className="flex shrink-0 flex-wrap items-center gap-2">
-            <HelpChip />
-            {versions.length > 1 && (
-              <div className="w-[250px]">
-                <Select value={selected} onValueChange={setSelected}>
-                  <SelectTrigger aria-label="Version" className="h-8 text-sm" />
-                  <SelectContent>
-                    {versions.map((v, i) => (
-                      <SelectItem key={v.path} value={i === 0 ? CURRENT : v.path}>
-                        Version {v.version}
-                        {i === 0 ? ' · Current' : v.date ? ` · ${formatDay(v.date)}` : ''}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-            <Button variant="outline" size="sm" onClick={() => setDialog('pdf')}>
-              <FileDown strokeWidth={1.8} />
-              Export PDF
-            </Button>
-            <MenuButton
-              label="More actions"
-              items={[
-                {
-                  label: copied ? 'Copied' : 'Copy as markdown',
-                  icon: <Copy />,
-                  onSelect: () => {
-                    void api.copyDoc(view.path).then(() => {
-                      setCopied(true)
-                      setTimeout(() => setCopied(false), 1500)
-                    })
+          {!view.preview && (
+            <div className="flex shrink-0 flex-wrap items-center gap-2">
+              <HelpChip />
+              {versions.length > 1 && (
+                <div className="w-[250px]">
+                  <Select value={selected} onValueChange={setSelected}>
+                    <SelectTrigger aria-label="Version" className="h-8 text-sm" />
+                    <SelectContent>
+                      {versions.map((v, i) => (
+                        <SelectItem key={v.path} value={i === 0 ? CURRENT : v.path}>
+                          Version {v.version}
+                          {i === 0 ? ' · Current' : v.date ? ` · ${formatDay(v.date)}` : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              <Button variant="outline" size="sm" onClick={() => setDialog('pdf')}>
+                <FileDown strokeWidth={1.8} />
+                Export PDF
+              </Button>
+              <MenuButton
+                label="More actions"
+                items={[
+                  {
+                    label: copied ? 'Copied' : 'Copy as markdown',
+                    icon: <Copy />,
+                    onSelect: () => {
+                      void api.copyDoc(view.path).then(() => {
+                        setCopied(true)
+                        setTimeout(() => setCopied(false), 1500)
+                      })
+                    }
+                  },
+                  {
+                    label: 'Open in editor',
+                    icon: <FileText />,
+                    onSelect: () => void api.openDoc(view.path)
+                  },
+                  {
+                    label: revealLabel,
+                    icon: <FolderOpen />,
+                    onSelect: () => void api.revealDoc(view.path)
+                  },
+                  {
+                    label: 'Reassemble',
+                    icon: <Layers />,
+                    disabled: busyRun || old,
+                    onSelect: () => {
+                      void unwrap(api.reassemble())
+                        .then(() => useDocs.getState().refresh())
+                        .then(reload)
+                        .catch(() => undefined)
+                    }
                   }
-                },
-                {
-                  label: 'Open in editor',
-                  icon: <FileText />,
-                  onSelect: () => void api.openDoc(view.path)
-                },
-                {
-                  label: revealLabel,
-                  icon: <FolderOpen />,
-                  onSelect: () => void api.revealDoc(view.path)
-                },
-                {
-                  label: 'Reassemble',
-                  icon: <Layers />,
-                  disabled: busyRun || old,
-                  onSelect: () => {
-                    void unwrap(api.reassemble())
-                      .then(() => useDocs.getState().refresh())
-                      .then(reload)
-                      .catch(() => undefined)
-                  }
+                ]}
+              />
+              <Button
+                size="sm"
+                disabled={old || busyRun}
+                title={
+                  old
+                    ? 'Switch to the current version to regenerate'
+                    : busyRun
+                      ? 'Research is running'
+                      : undefined
                 }
-              ]}
-            />
-            <Button
-              size="sm"
-              disabled={old || busyRun}
-              title={
-                old
-                  ? 'Switch to the current version to regenerate'
-                  : busyRun
-                    ? 'Research is running'
-                    : undefined
-              }
-              onClick={() => setDialog('regenerate')}
-            >
-              <RefreshCw strokeWidth={1.8} />
-              Regenerate
-            </Button>
-          </div>
+                onClick={() => setDialog('regenerate')}
+              >
+                <RefreshCw strokeWidth={1.8} />
+                Regenerate
+              </Button>
+            </div>
+          )}
         </div>
         <div className="mt-4">
           <StepTabs
@@ -303,6 +311,29 @@ export function PlaybookView() {
         </div>
       </header>
 
+      {view.preview && !run?.playbookReadyAt && (
+        <Banner tone="muted">
+          <p className="text-sm">Preview. Your playbook is still being put together.</p>
+        </Banner>
+      )}
+      {view.preview && run?.playbookReadyAt && (
+        <Banner>
+          <p className="text-sm">Your playbook is ready.</p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setPreview(false)
+              go('overview')
+            }}
+          >
+            See At a glance
+          </Button>
+        </Banner>
+      )}
+      {!old && !view.preview && (
+        <HeldPrompt className="bg-accent flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b px-6 py-2.5" />
+      )}
       {old && (
         <Banner tone="muted">
           <p className="text-sm">You&apos;re viewing version {view.version}.</p>

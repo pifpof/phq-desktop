@@ -282,8 +282,10 @@ export function PlaybookSection({
         <h2 className="mt-2 font-serif text-[32px] leading-tight font-bold">{section.title}</h2>
         {section.missing ? (
           <div className="mt-6 rounded-xl border border-dashed px-5 py-6">
-            <p className="text-muted-foreground text-sm">Not generated yet.</p>
-            {view.current && (
+            <p className="text-muted-foreground text-sm">
+              {view.preview ? 'Still writing.' : 'Not generated yet.'}
+            </p>
+            {view.current && !view.preview && (
               <Button variant="outline" size="sm" className="mt-3" onClick={onGenerate}>
                 Generate
               </Button>

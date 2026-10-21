@@ -7,7 +7,16 @@ import { Button } from '@/components/ui/button'
  * Missing pieces say so; the overview never invents text.
  */
 
-function Missing({ onGenerate, disabled }: { onGenerate: () => void; disabled: boolean }) {
+function Missing({
+  onGenerate,
+  disabled,
+  preview
+}: {
+  onGenerate: () => void
+  disabled: boolean
+  preview?: boolean
+}) {
+  if (preview) return <p className="text-muted-foreground text-sm">Still writing.</p>
   return (
     <p className="text-muted-foreground text-sm">
       Not generated yet.{' '}
@@ -45,7 +54,7 @@ export function PlaybookOverview({
   canGenerate: boolean
 }) {
   const o = view.overview
-  const missing = <Missing onGenerate={onGenerate} disabled={!canGenerate} />
+  const missing = <Missing onGenerate={onGenerate} disabled={!canGenerate} preview={view.preview} />
   const gapSection = o.biggestGap
     ? view.sections.find((s) => s.id === o.biggestGap!.step)
     : undefined

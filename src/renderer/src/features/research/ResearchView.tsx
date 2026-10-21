@@ -21,7 +21,6 @@ import {
   money,
   pauseText,
   playbookPublished,
-  progressCounts,
   remaining,
   STAGE_TITLES,
   toggleStep
@@ -29,7 +28,8 @@ import {
 import { useNow } from '@/lib/useNow'
 import { useApp } from '@/store/app'
 import { useResearch } from '@/store/research'
-import { CostMeter } from './CostMeter'
+import { FindingsColumn } from './FindingsColumn'
+import { ProgressHeader } from './ProgressHeader'
 import { DoneScreen } from './DoneScreen'
 import { ProblemsScreen, finishedWithProblems } from './ProblemsScreen'
 import { StepRow } from './StepRow'
@@ -62,6 +62,8 @@ export function ResearchView() {
   }, [signature])
 
   const running = useMemo(() => inRun(run), [run])
+  // Findings change when a task finishes, not on every tick.
+  const findingsKey = run ? `${run.id}:${run.tasks.filter((t) => t.status === 'done').length}` : ''
   const list = useMemo(() => steps ?? [], [steps])
   const byId = useMemo(() => new Map(list.map((s) => [s.id, s])), [list])
   // A ticked step that joined the run, or lost what it needs, is no longer ticked.
@@ -113,7 +115,6 @@ export function ResearchView() {
   const left = remaining(list, running)
   const withOutput = list.filter((s) => s.status === 'done').length
   const published = playbookPublished(run)
-  const { done, total } = run ? progressCounts(run) : { done: 0, total: 0 }
 
   const runIds = async (ids: string[]): Promise<void> => {
     if (!ids.length || busy) return
@@ -141,7 +142,7 @@ export function ResearchView() {
   const summary = active
     ? run!.status === 'paused'
       ? pauseText(run!)
-      : `${done} of ${total} steps done in this run`
+      : 'Research is running.'
     : withOutput === 0
       ? 'Nothing has run yet. Start with one step, or run everything.'
       : withOutput === list.length
@@ -159,7 +160,7 @@ export function ResearchView() {
     <div className="bg-background relative flex h-full flex-col">
       <DragRegion />
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-[820px] px-6 pt-14 pb-16">
+        <div className="mx-auto max-w-[1180px] px-6 pt-14 pb-16">
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div>
               <p className="eyebrow">Research</p>
@@ -188,9 +189,7 @@ export function ResearchView() {
 
           {active && run && (
             <>
-              <div className="mt-6 rounded-xl border p-5">
-                <CostMeter spent={run.spentUsd} cap={run.budgetCapUsd} />
-              </div>
+              <ProgressHeader run={run} steps={list} />
               <div className="mt-4 flex flex-wrap gap-3">
                 {run.status === 'paused' ? (
                   <Button
@@ -236,58 +235,61 @@ export function ResearchView() {
             </p>
           )}
 
-          <div className="mt-10 space-y-8">
-            {stages.map((stage) => (
-              <section key={stage} aria-labelledby={`stage-${stage}`}>
-                <h3
-                  id={`stage-${stage}`}
-                  className="text-muted-foreground font-sans text-[13px] font-semibold tracking-[0.14em] uppercase"
-                >
-                  {STAGE_TITLES[stage] ?? `Stage ${stage}`}
-                </h3>
-                {stage === 4 && (
-                  <p className="text-muted-foreground mt-1 text-[13px]">
-                    Each step ends with key takeaways and, where needed, a gap to close.
-                  </p>
-                )}
-                <ul className="mt-2 divide-y">
-                  {list
-                    .filter((s) => s.stage === stage)
-                    .map((s) => {
-                      const live = running.has(s.id)
-                        ? run!.tasks.find((t) => t.id === s.id)
-                        : undefined
-                      const alone = new Set(running)
-                      return (
-                        <StepRow
-                          key={s.id}
-                          step={s}
-                          live={live}
-                          children={live ? run!.tasks.filter((c) => c.parent === s.id) : []}
-                          now={now}
-                          ticked={ticked.has(s.id)}
-                          tickable={ticked.has(s.id) || canTick(s, list, ticked, running)}
-                          needs={needsOf(s)}
-                          runnable={canTick(s, list, alone, running)}
-                          busy={busy}
-                          onToggle={() => setSelected(toggleStep(s.id, list, ticked, running))}
-                          onRun={() => void runIds([s.id])}
-                          onRetry={(id) => void useResearch.getState().retry(id)}
-                          onOpen={(path) => useApp.getState().openWikiFile(path)}
-                          onRegenerate={(slug) => useApp.getState().openRegenerate(slug)}
-                        />
-                      )
-                    })}
-                </ul>
-              </section>
-            ))}
+          <div className="mt-10 grid gap-10 min-[1100px]:grid-cols-[minmax(0,1fr)_340px]">
+            <div className="min-w-0 space-y-8">
+              {stages.map((stage) => (
+                <section key={stage} aria-labelledby={`stage-${stage}`}>
+                  <h3
+                    id={`stage-${stage}`}
+                    className="text-muted-foreground font-sans text-[13px] font-semibold tracking-[0.14em] uppercase"
+                  >
+                    {STAGE_TITLES[stage] ?? `Stage ${stage}`}
+                  </h3>
+                  {stage === 4 && (
+                    <p className="text-muted-foreground mt-1 text-[13px]">
+                      Each step ends with key takeaways and, where needed, a gap to close.
+                    </p>
+                  )}
+                  <ul className="mt-2 divide-y">
+                    {list
+                      .filter((s) => s.stage === stage)
+                      .map((s) => {
+                        const live = running.has(s.id)
+                          ? run!.tasks.find((t) => t.id === s.id)
+                          : undefined
+                        const alone = new Set(running)
+                        return (
+                          <StepRow
+                            key={s.id}
+                            step={s}
+                            live={live}
+                            children={live ? run!.tasks.filter((c) => c.parent === s.id) : []}
+                            now={now}
+                            ticked={ticked.has(s.id)}
+                            tickable={ticked.has(s.id) || canTick(s, list, ticked, running)}
+                            needs={needsOf(s)}
+                            runnable={canTick(s, list, alone, running)}
+                            busy={busy}
+                            onToggle={() => setSelected(toggleStep(s.id, list, ticked, running))}
+                            onRun={() => void runIds([s.id])}
+                            onRetry={(id) => void useResearch.getState().retry(id)}
+                            onOpen={(path) => useApp.getState().openWikiFile(path)}
+                            onRegenerate={(slug) => useApp.getState().openRegenerate(slug)}
+                          />
+                        )
+                      })}
+                  </ul>
+                </section>
+              ))}
+            </div>
+            <FindingsColumn signature={findingsKey} active={active} />
           </div>
         </div>
       </div>
 
       {ticked.size > 0 && (
         <div className="bg-background shrink-0 border-t py-3">
-          <div className="mx-auto flex max-w-[820px] flex-wrap items-center justify-between gap-3 px-6">
+          <div className="mx-auto flex max-w-[1180px] flex-wrap items-center justify-between gap-3 px-6">
             <div className="text-sm">
               <span className="font-semibold">{ticked.size} selected</span>
               <span className="text-muted-foreground">

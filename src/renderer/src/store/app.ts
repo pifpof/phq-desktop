@@ -26,6 +26,8 @@ export interface PlaybookTarget {
   from?: 'run' | 'update'
   /** For an update: the sections that changed. */
   updated?: StepId[]
+  /** Read a section early, from the articles written so far (REQUIREMENTS-v4.4 4.5). */
+  preview?: boolean
 }
 
 /** What the Wiki pane shows when another view sends someone there. */

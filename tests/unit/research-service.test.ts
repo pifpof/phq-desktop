@@ -883,6 +883,72 @@ describe('research service: playbook ready (REQUIREMENTS-v4.4 3.1)', () => {
   })
 })
 
+describe('research service: the waiting state (REQUIREMENTS-v4.4 4)', () => {
+  it('builds finding cards from disk, newest first, with nothing private', async () => {
+    const s = makeService(fakeProvider().provider)
+    expect(await s.service.findings()).toEqual([])
+    await s.service.start()
+    await s.until(() => s.finished.length === 1, 'full run')
+    const cards = await s.service.findings()
+    const ids = cards.map((c) => c.id)
+    expect(new Set(ids).size).toBe(ids.length)
+    expect(cards.find((c) => c.id === 'crawl')?.title).toBe('We read 1 page of acme.example.')
+    const competitors = cards.find((c) => c.id === 'competitors')!
+    expect(competitors.chips.map((c) => c.name).sort()).toEqual(['Road Runner Inc', 'Wile Co'])
+    expect(cards.filter((c) => c.step).length).toBeGreaterThan(0)
+    for (const c of cards.filter((c) => c.step)) expect(c.title).toMatch(/ is written$/)
+    expect([...cards].sort((a, b) => b.at - a.at)).toEqual(cards)
+    expect(JSON.stringify(cards)).not.toContain(SECRET)
+  })
+
+  it('holds proof added during a run outside the wiki, then adds it when asked', async () => {
+    const { heldFiles, holdFiles, addHeldFiles } = await import('../../src/main/state/held-files')
+    const src = mkdtempSync(join(tmpdir(), 'phq-held-'))
+    writeFileSync(join(src, 'quote.md'), 'Acme saved us a week. HELD-PROOF-4411')
+    writeFileSync(join(src, 'tool.exe'), 'x')
+    const r = await holdFiles(ws, [join(src, 'quote.md'), join(src, 'tool.exe')])
+    expect(r.held).toEqual(['quote.md'])
+    expect(r.refused.map((x) => x.name)).toEqual(['tool.exe'])
+    expect(await heldFiles(ws)).toEqual(['quote.md'])
+
+    // A run with the file held never sees it.
+    const f = fakeProvider()
+    const s = makeService(f.provider)
+    await s.service.start()
+    await s.until(() => s.finished.length === 1, 'full run')
+    expect(f.calls.some((c) => c.text.includes('HELD-PROOF-4411'))).toBe(false)
+    expect((await scanWiki(ws)).some((x) => x.rel.includes('quote'))).toBe(false)
+
+    expect(await addHeldFiles(ws)).toBe(1)
+    expect(await heldFiles(ws)).toEqual([])
+    const raw = (await scanWiki(ws)).find(
+      (x) => x.rel.startsWith('raw/') && x.rel.includes('quote')
+    )
+    expect(raw).toBeTruthy()
+    expect(readFileSync(join(ws, raw!.rel), 'utf8')).toMatch(/customer-references/)
+  })
+
+  it('previews the playbook from the sections written so far, saving nothing', async () => {
+    const { playbookPreview } = await import('../../src/main/wiki/playbook-view')
+    const s = makeService(fakeProvider().provider)
+    await s.service.runTasks([
+      'extract-input-files',
+      'research-02-product',
+      'research-03-market-segment',
+      'research-04-customer-segment',
+      'research-05-strengths',
+      'research-06-weaknesses',
+      'research-07-recent-developments'
+    ])
+    await s.until(() => s.finished.length === 1, 'research')
+    const before = existsSync(join(ws, 'output')) ? readdirSync(join(ws, 'output')) : []
+    const v = await playbookPreview(ws, 'Acme Rockets')
+    expect(v.preview).toBe(true)
+    expect(v.sections.every((x) => x.missing)).toBe(true)
+    expect(existsSync(join(ws, 'output')) ? readdirSync(join(ws, 'output')) : []).toEqual(before)
+  })
+})
+
 describe('research service: interruptions', () => {
   it('survives quitting mid-run: the next launch offers resume and skips finished tasks', async () => {
     let hold = true

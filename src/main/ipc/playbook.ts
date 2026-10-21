@@ -10,7 +10,7 @@ import { PLAYBOOK_TASKS } from '../research/service'
 import { stateDir, writeJsonAtomic } from '../state/app-state'
 import { PLAYBOOK_STEPS } from '../wiki/article-map'
 import { listChanges } from '../wiki/changes'
-import { playbookView } from '../wiki/playbook-view'
+import { playbookPreview, playbookView } from '../wiki/playbook-view'
 import { readProfile } from '../workspace/profile'
 import { RegenError, startTakeaways, takeawaysPlan } from '../research/regenerate'
 import { workspaceRoot, writableRoot } from './guard'
@@ -22,6 +22,10 @@ export function registerPlaybook(handle: Handle, ctx: AppContext): void {
     const r = workspaceRoot(ctx)
     const company = (await readProfile(r))?.company.name || 'Company'
     return playbookView(r, path, company)
+  })
+  handle('playbook:preview', async () => {
+    const r = workspaceRoot(ctx)
+    return playbookPreview(r, (await readProfile(r))?.company.name || 'Company')
   })
   // Visited steps and the last step: app state, never the wiki (REQUIREMENTS-v4 4.1).
   const navFile = async (): Promise<string> =>

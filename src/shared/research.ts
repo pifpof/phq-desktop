@@ -149,3 +149,19 @@ export const DoneStatsSchema = z.object({
   messagingRunning: z.boolean()
 })
 export type DoneStats = z.infer<typeof DoneStatsSchema>
+
+/** A card in "What we've found so far" (REQUIREMENTS-v4.4 4.3), read from disk with no model call. */
+export const FindingSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  body: z.string().nullable(),
+  quote: z.object({ text: z.string(), url: z.string().nullable() }).nullable(),
+  chips: z.array(z.object({ name: z.string(), term: z.string().nullable() })),
+  /** The wiki page "Open in Wiki" opens. */
+  open: z.string().nullable(),
+  /** A playbook step "Read it" opens (a section card). */
+  step: z.string().nullable(),
+  /** When what it reads from was written (ms), for newest first. */
+  at: z.number()
+})
+export type Finding = z.infer<typeof FindingSchema>
