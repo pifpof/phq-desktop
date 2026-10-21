@@ -93,7 +93,11 @@ function Empty() {
               <TaskRow key={t.id} task={t} now={now} />
             ))}
         </ul>
-        <Button variant="outline" className="mt-6" onClick={() => useApp.getState().go('progress')}>
+        <Button
+          variant="outline"
+          className="mt-6"
+          onClick={() => void useApp.getState().goHome('research')}
+        >
           View all progress
         </Button>
       </div>

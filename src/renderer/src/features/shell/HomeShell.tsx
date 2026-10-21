@@ -7,6 +7,7 @@ import { useResearch } from '@/store/research'
 import { ChatView } from '@/features/chat/ChatView'
 import { MessagingView } from '@/features/messaging/MessagingView'
 import { PlaybookView } from '@/features/playbook/PlaybookView'
+import { ResearchView } from '@/features/research/ResearchView'
 import { WikiView } from '@/features/wiki/WikiView'
 import { UseWikiView } from '@/features/use-wiki/UseWikiView'
 import { MigrationWizard } from '@/features/migrate/MigrationWizard'
@@ -64,6 +65,7 @@ export function HomeShell() {
           {needsMigration && <MigrationWizard />}
           {!needsMigration && view === 'chat' && <ChatView />}
           {!needsMigration && view === 'wiki' && <WikiView />}
+          {!needsMigration && view === 'research' && <ResearchView />}
           {!needsMigration && view === 'playbook' && <PlaybookView />}
           {!needsMigration && view === 'messaging' && <MessagingView />}
           {!needsMigration && view === 'use-wiki' && <UseWikiView />}

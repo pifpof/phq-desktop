@@ -264,7 +264,7 @@ export function WikiView() {
     setError(null)
     try {
       await useResearch.getState().rerun({ taskIds: [taskId] })
-      useApp.getState().go('progress')
+      void useApp.getState().goHome('research')
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not start. Please try again.')
     }

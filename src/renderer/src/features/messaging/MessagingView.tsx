@@ -116,7 +116,7 @@ export function MessagingView() {
           disabled={isActive(run)}
           onClick={async () => {
             await useResearch.getState().rerun({ taskIds: ['messaging-analysis'] })
-            useApp.getState().go('progress')
+            void useApp.getState().goHome('research')
           }}
         >
           <RotateCcw strokeWidth={1.8} />

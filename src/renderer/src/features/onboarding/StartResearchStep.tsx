@@ -45,8 +45,7 @@ export function StartResearchStep() {
     try {
       await finishOnboarding()
       await useResearch.getState().start({ budgetCapUsd: budgetUsd })
-      await useApp.getState().goHome()
-      useApp.getState().go('progress')
+      await useApp.getState().goHome('research')
     } catch (err) {
       setError(
         err instanceof ApiError ? err.message : 'Could not start research. Please try again.'
@@ -54,6 +53,12 @@ export function StartResearchStep() {
     } finally {
       setStarting(false)
     }
+  }
+
+  /** Finish onboarding and open the Research page with nothing running (REQUIREMENTS-v4.4 4A.5). */
+  const chooseSteps = async (): Promise<void> => {
+    await finishOnboarding()
+    await useApp.getState().goHome('research')
   }
 
   const notNow = async (): Promise<void> => {
@@ -164,16 +169,28 @@ export function StartResearchStep() {
         </p>
       )}
 
-      <div className="mt-8 flex gap-3">
+      <p className="text-muted-foreground mt-6 text-sm">
+        Not sure yet? Choose steps to run one at a time and read each result before you run the
+        next.
+      </p>
+
+      <div className="mt-4 flex flex-wrap gap-3">
         <Button
-          className="flex-1"
+          className="min-w-[140px] flex-1"
           autoFocus
           disabled={!budgetValid || starting}
           onClick={() => void start()}
         >
-          {starting ? 'Starting...' : 'Start research'}
+          {starting ? 'Starting...' : 'Run everything'}
         </Button>
-        <Button className="flex-1" variant="outline" onClick={() => void notNow()}>
+        <Button
+          className="min-w-[140px] flex-1"
+          variant="outline"
+          onClick={() => void chooseSteps()}
+        >
+          Choose steps
+        </Button>
+        <Button className="min-w-[140px] flex-1" variant="outline" onClick={() => void notNow()}>
           {vault ? 'Use what is there' : 'Not now'}
         </Button>
       </div>

@@ -4,6 +4,7 @@ import {
   BookText,
   Folder,
   Gauge,
+  ListChecks,
   Share2,
   MessageSquare,
   PanelLeft,
@@ -22,6 +23,7 @@ import { ResearchPill } from './ResearchPill'
 const NAV: { view: HomeView; label: string; Icon: ComponentType<LucideProps> }[] = [
   { view: 'chat', label: 'Chat', Icon: MessageSquare },
   { view: 'wiki', label: 'Wiki', Icon: BookText },
+  { view: 'research', label: 'Research', Icon: ListChecks },
   { view: 'playbook', label: 'Positioning Playbook', Icon: BookOpen },
   { view: 'messaging', label: 'Messaging Analysis', Icon: Gauge },
   { view: 'use-wiki', label: 'Use your wiki', Icon: Share2 }

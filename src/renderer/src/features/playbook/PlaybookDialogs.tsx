@@ -94,7 +94,7 @@ export function RegeneratePlaybookDialog({ onClose }: { onClose: () => void }) {
     try {
       await useResearch.getState().rerun({ preset: 'playbook' })
       onClose()
-      useApp.getState().go('progress')
+      void useApp.getState().goHome('research')
     } catch (err) {
       setError(failed(err))
     } finally {

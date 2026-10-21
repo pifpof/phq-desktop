@@ -17,7 +17,11 @@ export function ResearchPill() {
   if (isActive(run) && run) {
     const { done, total } = progressCounts(run)
     return (
-      <button type="button" className={cls} onClick={() => useApp.getState().go('progress')}>
+      <button
+        type="button"
+        className={cls}
+        onClick={() => void useApp.getState().goHome('research')}
+      >
         {run.status === 'paused' ? (
           <Pause className="text-primary size-3.5" strokeWidth={2} />
         ) : (

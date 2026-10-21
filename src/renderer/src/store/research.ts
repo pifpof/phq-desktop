@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import type { Res } from '@shared/ipc-contract'
-import type { RunView } from '@shared/research'
+import type { RunView, StepState } from '@shared/research'
 import { api, unwrap } from '@/lib/api'
 
 export type Estimate = Res<'research:estimate'>
@@ -24,6 +24,12 @@ interface ResearchStore {
   /** A new run of just these tasks, or the playbook preset. */
   rerun(target: { taskIds?: string[]; preset?: 'playbook' }): Promise<void>
   dismissPause(): void
+  /** Each step's status from disk (REQUIREMENTS-v4.4 4A). */
+  steps: StepState[] | null
+  stepsError: string | null
+  loadSteps(): Promise<void>
+  /** Runs these steps: a new run, or added to the one that is going. */
+  runTasks(taskIds: string[], budgetCapUsd?: number): Promise<void>
 }
 
 /** Identifies one pause, so a closed dialog stays closed until something changes. */
@@ -86,5 +92,20 @@ export const useResearch = create<ResearchStore>((set, get) => ({
 
   dismissPause() {
     set({ dismissedPause: pauseKey(get().run) })
+  },
+
+  steps: null,
+  stepsError: null,
+  async loadSteps() {
+    try {
+      set({ steps: await unwrap(api.researchTaskStates()), stepsError: null })
+    } catch (err) {
+      set({ stepsError: err instanceof Error ? err.message : 'Could not read the research steps.' })
+    }
+  },
+
+  async runTasks(taskIds, budgetCapUsd) {
+    const run = await unwrap(api.runResearchTasks({ taskIds, budgetCapUsd }))
+    set({ run, dismissedPause: null })
   }
 }))

@@ -11,6 +11,7 @@ export function ResearchBanner() {
   const loaded = useResearch((s) => s.loaded)
   const docsLoaded = useDocs((s) => s.loaded)
   const hasPlaybook = useDocs((s) => !!s.playbookPath)
+  const view = useApp((s) => s.homeView)
   const [busy, setBusy] = useState(false)
   if (!loaded || !docsLoaded) return null
 
@@ -28,7 +29,7 @@ export function ResearchBanner() {
     return bar(
       pauseText(run),
       <>
-        <Button variant="ghost" size="sm" onClick={() => useApp.getState().go('progress')}>
+        <Button variant="ghost" size="sm" onClick={() => void useApp.getState().goHome('research')}>
           View progress
         </Button>
         <Button
@@ -48,11 +49,11 @@ export function ResearchBanner() {
       </>
     )
   }
-  if (!hasPlaybook && !isActive(run)) {
+  if (!hasPlaybook && !isActive(run) && view !== 'research') {
     return bar(
       'Finish setting up: run research to build your playbook.',
-      <Button size="sm" onClick={() => useApp.getState().startFlow('research')}>
-        Start research
+      <Button size="sm" onClick={() => void useApp.getState().goHome('research')}>
+        Open Research
       </Button>
     )
   }

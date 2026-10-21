@@ -2,6 +2,7 @@ import { readdir, readFile, stat } from 'fs/promises'
 import { basename } from 'path'
 import matter from 'gray-matter'
 import type { RunView, StepState } from '@shared/research'
+import { ARTICLE_MAP, takeawayTarget } from '../wiki/article-map'
 import { stringField, stringList } from '../wiki/frontmatter'
 import { resolveInside } from '../workspace/paths'
 import type { TaskContext, TaskDef } from './types'
@@ -13,8 +14,8 @@ import type { TaskContext, TaskDef } from './types'
 
 /** What each step produces, in one plain line (REQUIREMENTS-v4.4 4A.2, open item 4). */
 export const STEP_DESCRIPTIONS: Record<string, string> = {
-  'crawl-website': 'Reads up to 30 pages of your website. Free, runs on this computer.',
-  'extract-input-files': 'Reads the files you added. Free, runs on this computer.',
+  'crawl-website': 'Reads up to 30 pages of your website, on this computer.',
+  'extract-input-files': 'Reads the files you added, on this computer.',
   'find-social-profiles': 'Finds your LinkedIn, X and other profiles.',
   'research-02-product': 'What you sell and how it works, from the web.',
   'research-03-market-segment': 'The market you sell into and its size.',
@@ -38,7 +39,7 @@ export const STEP_DESCRIPTIONS: Record<string, string> = {
   'playbook-05-statement': 'Playbook section: your positioning statement and message variations.',
   'playbook-06-competitive': 'Playbook section: how to win against each kind of competitor.',
   'playbook-07-proof': 'Playbook section: the proof that backs your claims.',
-  'playbook-assemble': 'Puts the seven sections together as a new playbook version. Free.',
+  'playbook-assemble': 'Puts the seven sections together as a new playbook version.',
   'messaging-analysis': 'Scores your current messaging and lists the fixes that matter most.'
 }
 
@@ -83,6 +84,33 @@ async function receipt(
   }
 }
 
+/**
+ * The page a step owns, from the article map, when its receipt lists none (a kept regeneration
+ * leaves an empty one). Only if the page is there.
+ */
+async function ownedPage(wikiRoot: string, taskId: string): Promise<string | null> {
+  const spec = ARTICLE_MAP.find((a) => a.task === taskId && !a.pattern)
+  if (!spec) return null
+  const rel = `wiki/${spec.category}s/${spec.slug}.md`
+  const full = resolveInside(wikiRoot, rel)
+  try {
+    return full && (await stat(full)).isFile() ? rel : null
+  } catch {
+    return null
+  }
+}
+
+/** Playbook sections in the playbook's own order, everything else in task order. */
+function ordered(tasks: TaskDef[]): TaskDef[] {
+  const n = (t: TaskDef): number => takeawayTarget(t.id)?.step.n ?? 0
+  const index = new Map(tasks.map((t, i) => [t.id, i]))
+  return [...tasks].sort((a, b) => {
+    if (a.stage !== b.stage) return a.stage - b.stage
+    if (n(a) && n(b)) return n(a) - n(b)
+    return index.get(a.id)! - index.get(b.id)!
+  })
+}
+
 /** The newest run that ended this step (done, skipped other than by stopping, or failed). */
 function lastEnded(runs: RunView[], id: string): RunView['tasks'][number] | null {
   for (const run of [...runs].sort((a, b) => b.startedAt - a.startedAt)) {
@@ -97,7 +125,7 @@ function lastEnded(runs: RunView[], id: string): RunView['tasks'][number] | null
 const iso = (ms: number | null): string | null => (ms ? new Date(ms).toISOString() : null)
 
 export async function stepStates(d: StepStateDeps): Promise<StepState[]> {
-  const top = d.tasks.filter((t) => !t.onDemand)
+  const top = ordered(d.tasks.filter((t) => !t.onDemand))
   const ids = new Set(top.map((t) => t.id))
   const out: StepState[] = []
   for (const t of top) {
@@ -111,13 +139,18 @@ export async function stepStates(d: StepStateDeps): Promise<StepState[]> {
         : last?.status === 'failed'
           ? 'failed'
           : 'not-run'
-    const written = r?.written ?? []
+    const written = r?.written.length
+      ? r.written
+      : done && writesArticles(t)
+        ? [await ownedPage(d.wikiRoot, t.id)].filter((w): w is string => !!w)
+        : []
     const open = written.find((w) => w.startsWith('wiki/') || w.startsWith('output/')) ?? null
     const articles = writesArticles(t)
     const page = written.find((w) => w.startsWith('wiki/'))
     out.push({
       id: t.id,
-      title: t.title,
+      // Playbook sections use the playbook's own step names (REQUIREMENTS-v4.4 4.4).
+      title: takeawayTarget(t.id)?.step.title ?? t.title,
       description: STEP_DESCRIPTIONS[t.id] ?? '',
       stage: t.stage,
       status,

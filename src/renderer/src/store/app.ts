@@ -6,13 +6,13 @@ import { emptyProfile, type Profile } from '@shared/profile'
 import { api, unwrap } from '@/lib/api'
 import { isProfileStep, type WizardStep } from '@/features/onboarding/steps'
 
-export type Step = 'welcome' | WizardStep | 'home' | 'progress'
+export type Step = 'welcome' | WizardStep | 'home'
 /**
  * `wizard` is first-run setup. `replaceKey` and `changeFolder` re-run one step from Settings,
  * and `research` opens the start-research card from home. All of them return home.
  */
 export type Flow = 'wizard' | 'replaceKey' | 'changeFolder' | 'research'
-export type HomeView = 'chat' | 'wiki' | 'playbook' | 'messaging' | 'use-wiki'
+export type HomeView = 'chat' | 'wiki' | 'research' | 'playbook' | 'messaging' | 'use-wiki'
 
 /**
  * Where the playbook page opens when another part of the app sends someone there

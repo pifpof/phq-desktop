@@ -21,7 +21,7 @@ export function FilesPane() {
             size="sm"
             onClick={async () => {
               await useResearch.getState().rerun({ preset: 'playbook' })
-              useApp.getState().go('progress')
+              void useApp.getState().goHome('research')
             }}
           >
             Regenerate playbook with these files

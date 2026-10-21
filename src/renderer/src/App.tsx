@@ -12,7 +12,6 @@ import { Verify } from '@/features/onboarding/Verify'
 import { Welcome } from '@/features/onboarding/Welcome'
 import { Workspace } from '@/features/onboarding/Workspace'
 import { PauseDialog } from '@/features/research/PauseDialog'
-import { ProgressScreen } from '@/features/research/ProgressScreen'
 import { SettingsSheet } from '@/features/settings/SettingsSheet'
 import { HomeShell } from '@/features/shell/HomeShell'
 
@@ -31,7 +30,7 @@ export default function App() {
     return off
   }, [])
   useEffect(() => {
-    if (step === 'home' || step === 'progress') void useResearch.getState().load()
+    if (step === 'home') void useResearch.getState().load()
   }, [step])
 
   if (loadError) {
@@ -58,7 +57,6 @@ export default function App() {
       {step === 'files' && <FilesStep />}
       {step === 'start' && <StartResearchStep />}
       {step === 'home' && <HomeShell />}
-      {step === 'progress' && <ProgressScreen />}
       <SettingsSheet />
       <PauseDialog />
     </>
