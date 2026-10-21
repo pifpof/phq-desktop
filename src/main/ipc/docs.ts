@@ -2,6 +2,7 @@ import { clipboard, shell } from 'electron'
 import { readdir, readFile, stat } from 'fs/promises'
 import { join } from 'path'
 import matter from 'gray-matter'
+import { cleanPlaybookMarkdown } from '@shared/headings'
 import { isAllowedExternalUrl } from '@shared/links'
 import { parseSocialTable } from '@shared/social'
 import { pasteSocialNote } from '../ingest/files-to-raw'
@@ -34,8 +35,14 @@ export function registerDocs(handle: Handle, ctx: AppContext): void {
   handle('docs:copy', async ({ path }) => {
     const full = resolveInside(root(), path)
     if (!full || !(await exists(full))) throw new HandlerError('not_allowed')
-    // The document as markdown, without the app's front matter.
-    clipboard.writeText(matter(await readFile(full, 'utf8')).content.trim() + '\n')
+    // The document as markdown, without the app's front matter. A playbook drops its duplicate
+    // headings, as the page does (REQUIREMENTS-v4.4 5.1).
+    let text = matter(await readFile(full, 'utf8')).content.trim()
+    if (/^output\/positioning-playbook-/.test(path)) {
+      const company = (await readProfile(root()))?.company.name
+      text = cleanPlaybookMarkdown(text, company)
+    }
+    clipboard.writeText(text + '\n')
     return null
   })
 

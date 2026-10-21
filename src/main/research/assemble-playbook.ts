@@ -1,3 +1,4 @@
+import { dropDuplicateHeading } from '@shared/headings'
 import { writeFile } from 'fs/promises'
 import { anchor } from '@shared/anchor'
 import type { Gap, StepId } from '@shared/playbook'
@@ -77,7 +78,9 @@ export function articleContent(a: ExistingArticle, levels: number, only?: string
     .filter((s) => !only || only.includes(s.heading.toLowerCase()))
     .map((s) => s.text)
   const parts = only ? kept : [intro, ...kept]
-  return demote(plainLinks(parts.filter(Boolean).join('\n\n')), levels).trim()
+  // Articles often repeat their title as the first body heading (REQUIREMENTS-v4.4 5).
+  const text = dropDuplicateHeading(parts.filter(Boolean).join('\n\n'), a.title)
+  return demote(plainLinks(text), levels).trim()
 }
 
 /** Competitor name (and aliases) to its category term, from each competitor article. */

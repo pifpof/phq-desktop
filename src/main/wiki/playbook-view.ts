@@ -12,6 +12,7 @@ import {
   type Statement,
   type StepId
 } from '@shared/playbook'
+import { cleanPlaybookMarkdown, dropDuplicateHeading } from '@shared/headings'
 import { parseScorecard, type Score } from '@shared/scorecard'
 import {
   applyCategoryTerms,
@@ -144,7 +145,8 @@ const MISSING_RE = /^Not written yet\./
 function readCards(
   md: string,
   step: PlaybookStep,
-  driverSlugs: Map<string, string>
+  driverSlugs: Map<string, string>,
+  company?: string
 ): { body: string; cards: Card[] } {
   if (!step.cardLabel) return { body: md, cards: [] }
   const label = step.cardLabel
@@ -160,9 +162,9 @@ function readCards(
     .filter((p) => isCard(p.heading))
     .map((p, i): Card => {
       const title = stripPrefix(p.heading, label)
-      const bs = blocks(p.text)
+      const bs = blocks(dropDuplicateHeading(p.text, title, company))
       const lead = bs[0] && isParagraph(bs[0]) ? bs[0] : ''
-      const rest = lead ? bs.slice(1).join('\n\n') : p.text
+      const rest = lead ? bs.slice(1).join('\n\n') : bs.join('\n\n')
       const fallback = bs.find(isParagraph) ?? ''
       return {
         id: `${step.id}-${i}`,
@@ -358,7 +360,8 @@ export function buildPlaybookView(input: ViewInput): PlaybookView {
     const missing = !raw || MISSING_RE.test(raw)
     const takeaways = readTakeaways(raw)
     const gap = readGap(raw)
-    let content = withoutTakeawaysAndGap(raw)
+    // A first heading that repeats the section title ("Value Drivers for Acme") goes (REQUIREMENTS-v4.4 5.1).
+    let content = dropDuplicateHeading(withoutTakeawaysAndGap(raw), step.title, input.company)
     let statement: Statement | null = null
     let after = ''
     let cards: Card[] = []
@@ -368,7 +371,7 @@ export function buildPlaybookView(input: ViewInput): PlaybookView {
       statement = s.statement
       after = s.after
     } else {
-      const c = readCards(content, step, driverSlugs)
+      const c = readCards(content, step, driverSlugs, input.company)
       content = c.body
       cards = c.cards
     }
@@ -388,7 +391,9 @@ export function buildPlaybookView(input: ViewInput): PlaybookView {
       cards,
       statement,
       after: promote(after),
-      markdown: raw ? `## ${step.title}\n\n${raw}`.trim() + '\n' : '',
+      markdown: raw
+        ? cleanPlaybookMarkdown(`## ${step.title}\n\n${raw}`, input.company).trim() + '\n'
+        : '',
       missing,
       meta: sectionMeta(step, input.articles, input.changes, input.scores)
     }
